@@ -1,4 +1,4 @@
-# Soroban Project
+# Normal v1 Stellar
 
 ## Project Structure
 
