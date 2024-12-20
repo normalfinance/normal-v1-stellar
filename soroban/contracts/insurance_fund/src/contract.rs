@@ -16,6 +16,8 @@ use crate::{
     storage_types::{ DataKey },
 };
 
+contractmeta!(key = "Description", val = "Staking vault used to cover protocol debt");
+
 #[contract]
 pub struct InsuranceFund;
 

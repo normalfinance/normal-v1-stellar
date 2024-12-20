@@ -17,6 +17,8 @@ fn check_nonnegative_amount(amount: i128) {
     }
 }
 
+contractmeta!(key = "Description", val = "Token representing ownership in an crypto index fund");
+
 #[contract]
 pub struct IndexToken;
 

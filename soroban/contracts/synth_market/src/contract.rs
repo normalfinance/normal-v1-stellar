@@ -2,7 +2,10 @@ use soroban_sdk::{ assert_with_error, contract, contractimpl, Address, Env };
 
 use crate::{ errors, storage::{ get_admin }, storage_types::{ DataKey } };
 
-contractmeta!(key = "Description", val = "Constant product AMM with a .3% swap fee");
+contractmeta!(
+    key = "Description",
+    val = "Synthetic asset tracking the value of another cryptocurrency"
+);
 
 #[contract]
 struct SynthMarket;
@@ -37,9 +40,9 @@ impl SynthMarket {
 
     pub fn init_shutdown(e: Env) -> u128 {}
 
-     pub fn update_debt_floor(e: Env) -> u128 {}
+    pub fn update_debt_floor(e: Env) -> u128 {}
 
-     pub fn update_debt_ceiling(e: Env) -> u128 {}
+    pub fn update_debt_ceiling(e: Env) -> u128 {}
 
     pub fn liquidate(e: Env, fee_rate: u128) -> u128 {}
 

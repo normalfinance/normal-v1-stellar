@@ -1,11 +1,14 @@
 use soroban_sdk::{ assert_with_error, contract, contractimpl, Address, Env };
 
 use crate::{ errors, storage::{ get_admin }, storage_types::{ DataKey } };
-// Metadata that is added on to the WASM custom section
-contractmeta!(key = "Description", val = "Constant product AMM with a .3% swap fee");
+
+contractmeta!(
+    key = "Description",
+    val = "Constant product AMM that maintains a synthetic asset peg"
+);
 
 #[contract]
-struct AMM;
+pub struct AMM;
 
 #[contractimpl]
 impl AMM {

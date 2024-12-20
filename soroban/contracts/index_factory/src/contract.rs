@@ -17,6 +17,8 @@ use crate::{
     storage_types::{ DataKey, Index },
 };
 
+contractmeta!(key = "Description", val = "Factory for creating new Indexes");
+
 #[contract]
 pub struct IndexFactory;
 

@@ -23,6 +23,8 @@ mod amm {
     );
 }
 
+contractmeta!(key = "Description", val = "Diversified exposure to a basket of cryptocurrencies");
+
 #[contract]
 pub struct Index;
 
