@@ -12,6 +12,11 @@ pub fn get_admin(e: &Env) -> Address {
     e.storage().instance().get(&DataKey::Admin).unwrap()
 }
 
+pub fn is_admin(e: &Env) {
+    let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    admin.require_auth();
+}
+
 // Stake
 
 // pub fn get_stake_by_address(e: &Env, authority: Address) -> Option<Stake> {
@@ -39,10 +44,17 @@ pub fn get_unstaking_period(e: &Env) -> i64 {
 
 // Paused operations
 
-pub fn set_paused_operations(e: &Env, paused_operations: u32) {
+pub fn set_paused_operations(e: &Env, paused_operations: Vec<Operation>) {
     e.storage().instance().set(&DataKey::PausedOperations, &paused_operations);
 }
 
-pub fn get_paused_operations(e: &Env) -> u32 {
-    e.storage().instance().get(&DataKey::PausedOperations).unwrap()
+pub fn get_paused_operations(e: &Env) -> Vec<Operation> {
+    e.storage()
+        .get::<Vec<PausedOperation>>(&DataKey::PausedOperations)
+        .unwrap_or_else(|| Vec::new(env));
+}
+
+pub fn is_operation_paused(e: &Env, operation: &Operation) -> bool {
+    let paused_operations = get_paused_operations(e);
+    paused_operations.contains(operation)
 }

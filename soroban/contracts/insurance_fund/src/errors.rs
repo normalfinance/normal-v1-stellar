@@ -3,9 +3,10 @@ use soroban_sdk::contracterror;
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
-pub enum Error {
+pub enum ErrorCode {
     InsuranceFundOperationPaused = 0,
     InvalidInsuranceFundAuthority = 1,
     InsufficientIFShares = 2,
     InvalidInsuranceUnstakeSize = 3,
+    OperationPaused = 4,
 }

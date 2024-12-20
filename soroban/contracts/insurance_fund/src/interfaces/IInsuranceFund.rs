@@ -13,7 +13,6 @@ pub trait IInsuranceFund {
 
     fn get_admin(e: Env) -> Address;
 
-    // IF
     fn get_max_insurance(e: Env) -> u64;
     fn set_max_insurance(e: Env, max_insurance: u64);
 
@@ -23,10 +22,6 @@ pub trait IInsuranceFund {
     fn get_unstaking_period(e: Env) -> i64;
     fn set_unstaking_period(e: Env, if_unstaking_period: i64);
 
-    // Staking
-    // fn init_stake(e: Env);
-    // fn add_stake(e: Env);
-    // fn request_remove_stake(e: Env);
-    // fn cancel_request_remove_stake(e: Env);
-    // fn remove_stake(e: Env);
+    fn stake(e: Env, to: Address, amount: i128);
+    fn unstake(e: Env, to: Address, amount: i128);
 }
