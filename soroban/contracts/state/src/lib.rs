@@ -33,7 +33,7 @@ pub struct State {
     pub protocol_index_fee_vault: Address,
     pub insurance_fund: Address,
     pub total_debt_ceiling: u64,
-   
+
     // tracks the number of User delegate authorities
     pub number_of_authorities: u64,
     // tracks the number of User sub-accounts used to partition Vaults
