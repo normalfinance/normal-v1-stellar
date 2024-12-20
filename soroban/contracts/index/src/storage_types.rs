@@ -1,5 +1,7 @@
 use soroban_sdk::{ contracttype, Address };
 
+pub(crate) const MAX_FEE_BASIS_POINTS: u32 = 1000; // Maximum fee: 10% (in basis points)
+
 #[derive(Clone, Copy)]
 #[repr(u32)]
 pub enum DataKey {

@@ -6,6 +6,7 @@ use crate::{
     storage::{ get_admin },
     storage_types::{ DataKey },
 };
+use crate::storage_types::{ MAX_FEE_BASIS_POINTS, DataKey };
 
 // workspace method
 // use soroban_workspace_contract_a_interface::ContractAClient;
@@ -29,33 +30,52 @@ pub struct Index;
 impl Index {
     fn init(
         e: Env,
+        token_wasm: BytesN<32>, // Bytecode hash of the IndexToken contract
         admin: Address,
+        token_contract: Address,
         name: String,
         assets: u64,
         privacy: bool,
-        expense_ratio: u64,
-        revenue_share: u64,
+        protocol_fee: u32,
+        manager_fee: u32,
+        revenue_share: u32,
         max_insurance: u64,
         whitelist: Vec<Address>,
         blacklist: Vec<Address>
     ) {
-        // todo: already initiazed check
-        //
+        if protocol_fee > MAX_FEE_BASIS_POINTS {
+            return Err(ErrorCode::InvalidFee);
+        }
+        if manager_fee > MAX_FEE_BASIS_POINTS {
+            return Err(ErrorCode::InvalidFee);
+        }
+
         set_admin(&e, admin);
-        set_max_insurance(&e, max_insurance);
-        set_unstaking_period(&e, unstaking_period);
         set_paused_operations(&e, paused_operations);
+
+        // Deploy the IndexToken contract
+        let index_token_address = e.deploy_contract(
+            &token_wasm, // WASM bytecode for the IndexToken contract
+            &e.current_contract_address() // Pass Index contract address to the IndexToken init function
+        );
+
+        // Save the IndexToken contract address
+        e.storage().persistent().set("index_token", index_token_address.clone());
     }
 
-    // fn get_admin(e: Env) -> Address {
-    //     get_admin(&e)
-    // }
-
     // Getters
+
+    fn get_admin(e: Env) -> Address {
+        get_admin(&e)
+    }
 
     // fn get_max_insurance(e: Env) -> u64 {
     //     get_max_insurance(&e)
     // }
+
+    pub fn get_index_token(e: Env) -> Address {
+        e.storage().persistent().get("index_token").unwrap()
+    }
 
     // Setters
 
@@ -105,6 +125,18 @@ impl Index {
         set_max_insurance(&e, max_insurance);
     }
 
+    fn collect_manager_fees(e: Env, blacklist: Vec<Address>) {
+        is_fund_admin(&e);
+        set_max_insurance(&e, max_insurance);
+    }
+
+    fn collect_revenue_share(e: Env, blacklist: Vec<Address>) {
+        is_fund_admin(&e);
+        set_max_insurance(&e, max_insurance);
+    }
+
+    // User
+
     fn mint_index_tokens(e: Env, to: Address, amount: u64) {
         to.require_auth();
 
@@ -122,8 +154,11 @@ impl Index {
         let index_tokens_to_mint = 0;
 
         // Mint index tokens
-        let client = MintClient::new(&env, &contract);
-        client.mint(&to, &index_tokens_to_mint);
+        let token_contract: Address = env.storage().get("token_contract").unwrap();
+        env.invoke_contract(&token_contract, &symbol_short!("mint"), (to.clone(), amount));
+
+        // let client = MintClient::new(&env, &contract);
+        // client.mint(&to, &index_tokens_to_mint);
     }
 
     fn redeem_index_tokens(e: Env, from: Address, amount: u64) {
@@ -134,6 +169,13 @@ impl Index {
         // Perform swaps
 
         // Transfer quote token back to user
+        let token_contract: Address = env.storage().get("token_contract").unwrap();
+        env.invoke_contract(&token_contract, &symbol_short!("transfer"), (
+            from.clone(),
+            env.current_contract_address(),
+            amount,
+        ));
+
         let token_quote_client = token::Client::new(&e, &get_token_quote(&e));
         token_quote_client.transfer(&from, &e.current_contract_address(), &amount);
     }
