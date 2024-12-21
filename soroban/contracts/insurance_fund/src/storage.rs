@@ -2,6 +2,24 @@ use soroban_sdk::{ Address, Env };
 
 use crate::storage_types::{ DataKey, Stake };
 
+// Governor
+
+pub fn is_governor(e: &Env) {
+    if e.invoker() != get_governor(e) {
+        return Err(ErrorCode:OnlyGovernor)
+    }
+    // TODO: do we need to auth the governor?
+    // governor.require_auth();
+}
+
+pub fn set_governor(e: &Env, governor: Address) {
+    e.storage().instance().set(&DataKey::Governor, &governor);
+}
+
+pub fn get_governor(e: &Env) -> Address {
+    e.storage().instance().get(&DataKey::Governor).unwrap()
+}
+
 // Admin
 
 pub fn set_admin(e: &Env, admin: Address) {

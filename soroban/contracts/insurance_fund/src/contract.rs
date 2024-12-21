@@ -25,6 +25,7 @@ pub struct InsuranceFund;
 impl IInsuranceFund for InsuranceFund {
     fn init(
         e: Env,
+        governor: Address,
         admin: Address,
         max_insurance: u64,
         unstaking_period: i64,
@@ -32,6 +33,7 @@ impl IInsuranceFund for InsuranceFund {
     ) {
         // todo: already initiazed check
         //
+        set_governor(&e, governor);
         set_admin(&e, admin);
         set_max_insurance(&e, max_insurance);
         set_unstaking_period(&e, unstaking_period);
@@ -47,12 +49,13 @@ impl IInsuranceFund for InsuranceFund {
     }
 
     fn set_max_insurance(e: Env, max_insurance: u64) {
+        is_governor(&e);
         is_admin(&e);
         set_max_insurance(&e, max_insurance);
     }
 
     fn get_unstaking_period(e: Env) -> i64 {
-        get_unstaking_period(&e)
+        get_unstaking_period(&e);
     }
 
     fn set_unstaking_period(e: Env, unstaking_period: i64) {
@@ -61,7 +64,7 @@ impl IInsuranceFund for InsuranceFund {
     }
 
     fn get_paused_operations(e: Env) -> Vec<Operation> {
-        get_paused_operations(&e)
+        get_paused_operations(&e);
     }
 
     fn set_paused_operations(e: Env, paused_operations: Vec<Operation>) {
