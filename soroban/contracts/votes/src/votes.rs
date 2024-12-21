@@ -53,7 +53,6 @@ pub trait Votes {
     fn delegate(e: Env, account: Address, delegatee: Address);
 }
 
-#[cfg(feature = "bonding")]
 pub trait Bonding {
     /// Setup the bonding votes contract
     ///

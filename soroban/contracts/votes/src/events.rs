@@ -1,4 +1,4 @@
-use soroban_sdk::{Address, Env, Symbol};
+use soroban_sdk::{ Address, Env, Symbol };
 
 pub struct TokenVotesEvents {}
 
@@ -29,7 +29,6 @@ impl TokenVotesEvents {
         e.events().publish(topics, new_admin);
     }
 
-    #[cfg(feature = "bonding")]
     /// Emitted when an account deposits tokens into the votes contract
     ///
     /// - topics - `["deposit", account: Address]`
@@ -39,7 +38,6 @@ impl TokenVotesEvents {
         e.events().publish(topics, amount);
     }
 
-    #[cfg(feature = "bonding")]
     /// Emitted when an account withdraws tokens from the votes contract
     ///
     /// - topics - `["withdraw", account: Address]`
@@ -49,7 +47,6 @@ impl TokenVotesEvents {
         e.events().publish(topics, amount);
     }
 
-    #[cfg(feature = "bonding")]
     /// Emitted when an account claims emissions
     ///
     /// - topics - `["claim", account: Address]`
@@ -59,7 +56,6 @@ impl TokenVotesEvents {
         e.events().publish(topics, amount);
     }
 
-    #[cfg(feature = "bonding")]
     /// Emitted when a new emission configuration is set
     ///
     /// - topics - `["set_emissions", eps: u64, expiration: u64]`

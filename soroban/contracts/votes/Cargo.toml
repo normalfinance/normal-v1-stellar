@@ -1,6 +1,6 @@
 [package]
 name = "votes"
-version = "1.1.1"
+version = "0.1.0"
 authors = [
     "Script3 Ltd. <gm@script3.io>",
     "Joshua Blew <joshua@normalfinance.io>",
@@ -14,9 +14,7 @@ crate-type = ["cdylib", "rlib"]
 doctest = false
 
 [features]
-default = ["bonding"]
 testutils = ["soroban-sdk/testutils"]
-bonding = []
 sep-0041 = []
 
 

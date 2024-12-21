@@ -12,7 +12,6 @@ mod constants;
 mod contract;
 mod error;
 
-#[cfg(feature = "bonding")]
 mod emissions;
 
 mod events;
