@@ -71,7 +71,6 @@ pub fn burn_balance(e: &Env, from: &Address, amount: i128) {
     }
 }
 
-#[cfg(feature = "sep-0041")]
 pub fn transfer_balance(e: &Env, from: &Address, to: &Address, amount: i128) {
     if amount > 0 {
         let from_balance = storage::get_balance(e, from);

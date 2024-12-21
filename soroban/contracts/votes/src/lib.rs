@@ -3,7 +3,6 @@
 #[cfg(any(test, feature = "testutils"))]
 extern crate std;
 
-#[cfg(feature = "sep-0041")]
 mod allowance;
 
 mod balance;

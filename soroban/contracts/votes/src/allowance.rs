@@ -1,5 +1,3 @@
-#![cfg(feature = "sep-0041")]
-
 use crate::{error::TokenVotesError, storage};
 use soroban_sdk::{panic_with_error, Address, Env};
 

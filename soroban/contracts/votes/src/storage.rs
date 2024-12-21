@@ -250,7 +250,6 @@ pub fn set_delegate(e: &Env, address: &Address, delegatee: &Address) {
 
 // Allowance
 
-#[cfg(feature = "sep-0041")]
 pub fn get_allowance(e: &Env, from: &Address, spender: &Address) -> AllowanceValue {
     let key = DataKey::Allowance(AllowanceDataKey {
         from: from.clone(),
@@ -263,7 +262,6 @@ pub fn get_allowance(e: &Env, from: &Address, spender: &Address) -> AllowanceVal
     })
 }
 
-#[cfg(feature = "sep-0041")]
 pub fn set_allowance(
     e: &Env,
     from: &Address,
