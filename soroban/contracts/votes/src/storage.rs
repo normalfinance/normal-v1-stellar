@@ -30,9 +30,6 @@ const TOTAL_SUPPLY_KEY: Symbol = symbol_short!("SUPPLY");
 const TOTAL_SUPPLY_CHECK_KEY: Symbol = symbol_short!("SPLYCHECK");
 const VOTE_LEDGERS_KEY: Symbol = symbol_short!("VOTE_SEQ");
 
-#[cfg(not(feature = "bonding"))]
-const ADMIN_KEY: Symbol = symbol_short!("ADMIN");
-
 const TOKEN_KEY: Symbol = symbol_short!("TOKEN");
 const EMIS_CONFIG: Symbol = symbol_short!("EMIS_CFG");
 const EMIS_DATA: Symbol = symbol_short!("EMIS_DATA");
@@ -162,18 +159,6 @@ pub fn get_metadata(e: &Env) -> TokenMetadata {
 
 pub fn set_metadata(e: &Env, metadata: &TokenMetadata) {
     e.storage().instance().set(&METADATA_KEY, metadata);
-}
-
-// --- Admin
-
-#[cfg(not(feature = "bonding"))]
-pub fn get_admin(e: &Env) -> Address {
-    e.storage().instance().get(&ADMIN_KEY).unwrap_optimized()
-}
-
-#[cfg(not(feature = "bonding"))]
-pub fn set_admin(e: &Env, address: &Address) {
-    e.storage().instance().set(&ADMIN_KEY, address);
 }
 
 // --- Wrapped Token

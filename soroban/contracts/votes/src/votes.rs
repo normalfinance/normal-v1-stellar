@@ -95,42 +95,6 @@ pub trait Bonding {
     fn set_emis(e: Env, tokens: i128, expiration: u64);
 }
 
-#[cfg(not(feature = "bonding"))]
-pub trait Admin {
-    /// Setup the votes contract
-    ///
-    /// ### Arguments
-    /// * `admin` - The address of the admin of the votes contract
-    /// * `governor`- The address of the Governor contract the votes apply to
-    /// * `decimal` - The number of decimal places for the voting token
-    /// * `name` - The name of the voting token
-    /// * `symbol` - The symbol of the voting token
-    fn initialize(
-        e: Env,
-        admin: Address,
-        governor: Address,
-        decimal: u32,
-        name: String,
-        symbol: String,
-    );
-
-    /// (Admin only) Mint tokens to an address
-    ///
-    /// ### Arguments
-    /// * `from` - The address of the account to deposit for
-    /// * `amount` - The amount of underlying tokens to deposit
-    fn mint(e: Env, to: Address, amount: i128);
-
-    /// (Admin only) Set the admin of the token to a new address
-    ///
-    /// ### Arguments
-    /// * `new_admin` - The address of the new admin
-    fn set_admin(e: Env, new_admin: Address);
-
-    /// Get the admin of the token
-    fn admin(e: Env) -> Address;
-}
-
 #[cfg(not(feature = "sep-0041"))]
 pub trait TokenData {
     /// Returns the balance of `id`.

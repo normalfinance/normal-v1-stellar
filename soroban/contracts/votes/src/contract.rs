@@ -27,13 +27,6 @@ use crate::allowance::{ create_allowance, spend_allowance };
 use crate::{ emissions::{ claim_emissions, set_emissions }, votes::Bonding };
 use soroban_sdk::token::TokenClient;
 
-// Admin (Bonding not enabled) Feature imports
-
-#[cfg(not(feature = "bonding"))]
-use crate::votes::Admin;
-#[cfg(not(feature = "bonding"))]
-use soroban_sdk::Symbol;
-
 // Token Data Feature imports (SEP-0041 not enabled)
 
 #[cfg(not(feature = "sep-0041"))]
@@ -265,59 +258,6 @@ impl Bonding for TokenVotes {
 
         let total_supply = storage::get_total_supply(&e).to_checkpoint_data().1;
         set_emissions(&e, total_supply, tokens, expiration);
-    }
-}
-
-#[cfg(not(feature = "bonding"))]
-#[contractimpl]
-impl Admin for TokenVotes {
-    fn initialize(
-        e: Env,
-        admin: Address,
-        governor: Address,
-        decimal: u32,
-        name: String,
-        symbol: String
-    ) {
-        if storage::get_is_init(&e) {
-            panic_with_error!(e, TokenVotesError::AlreadyInitializedError);
-        }
-        storage::extend_instance(&e);
-
-        storage::set_admin(&e, &admin);
-        storage::set_governor(&e, &governor);
-        let token_metadata = TokenMetadata {
-            decimal,
-            name,
-            symbol,
-        };
-        storage::set_metadata(&e, &token_metadata);
-        storage::set_is_init(&e);
-    }
-
-    fn mint(e: Env, to: Address, amount: i128) {
-        require_nonnegative_amount(&e, amount);
-        let admin = storage::get_admin(&e);
-        admin.require_auth();
-        storage::extend_instance(&e);
-
-        balance::mint_balance(&e, &to, amount);
-
-        TokenEvents::mint(&e, admin, to, amount);
-    }
-
-    fn set_admin(e: Env, new_admin: Address) {
-        let admin = storage::get_admin(&e);
-        admin.require_auth();
-        storage::extend_instance(&e);
-
-        storage::set_admin(&e, &new_admin);
-
-        TokenVotesEvents::set_admin(&e, admin, new_admin);
-    }
-
-    fn admin(e: Env) -> Address {
-        storage::get_admin(&e)
     }
 }
 
