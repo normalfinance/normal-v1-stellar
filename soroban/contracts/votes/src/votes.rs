@@ -122,14 +122,6 @@ pub trait Admin {
     /// * `amount` - The amount of underlying tokens to deposit
     fn mint(e: Env, to: Address, amount: i128);
 
-    /// (Admin only) Burn tokens from an address
-    ///
-    /// ### Arguments
-    /// * `from` - The address of the account to burn from
-    /// * `amount` - The amount of tokens to burn
-    #[cfg(feature = "clawback")]
-    fn clawback(e: Env, from: Address, amount: i128);
-
     /// (Admin only) Set the admin of the token to a new address
     ///
     /// ### Arguments

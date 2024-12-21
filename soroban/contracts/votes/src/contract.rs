@@ -322,19 +322,6 @@ impl Admin for TokenVotes {
         TokenEvents::mint(&e, admin, to, amount);
     }
 
-    #[cfg(feature = "clawback")]
-    fn clawback(e: Env, from: Address, amount: i128) {
-        require_nonnegative_amount(&e, amount);
-        let admin = storage::get_admin(&e);
-        admin.require_auth();
-        storage::extend_instance(&e);
-
-        balance::burn_balance(&e, &from, amount);
-
-        let topics = (Symbol::new(&e, "clawback"), from);
-        e.events().publish(topics, amount);
-    }
-
     fn set_admin(e: Env, new_admin: Address) {
         let admin = storage::get_admin(&e);
         admin.require_auth();

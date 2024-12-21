@@ -18,7 +18,6 @@ default = ["bonding"]
 testutils = ["soroban-sdk/testutils"]
 bonding = []
 sep-0041 = []
-clawback = []
 
 
 [dependencies]
