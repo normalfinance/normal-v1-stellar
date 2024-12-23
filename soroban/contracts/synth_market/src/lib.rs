@@ -1,5 +1,6 @@
 #![no_std]
 
+pub mod constants;
 mod contract;
 mod errors;
 mod interfaces;
