@@ -161,6 +161,35 @@ impl Index {
         // Execute swaps
         let amm = amm::Client::new(&e, &get_amm(&e));
 
+        for acc_a in swaps_a.iter() {
+            let swap_client = atomic_swap::Client::new(&env, &swap_contract);
+            for i in 0..swaps_b.len() {
+                let acc_b = swaps_b.get(i).unwrap();
+
+                if acc_a.amount >= acc_b.min_recv && acc_a.min_recv <= acc_b.amount {
+                    // As this is a simple 'batching' contract, there is no need
+                    // for all swaps to succeed, hence we handle the failures
+                    // gracefully to try and clear as many swaps as possible.
+                    if swap_client
+                        .try_swap(
+                            &acc_a.address,
+                            &acc_b.address,
+                            &token_a,
+                            &token_b,
+                            &acc_a.amount,
+                            &acc_a.min_recv,
+                            &acc_b.amount,
+                            &acc_b.min_recv,
+                        )
+                        .is_ok()
+                    {
+                        swaps_b.remove(i);
+                        break;
+                    }
+                }
+            }
+        }
+
         // Compute appropriate # of index tokens
         let index_tokens_to_mint = 0;
 
