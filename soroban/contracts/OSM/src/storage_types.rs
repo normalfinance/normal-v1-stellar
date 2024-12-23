@@ -21,7 +21,9 @@ pub enum DataKey {
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Default)]
 pub enum OracleSource {
+    Band,
     Reflector,
+    Dia,
     QuoteAsset,
 }
 
