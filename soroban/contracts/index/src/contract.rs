@@ -5,6 +5,7 @@ use crate::{
     interfaces::{ IInsuranceFund::IInsuranceFund },
     storage::{ get_admin },
     storage_types::{ DataKey },
+    events:IndexEvents
 };
 use crate::storage_types::{ MAX_FEE_BASIS_POINTS, DataKey };
 
@@ -63,6 +64,14 @@ impl Index {
 
         // Save the IndexToken contract address
         e.storage().persistent().set("index_token", index_token_address.clone());
+
+        IndexEvents::index_created(
+            &e,
+            creator,
+            index_id,
+            name,
+            symbol,
+        );
     }
 
     // Getters
@@ -161,6 +170,13 @@ impl Index {
 
         // let client = MintClient::new(&env, &contract);
         // client.mint(&to, &index_tokens_to_mint);
+
+        IndexEvents::index_minted(
+            &e,
+            index_id,
+            to,
+            amount,
+        );
     }
 
     fn redeem_index_tokens(e: Env, from: Address, amount: u64) {
@@ -180,6 +196,13 @@ impl Index {
 
         let token_quote_client = token::Client::new(&e, &get_token_quote(&e));
         token_quote_client.transfer(&from, &e.current_contract_address(), &amount);
+
+        IndexEvents::index_redeemed(
+            &e,
+            index_id,
+            from,
+            amount,
+        );
     }
 
     fn rebalance_index(e: Env) {

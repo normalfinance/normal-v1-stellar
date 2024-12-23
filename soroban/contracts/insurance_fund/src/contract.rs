@@ -14,6 +14,7 @@ use crate::{
         set_paused_operations,
     },
     storage_types::{ DataKey },
+    events:InsuranceEvents
 };
 
 contractmeta!(key = "Description", val = "Staking vault used to cover protocol debt");
@@ -38,6 +39,13 @@ impl IInsuranceFund for InsuranceFund {
         set_max_insurance(&e, max_insurance);
         set_unstaking_period(&e, unstaking_period);
         set_paused_operations(&e, paused_operations);
+
+        InsuranceEvents::insurance_fund_initialization(
+            &e,
+            index_id,
+            from,
+            amount,
+        );
     }
 
     fn get_admin(e: Env) -> Address {
@@ -88,6 +96,13 @@ impl IInsuranceFund for InsuranceFund {
         //  ...
 
         mint_shares(&e, to, new_total_shares - total_shares);
+
+        InsuranceEvents::stake(
+            &e,
+            to,
+            '',
+            amount,
+        );
     }
 
     fn unstake(e: Env, to: Address, share_amount: i128) -> i128 {
@@ -112,6 +127,13 @@ impl IInsuranceFund for InsuranceFund {
         burn_shares(&e, balance_shares);
         transfer_a(&e, to.clone(), out_a);
         put_reserve_a(&e, balance_a - out_a);
+
+        InsuranceEvents::unstake(
+            &e,
+            to,
+            '',
+            amount,
+        );
 
         out_a;
     }

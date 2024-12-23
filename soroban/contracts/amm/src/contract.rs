@@ -1,6 +1,6 @@
 use soroban_sdk::{ assert_with_error, contract, contractimpl, Address, Env };
 
-use crate::{ errors, storage::{ get_admin }, storage_types::{ DataKey } };
+use crate::{ errors, storage::{ get_admin }, storage_types::{ DataKey }, events:AMMEvents };
 
 contractmeta!(
     key = "Description",
@@ -50,6 +50,13 @@ impl AMM {
 
         put_fee_rate(&e, fee_rate);
         put_protocol_fee_rate(&e, protocol_fee_rate);
+
+        AMMEvents::init(
+            &e,
+            index_id,
+            from,
+            amount,
+        );
     }
 
     // Returns the token contract address for the pool share token
@@ -135,6 +142,13 @@ impl AMM {
         mint_shares(&e, to, new_total_shares - total_shares);
         put_reserve_a(&e, balance_a);
         put_reserve_b(&e, balance_b);
+
+        AMMEvents::add_liquidity(
+            &e,
+            to,
+            amount_a,
+            amount_b,
+        );
     }
 
     pub fn collect_fees(e: Env, to: Address, fee_amount: i128) -> (i128, i128) {
@@ -149,6 +163,12 @@ impl AMM {
 
         transfer_a(&e, to.clone(), fee_owed_a);
         transfer_b(&e, to, fee_owed_b);
+
+        AMMEvents::collect_fees(
+            &e,
+            to,
+            amount,
+        );
 
         (fee_owed_a, fee_owed_b)
     }
@@ -187,6 +207,13 @@ impl AMM {
         transfer_b(&e, to, out_b);
         put_reserve_a(&e, balance_a - out_a);
         put_reserve_b(&e, balance_b - out_b);
+
+        AMMEvents::remove_liquidity(
+            &e,
+            to,
+            out_a,
+            out_b,
+        );
 
         (out_a, out_b)
     }
@@ -265,6 +292,12 @@ impl AMM {
 
         put_reserve_a(&e, new_reserve_a);
         put_reserve_b(&e, new_reserve_b);
+
+        AMMEvents::swap(
+            &e,
+            to,
+            buy_a, out, in_max
+        );
     }
 
     pub fn get_rsrvs(e: Env) -> (i128, i128) {

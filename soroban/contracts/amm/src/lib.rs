@@ -2,6 +2,7 @@
 
 mod contract;
 mod errors;
+mod events;
 mod interfaces;
 mod storage;
 mod storage_types;
