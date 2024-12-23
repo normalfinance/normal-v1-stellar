@@ -4,15 +4,12 @@
 extern crate std;
 
 mod allowance;
-
 mod balance;
 mod checkpoints;
 mod constants;
 mod contract;
 mod error;
-
 mod emissions;
-
 mod events;
 mod storage;
 mod validation;
