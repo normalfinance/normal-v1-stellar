@@ -13,10 +13,28 @@ contractmeta!(
 );
 
 #[contract]
-struct SynthMarketContract;
+pub struct SynthMarket;
+
+pub trait SynthMarketTrait {
+    // Sets the token contract addresses for this pool
+    // token_wasm_hash is the WASM hash of the deployed token contract for the pool share token
+    #[allow(clippy::too_many_arguments)]
+    fn initialize(
+        env: Env,
+        stake_wasm_hash: BytesN<32>,
+        token_wasm_hash: BytesN<32>,
+        lp_init_info: LiquidityPoolInitInfo,
+        factory_addr: Address,
+        share_token_decimals: u32,
+        share_token_name: String,
+        share_token_symbol: String,
+        default_slippage_bps: i64,
+        max_allowed_fee_bps: i64
+    );
+}
 
 #[contractimpl]
-impl SynthMarket for SynthMarketContract {
+impl SynthMarketTrait for SynthMarket {
     pub fn __constructor(e: Env, reflector_contract_id: Address, token_wasm_hash: BytesN<32>) {
         // create the price oracle client instance
         let reflector_contract = PriceOracleClient::new(&env, &reflector_contract_id);

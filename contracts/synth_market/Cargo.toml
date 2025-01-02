@@ -1,0 +1,18 @@
+[package]
+name = "synth_market"
+version = { workspace = true }
+authors = ["jblewnormal <joshua@normalfinance.io>"]
+repository = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+
+[lib]
+crate-type = ["cdylib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+num-integer = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }

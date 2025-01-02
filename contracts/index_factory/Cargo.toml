@@ -1,8 +1,10 @@
 [package]
 name = "index_factory"
-version = "0.0.0"
-edition = "2021"
-publish = false
+version = { workspace = true }
+authors = ["Jakub <jakub@moonbite.space>"]
+repository = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [lib]
 crate-type = ["cdylib"]

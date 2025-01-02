@@ -1,8 +1,9 @@
 use soroban_sdk::{ symbol_short, vec, Address, BytesN, Env, Val, Vec };
+use soroban_workspace_contract_a_interface::ContractAClient;
 
-pub mod IIndex {
-    soroban_sdk::contractimport!(file = "../../target/wasm32-unknown-unknown/release/pair.wasm");
-}
+// pub mod IIndex {
+//     soroban_sdk::contractimport!(file = "../../target/wasm32-unknown-unknown/release/pair.wasm");
+// }
 
 pub fn deploy_index(e: Env, name: String) -> (Address, Val) {
     let wasm_hash = e.deployer().upload_contract_wasm(IIndex::WASM);
