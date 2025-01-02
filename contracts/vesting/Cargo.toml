@@ -1,0 +1,26 @@
+[package]
+name = "phoenix-vesting"
+version = { workspace = true }
+authors = ["Jakub <jakub@moonbite.space>", "Kaloyan <kaloyan@moonbite.space>"]
+repository = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+
+[features]
+# Enables minter feature on the vesting contract
+# if enabled, a specified address can mint/burn tokens
+minter = []
+default = []
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-decimal = { workspace = true }
+curve = { workspace = true }
+phoenix = { workspace = true }
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+curve = { workspace = true, features = ["testutils"] }
+soroban-sdk = { workspace = true, features = ["testutils"] }
