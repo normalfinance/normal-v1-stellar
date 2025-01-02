@@ -1,6 +1,6 @@
 use soroban_sdk::{ assert_with_error, contract, contractimpl, Address, Env };
 
-use crate::{ errors, storage::{ get_admin }, storage_types::{ DataKey } };
+use crate::{ errors, storage::{ get_admin }, storage_types::{ DataKey }, events::OracleSecurityModuleEvents };
 
 contractmeta!(
     key = "Description",
@@ -28,15 +28,39 @@ impl OracleSecurityModule {
 
     pub fn update_reflector_oracle(e: Env) -> u128 {}
 
-    pub fn freeze_oracle(e: Env) -> u128 {}
+    pub fn freeze_oracle(e: Env) -> u128 {
 
-    pub fn unfreeze_oracle(e: Env) -> u128 {}
+        OracleSecurityModuleEvents::update_oracle_status(
+            &e,
+            to,
+            '',
+            amount,
+        )
+    }
+
+    pub fn unfreeze_oracle(e: Env) -> u128 {
+
+        OracleSecurityModuleEvents::update_oracle_status(
+            &e,
+            to,
+            '',
+            amount,
+        )
+    }
 
     pub fn update_oracle_guard_rails(e: Env) -> u128 {}
 
     pub fn update_twap(e: Env) -> u128 {}
 
-    pub fn update_emergency_oracles(e: Env) -> u128 {}
+    pub fn update_emergency_oracles(e: Env) -> u128 {
+
+        OracleSecurityModuleEvents::update_emergency_oracles(
+            &e,
+            to,
+            '',
+            amount,
+        )
+    }
 
     pub fn max_oracle_twap_5min_percent_divergence(&e) -> u64 {
         e.price_divergence.oracle_twap_5min_percent_divergence.max(PERCENTAGE_PRECISION_U64 / 2)
