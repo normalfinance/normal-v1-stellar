@@ -10,8 +10,13 @@ contractmeta!(
 #[contract]
 pub struct Scheduler;
 
+pub trait SchedulerTrait {
+
+
+}
+
 #[contractimpl]
-impl Schedule for Scheduler {
+impl SchedulerTrait for Scheduler {
     pub fn __constructor(e: Env) {
         put_oracle_contract_id(&e, oracle_contract_id);
     }

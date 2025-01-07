@@ -1,5 +1,5 @@
 [package]
-name = "phoenix-vesting"
+name = "normal-vesting"
 version = { workspace = true }
 authors = ["Jakub <jakub@moonbite.space>", "Kaloyan <kaloyan@moonbite.space>"]
 repository = { workspace = true }
@@ -18,7 +18,7 @@ crate-type = ["cdylib"]
 [dependencies]
 soroban-decimal = { workspace = true }
 curve = { workspace = true }
-phoenix = { workspace = true }
+normal = { workspace = true }
 soroban-sdk = { workspace = true }
 
 [dev-dependencies]

@@ -21,7 +21,7 @@ pub enum DataKey {
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Default)]
 pub enum OracleSource {
-    Band,
+    Band, // (https://github.com/bandprotocol/band-std-reference-contracts-soroban/tree/main)
     Reflector,
     Dia,
     QuoteAsset,

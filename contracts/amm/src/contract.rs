@@ -10,9 +10,24 @@ contractmeta!(
 #[contract]
 pub struct AMM;
 
+pub trait AMMTrait {
+    fn initialize(
+        env: Env,
+        stake_wasm_hash: BytesN<32>,
+        token_wasm_hash: BytesN<32>,
+        lp_init_info: LiquidityPoolInitInfo,
+        factory_addr: Address,
+        share_token_decimals: u32,
+        share_token_name: String,
+        share_token_symbol: String,
+        default_slippage_bps: i64,
+        max_allowed_fee_bps: i64,
+    );
+}
+
 #[contractimpl]
-impl AMM {
-    pub fn __constructor(
+impl AMMTrait for AMM {
+    fn initialize(
         e: Env,
         token_wasm_hash: BytesN<32>,
         token_a: Address,

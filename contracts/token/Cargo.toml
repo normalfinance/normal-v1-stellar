@@ -1,16 +1,15 @@
 [package]
-name = "user"
-version = "0.0.0"
+name = "soroban-token-contract"
+description = "Soroban standard token contract"
+version = "0.0.6"
 edition = "2021"
-publish = false
 
 [lib]
 crate-type = ["cdylib"]
-doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
-num-integer = { version = "0.1.45", default-features = false, features = ["i128"] }
+soroban-token-sdk = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

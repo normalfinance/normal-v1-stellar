@@ -11,6 +11,7 @@ repository = "https://github.com/normalfinance/normal-v1-stellar-contracts"
 [workspace.dependencies]
 soroban-sdk = "22.0.4"
 soroban-token-sdk = "22.0.4"
+curve = { path = "./packages/curve" }
 normal = { path = "./packages/normal" }
 num-integer = { version = "0.1.45", default-features = false, features = [
     "i128",

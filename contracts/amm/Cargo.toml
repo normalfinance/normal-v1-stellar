@@ -1,8 +1,9 @@
 [package]
-name = "amm"
-version = "0.0.0"
-edition = "2021"
-publish = false
+name = "normal-amm"
+authors = ["jblewnormal <joshua@normalfinance.io>"]
+repository = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [lib]
 crate-type = ["cdylib"]
