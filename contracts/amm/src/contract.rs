@@ -1,7 +1,46 @@
-use soroban_sdk::{ assert_with_error, contract, contractimpl, Address, Env };
+use soroban_sdk::{
+    contract,
+    contractimpl,
+    contractmeta,
+    log,
+    panic_with_error,
+    Address,
+    BytesN,
+    Env,
+    String,
+    U256,
+};
 
-use crate::{ errors, storage::{ get_admin }, storage_types::{ DataKey }, events:AMMEvents };
+use num_integer::Roots;
 
+use crate::{
+    error::ContractError,
+    stake_contract,
+    storage::{
+        get_config,
+        get_default_slippage_bps,
+        save_config,
+        save_default_slippage_bps,
+        utils::{ self, get_admin_old, is_initialized, set_initialized },
+        Asset,
+        ComputeSwap,
+        Config,
+        LiquidityPoolInfo,
+        PairType,
+        PoolResponse,
+        SimulateReverseSwapResponse,
+        SimulateSwapResponse,
+        ADMIN,
+    },
+    token_contract,
+};
+use normal::{
+    ttl::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD },
+    utils::{ convert_i128_to_u128, is_approx_ratio, AMMParams },
+    validate_bps,
+    validate_int_parameters,
+};
+use soroban_decimal::Decimal;
 contractmeta!(
     key = "Description",
     val = "Constant product AMM that maintains a synthetic asset peg"
@@ -10,130 +49,231 @@ contractmeta!(
 #[contract]
 pub struct AMM;
 
-pub trait AMMTrait {
+#[contractimpl]
+impl AMMTrait for AMM {
+    #[allow(clippy::too_many_arguments)]
     fn initialize(
-        env: Env,
-        stake_wasm_hash: BytesN<32>,
+        e: Env,
         token_wasm_hash: BytesN<32>,
-        lp_init_info: LiquidityPoolInitInfo,
-        factory_addr: Address,
+        params: AMMParams,
         share_token_decimals: u32,
         share_token_name: String,
         share_token_symbol: String,
         default_slippage_bps: i64,
-        max_allowed_fee_bps: i64,
-    );
-}
-
-#[contractimpl]
-impl AMMTrait for AMM {
-    fn initialize(
-        e: Env,
-        token_wasm_hash: BytesN<32>,
-        token_a: Address,
-        token_b: Address,
-        initial_sqrt_price: u128,
-        fee_rate: u16,
-        protocol_fee_rate: u16
+        max_allowed_fee_bps: i64
     ) {
-        if token_a >= token_b {
+        if is_initialized(&e) {
+            log!(&e, "Pool: Initialize: initializing contract twice is not allowed");
+            panic_with_error!(&e, ContractError::AlreadyInitialized);
+        }
+
+        validate_bps!(
+            params.fee_rate,
+            params.protocol_fee_rate,
+            max_allowed_slippage_bps,
+            max_allowed_spread_bps,
+            max_allowed_variance_bps,
+            default_slippage_bps,
+            max_allowed_fee_bps
+        );
+
+        if params.token_a >= params.token_b {
             panic!("token_a must be less than token_b");
         }
 
-        if !(MIN_SQRT_PRICE_X64..=MAX_SQRT_PRICE_X64).contains(&sqrt_price) {
-            return Err(ErrorCode::SqrtPriceOutOfBounds.into());
-        }
+        // if !(MIN_SQRT_PRICE_X64..=MAX_SQRT_PRICE_X64).contains(&sqrt_price) {
+        //     return Err(ErrorCode::SqrtPriceOutOfBounds.into());
+        // }
 
-        if fee_rate > MAX_FEE_RATE {
-            return Err(ErrorCode::FeeRateMaxExceeded.into());
-        }
-        if protocol_fee_rate > MAX_PROTOCOL_FEE_RATE {
-            return Err(ErrorCode::ProtocolFeeRateMaxExceeded.into());
-        }
+        // if fee_rate > MAX_FEE_RATE {
+        //     return Err(ErrorCode::FeeRateMaxExceeded.into());
+        // }
+        // if protocol_fee_rate > MAX_PROTOCOL_FEE_RATE {
+        //     return Err(ErrorCode::ProtocolFeeRateMaxExceeded.into());
+        // }
 
-        let share_contract = create_share_token(&e, token_wasm_hash, &token_a, &token_b);
-
-        put_token_a(&e, token_a);
-        put_token_b(&e, token_b);
-        // put_token_share(&e, share_contract);
-        // put_total_shares(&e, 0);
-        put_reserve_a(&e, 0);
-        put_reserve_b(&e, 0);
-
-        put_sqrt_price(&e, initial_sqrt_price);
-        put_liquidity(&e, 0);
-
-        put_fee_rate(&e, fee_rate);
-        put_protocol_fee_rate(&e, protocol_fee_rate);
-
-        AMMEvents::init(
+        // deploy and initialize token contract
+        let share_token_address = utils::deploy_token_contract(
             &e,
-            index_id,
-            from,
-            amount,
+            token_wasm_hash.clone(),
+            &params.token_a,
+            &params.token_b,
+            e.current_contract_address(),
+            share_token_decimals,
+            share_token_name,
+            share_token_symbol
         );
+
+        let config = Config {
+            token_a: params.token_a.clone(),
+            token_b: params.token_b.clone(),
+            share_token: share_token_address,
+
+            tick_arrays: [],
+            sqrt_price: initial_sqrt_price,
+            liquidity: 0,
+            tick_spacing,
+
+            positions: [],
+
+            fee_rate,
+            protocol_fee_rate,
+            protocol_fee_owed_synthetic: 0,
+            protocol_fee_owed_quote: 0,
+            fee_growth_global_synthetic: 0,
+            fee_growth_global_quote: 0,
+
+            max_allowed_slippage_bps,
+            max_allowed_spread_bps,
+            max_allowed_variance_bps,
+
+            reward_last_updated_timestamp: 0,
+            reward_infos: [RewardInfo::new(state.reward_emissions_super_authority); MAX_REWARDS],
+        };
+
+        save_config(&e, config);
+        save_default_slippage_bps(&e, default_slippage_bps);
+
+        utils::save_admin_old(&e, admin);
+        utils::save_total_shares(&e, 0);
+        utils::save_pool_balance_a(&e, 0);
+        utils::save_pool_balance_b(&e, 0);
+
+        AMMEvents::initialize(&e, index_id, from, amount);
     }
 
-    // Returns the token contract address for the pool share token
-    pub fn share_id(e: Env) -> Address {
-        get_token_share(&e)
-    }
-
-    pub fn set_fee_rate(e: Env, fee_rate: u128) -> u128 {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    #[allow(clippy::too_many_arguments)]
+    fn update_config(
+        e: Env,
+        new_admin: Option<Address>,
+        fee_rate: Option<i64>,
+        protocol_fee_rate: Option<i64>,
+        max_allowed_slippage_bps: Option<i64>,
+        max_allowed_spread_bps: Option<i64>,
+        max_allowed_variance_bps: Option<i64>
+    ) {
+        let admin: Address = utils::get_admin_old(&env);
         admin.require_auth();
-        set_fee_rate(&e, fee_rate);
-    }
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-    pub fn set_protocol_fee_rate(e: Env, protocol_fee_rate: u128) -> u128 {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
-        admin.require_auth();
-        set_protocol_fee_rate(&e, protocol_fee_rate);
+        let mut config = get_config(&env);
+
+        // Admin
+        if let Some(new_admin) = new_admin {
+            utils::save_admin_old(&env, new_admin);
+        }
+
+        // Fees
+        if let Some(fee_rate) = fee_rate {
+            validate_bps!(fee_rate);
+            config.fee_rate = fee_rate;
+        }
+        if let Some(protocol_fee_rate) = protocol_fee_rate {
+            validate_bps!(protocol_fee_rate);
+            config.protocol_fee_rate = protocol_fee_rate;
+        }
+
+        // Slippage
+        if let Some(max_allowed_slippage_bps) = max_allowed_slippage_bps {
+            validate_bps!(max_allowed_slippage_bps);
+            config.max_allowed_slippage_bps = max_allowed_slippage_bps;
+        }
+
+        // Spread
+        if let Some(max_allowed_spread_bps) = max_allowed_spread_bps {
+            validate_bps!(max_allowed_spread_bps);
+            config.max_allowed_spread_bps = max_allowed_spread_bps;
+        }
+
+        // Variance
+        if let Some(max_allowed_variance_bps) = max_allowed_variance_bps {
+            validate_bps!(max_allowed_variance_bps);
+            config.max_allowed_variance_bps = max_allowed_variance_bps;
+        }
+
+        save_config(&env, config);
     }
 
     pub fn reset_oracle_twap(e: Env) -> u128 {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
-        // set_fee_rate(&e, fee_rate);
     }
 
     pub fn update_oracle_twap(e: Env) -> u128 {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
-        // set_fee_rate(&e, fee_rate);
     }
 
-    // Deposits token_a and token_b. Also mints pool shares for the "to" Identifier. The amount minted
-    // is determined based on the difference between the reserves stored by this contract, and
-    // the actual balance of token_a and token_b for this contract.
-    pub fn deposit(
+    pub fn initialize_reward(e: Env, token_reward: Address) {
+        // Check not exceeding max rewards
+        if index >= NUM_REWARDS {
+            return Err(ErrorCode::InvalidRewardIndex.into());
+        }
+
+        let reward = AMMRewardInfo {
+            token: token_reward,
+            emissions_per_second_x64: 0,
+            growth_global_x64: 0,
+        };
+
+        increase_rewards_length(&e);
+        set_reward(&e, 0, reward);
+    }
+
+    pub fn set_reward_emissions(e: Env, reward_index: u8, emissions_per_second_x64: u128) {
+        let reward = get_reward_by_id(&e, id);
+
+        // ...
+
+        set_reward_emissions(&e, id, emissions_per_second_x64);
+    }
+
+    // User
+
+    fn create_position(e: Env, tick_lower_index: i32, tick_upper_index: i32) {
+        let new_position = Position {
+            asset: "BTC".to_string(),
+            amount: 100,
+            entry_price: 50000,
+        };
+
+        // Add a new position for the user
+        Positions::add(&env, &user_address, new_position);
+
+        AMMEvents::CreatePosition();
+    }
+
+    fn close_position(e: Env, position_timestamp: u64) {
+        if !Position::is_position_empty(&ctx.accounts.position) {
+            return Err(ErrorCode::ClosePositionNotEmpty.into());
+        }
+
+        AMMEvents::ClosePosition();
+    }
+
+    pub fn increase_liquidity(
         e: Env,
-        to: Address,
-        desired_a: i128,
-        min_a: i128,
-        desired_b: i128,
-        min_b: i128
+        sender: Address,
+        liquidity_amount: u128,
+        token_max_a: u64,
+        token_max_b: u64
     ) {
         // Depositor needs to authorize the deposit
-        to.require_auth();
+        sender.require_auth();
 
-        let (reserve_a, reserve_b) = (get_reserve_a(&e), get_reserve_b(&e));
-
-        // Calculate deposit amounts
-        let (amount_a, amount_b) = get_deposit_amounts(
-            desired_a,
-            min_a,
-            desired_b,
-            min_b,
-            reserve_a,
-            reserve_b
-        );
-
-        if amount_a <= 0 || amount_b <= 0 {
-            // If one of the amounts can be zero, we can get into a situation
-            // where one of the reserves is 0, which leads to a divide by zero.
-            panic!("both amounts must be strictly positive");
+        if liquidity_amount == 0 {
+            return Err(ErrorCode::LiquidityZero.into());
         }
+        let liquidity_delta = convert_to_liquidity_delta(liquidity_amount, true)?;
+
+        let update = controller::liquidity::calculate_modify_liquidity(
+            &ctx.accounts.amm,
+            &ctx.accounts.position,
+            &ctx.accounts.tick_array_lower,
+            &ctx.accounts.tick_array_upper,
+            liquidity_delta,
+            timestamp
+        )?;
 
         let token_a_client = token::Client::new(&e, &get_token_a(&e));
         let token_b_client = token::Client::new(&e, &get_token_b(&e));
@@ -141,29 +281,9 @@ impl AMMTrait for AMM {
         token_a_client.transfer(&to, &e.current_contract_address(), &amount_a);
         token_b_client.transfer(&to, &e.current_contract_address(), &amount_b);
 
-        // Now calculate how many new pool shares to mint
-        let (balance_a, balance_b) = (get_balance_a(&e), get_balance_b(&e));
-        let total_shares = get_total_shares(&e);
+        // mint token
 
-        let zero = 0;
-        let new_total_shares = if reserve_a > zero && reserve_b > zero {
-            let shares_a = (balance_a * total_shares) / reserve_a;
-            let shares_b = (balance_b * total_shares) / reserve_b;
-            shares_a.min(shares_b)
-        } else {
-            (balance_a * balance_b).sqrt()
-        };
-
-        mint_shares(&e, to, new_total_shares - total_shares);
-        put_reserve_a(&e, balance_a);
-        put_reserve_b(&e, balance_b);
-
-        AMMEvents::add_liquidity(
-            &e,
-            to,
-            amount_a,
-            amount_b,
-        );
+        AMMEvents::add_liquidity(&e, to, amount_a, amount_b);
     }
 
     pub fn collect_fees(e: Env, to: Address, fee_amount: i128) -> (i128, i128) {
@@ -179,24 +299,17 @@ impl AMMTrait for AMM {
         transfer_a(&e, to.clone(), fee_owed_a);
         transfer_b(&e, to, fee_owed_b);
 
-        AMMEvents::collect_fees(
-            &e,
-            to,
-            amount,
-        );
+        AMMEvents::collect_fees(&e, to, amount);
 
         (fee_owed_a, fee_owed_b)
     }
 
-    // transfers share_amount of pool share tokens to this contract, burns all pools share tokens in this contracts, and sends the
-    // corresponding amount of token_a and token_b to "to".
-    // Returns amount of both tokens withdrawn
-    pub fn withdraw(
+    pub fn decrease_liquidity(
         e: Env,
-        to: Address,
-        share_amount: i128,
-        min_a: i128,
-        min_b: i128
+        sender: Address,
+        liquidity_amount: u128,
+        token_max_a: u64,
+        token_max_b: u64
     ) -> (i128, i128) {
         to.require_auth();
 
@@ -223,127 +336,145 @@ impl AMMTrait for AMM {
         put_reserve_a(&e, balance_a - out_a);
         put_reserve_b(&e, balance_b - out_b);
 
-        AMMEvents::remove_liquidity(
-            &e,
-            to,
-            out_a,
-            out_b,
-        );
+        AMMEvents::remove_liquidity(&e, to, out_a, out_b);
 
         (out_a, out_b)
     }
 
-    // If "buy_a" is true, the swap will buy token_a and sell token_b. This is flipped if "buy_a" is false.
-    // "out" is the amount being bought, with in_max being a safety to make sure you receive at least that amount.
-    // swap will transfer the selling token "to" to this contract, and then the contract will transfer the buying token to "to".
-    pub fn swap(e: Env, to: Address, buy_a: bool, out: i128, in_max: i128) {
-        to.require_auth();
+    pub fn swap(
+        e: Env,
+        sender: Address,
+        amount: u64,
+        other_amount_threshold: u64,
+        sqrt_price_limit: u128,
+        amount_specified_is_input: bool,
+        a_to_b: bool // Zero for one
+    ) {
+        // validate amount above 0?
 
-        let (reserve_a, reserve_b) = (get_reserve_a(&e), get_reserve_b(&e));
-        let (reserve_sell, reserve_buy) = if buy_a {
-            (reserve_b, reserve_a)
-        } else {
-            (reserve_a, reserve_b)
-        };
+        sender.require_auth();
 
-        if reserve_buy < out {
-            panic!("not enough token to buy");
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+
+        // do swap
+
+        let builder = SparseSwapTickSequenceBuilder::try_from(
+            a_to_b,
+            vec![
+                ctx.accounts.tick_array_0.to_account_info(),
+                ctx.accounts.tick_array_1.to_account_info(),
+                ctx.accounts.tick_array_2.to_account_info()
+            ],
+            None
+        )?;
+        let mut swap_tick_sequence = builder.build()?;
+
+        // ---
+
+        let swap_update = do_swap(
+            &mut swap_tick_sequence,
+            amount,
+            sqrt_price_limit,
+            amount_specified_is_input,
+            a_to_b,
+            timestamp
+        )?;
+
+        // ---
+
+        if amount_specified_is_input {
+            if
+                (a_to_b && other_amount_threshold > swap_update.amount_quote) ||
+                (!a_to_b && other_amount_threshold > swap_update.amount_synthetic)
+            {
+                return Err(ErrorCode::AmountOutBelowMinimum.into());
+            }
+        } else if
+            (a_to_b && other_amount_threshold < swap_update.amount_synthetic) ||
+            (!a_to_b && other_amount_threshold < swap_update.amount_quote)
+        {
+            return Err(ErrorCode::AmountInAboveMaximum.into());
         }
 
-        // First calculate how much needs to be sold to buy amount out from the pool
-        let n = reserve_sell * out * 1000;
-        let d = (reserve_buy - out) * 997;
-        let sell_amount = n / d + 1;
-        if sell_amount > in_max {
-            panic!("in amount is over max");
-        }
-
-        // Transfer the amount being sold to the contract
-        let sell_token = if buy_a { get_token_b(&e) } else { get_token_a(&e) };
-        let sell_token_client = token::Client::new(&e, &sell_token);
-        sell_token_client.transfer(&to, &e.current_contract_address(), &sell_amount);
-
-        let (balance_a, balance_b) = (get_balance_a(&e), get_balance_b(&e));
-
-        // residue_numerator and residue_denominator are the amount that the invariant considers after
-        // deducting the fee, scaled up by 1000 to avoid fractions
-        let residue_numerator = 997;
-        let residue_denominator = 1000;
-        let zero = 0;
-
-        let new_invariant_factor = |balance: i128, reserve: i128, out: i128| {
-            let delta = balance - reserve - out;
-            let adj_delta = if delta > zero {
-                residue_numerator * delta
-            } else {
-                residue_denominator * delta
-            };
-            residue_denominator * reserve + adj_delta
-        };
-
-        let (out_a, out_b) = if buy_a { (out, 0) } else { (0, out) };
-
-        let new_inv_a = new_invariant_factor(balance_a, reserve_a, out_a);
-        let new_inv_b = new_invariant_factor(balance_b, reserve_b, out_b);
-        let old_inv_a = residue_denominator * reserve_a;
-        let old_inv_b = residue_denominator * reserve_b;
-
-        if new_inv_a * new_inv_b < old_inv_a * old_inv_b {
-            panic!("constant product invariant does not hold");
-        }
-
-        if buy_a {
-            transfer_a(&e, to, out_a);
-        } else {
-            transfer_b(&e, to, out_b);
-        }
-
-        let new_reserve_a = balance_a - out_a;
-        let new_reserve_b = balance_b - out_b;
-
-        if new_reserve_a <= 0 || new_reserve_b <= 0 {
-            panic!("new reserves must be strictly positive");
-        }
-
-        put_reserve_a(&e, new_reserve_a);
-        put_reserve_b(&e, new_reserve_b);
-
-        AMMEvents::swap(
-            &e,
-            to,
-            buy_a, out, in_max
+        update_and_swap_amm(
+            amm,
+            &ctx.accounts.token_authority,
+            &ctx.accounts.token_owner_account_synthetic,
+            &ctx.accounts.token_owner_account_quote,
+            &ctx.accounts.token_vault_synthetic,
+            &ctx.accounts.token_vault_quote,
+            &ctx.accounts.token_program,
+            swap_update,
+            synthetic_to_quote,
+            timestamp,
+            inside_range
         );
-    }
 
-    pub fn get_rsrvs(e: Env) -> (i128, i128) {
-        (get_reserve_a(&e), get_reserve_b(&e))
-    }
-
-    pub fn initialize_reward(e: Env, token_reward: Address) {
-        // Check not exceeding max rewards
-        if index >= NUM_REWARDS {
-            return Err(ErrorCode::InvalidRewardIndex.into());
-        }
-
-        let reward = AMMRewardInfo {
-            token: token_reward,
-            emissions_per_second_x64: 0,
-            growth_global_x64: 0,
-        };
-
-        increase_rewards_length(&e);
-        set_reward(&e, 0, reward);
-    }
-
-    pub fn set_reward_emissions(e: Env, id: u64, emissions_per_second_x64: u128) {
-        let reward = get_reward_by_id(&e, id);
-
-        // ...
-
-        set_reward_emissions(&e, id, emissions_per_second_x64);
+        AMMEvents::swap(&e, to, buy_a, out, in_max);
     }
 
     pub fn collect_reward(e: Env, to: Address) {
         to.require_auth();
     }
+
+    // Queries
+
+    fn query_share_token_address(env: Env) -> Address {
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+
+        get_config(&env).share_token
+    }
+
+    fn query_pool_info(env: Env) -> PoolResponse {
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        let config = get_config(&env);
+
+        PoolResponse {
+            asset_a: Asset {
+                address: config.token_a,
+                amount: utils::get_pool_balance_a(&env),
+            },
+            asset_b: Asset {
+                address: config.token_b,
+                amount: utils::get_pool_balance_b(&env),
+            },
+            asset_lp_share: Asset {
+                address: config.share_token,
+                amount: utils::get_total_shares(&env),
+            },
+        }
+    }
 }
+
+// // Function to remove a stake from the vector
+// fn remove_reward(env: &Env, stakes: &mut Vec<Stake>, stake: i128, stake_timestamp: u64) {
+//     // Find the index of the stake that matches the given stake and stake_timestamp
+//     if let Some(index) = stakes
+//         .iter()
+//         .position(|s| s.stake == stake && s.stake_timestamp == stake_timestamp)
+//     {
+//         // Remove the stake at the found index
+//         stakes.remove(index as u32);
+//     } else {
+//         // Stake not found, return an error
+//         log!(&env, "Stake: Remove stake: Stake not found");
+//         panic_with_error!(&env, ContractError::StakeNotFound);
+//     }
+// }
+
+
+
+fn do_swap(
+    env: Env,
+    sender: Address,
+    // FIXM: Disable Referral struct
+    // referral: Option<Referral>,
+    offer_asset: Address,
+    offer_amount: i128,
+    ask_asset_min_amount: Option<i128>,
+    max_spread: Option<i64>,
+    max_allowed_fee_bps: Option<i64>
+) -> i128 {}
+
+
+
