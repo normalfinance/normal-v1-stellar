@@ -1,15 +1,20 @@
 [package]
-name = "synth_market_factory"
-version = "0.0.0"
-edition = "2021"
-publish = false
+name = "synth-market-factory"
+version = { workspace = true }
+authors = ["Jakub <jakub@moonbite.space>"]
+repository = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [lib]
 crate-type = ["cdylib"]
-doctest = false
+
+[features]
+testutils = ["soroban-sdk/testutils"]
 
 [dependencies]
 soroban-sdk = { workspace = true }
+normal = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

@@ -1,16 +1,22 @@
-default: build
+default: all
 
-all: test
+all: lint build test
 
-test: build
+test: build # because of token dependency
 	cargo test
 
 build:
-	stellar contract build
-	@ls -l target/wasm32-unknown-unknown/release/*.wasm
+	$(MAKE) -C ../synth_market build || break;
+	$(MAKE) -C ../amm build || break;
+	cargo build --target wasm32-unknown-unknown --release
+
+lint: fmt clippy
 
 fmt:
 	cargo fmt --all
+
+clippy: build
+	cargo clippy --all-targets -- -D warnings -A clippy::too_many_arguments
 
 clean:
 	cargo clean

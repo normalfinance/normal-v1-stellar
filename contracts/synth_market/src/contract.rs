@@ -44,7 +44,8 @@ impl SynthMarketTrait for SynthMarket {
 
         // let share_contract = create_share_token(&e, token_wasm_hash, &token_a, &token_b);
 
-        put_token_a(&e, token_a);
+        
+        
     }
 
     pub fn freeze_oracle(e: Env) {}
