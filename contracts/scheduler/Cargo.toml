@@ -1,16 +1,24 @@
 [package]
-name = "scheduler"
-version = "0.0.0"
-edition = "2021"
-publish = false
+name = "normal-scheduler"
+version = { workspace = true }
+authors = ["jblewnormal <joshua@normalfinance.io>"]
+repository = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [lib]
 crate-type = ["cdylib"]
-doctest = false
+
+[features]
+testutils = ["soroban-sdk/testutils"]
+upgrade = []
 
 [dependencies]
+soroban-decimal = { workspace = true }
+normal = { workspace = true }
 soroban-sdk = { workspace = true }
-num-integer = { version = "0.1.45", default-features = false, features = ["i128"] }
+itoa = { version = "1.0", default-features = false }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
+pretty_assertions = { workspace = true }

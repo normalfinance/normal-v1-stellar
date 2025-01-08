@@ -1,16 +1,21 @@
-default: build
+default: all
 
-all: test
+all: lint build test
 
 test: build
 	cargo test
 
 build:
-	stellar contract build
-	@ls -l target/wasm32-unknown-unknown/release/*.wasm
+	$(MAKE) -C ../token build || break;
+	cargo build --target wasm32-unknown-unknown --release
+
+lint: fmt clippy
 
 fmt:
 	cargo fmt --all
+
+clippy: build
+	cargo clippy --all-targets -- -D warnings
 
 clean:
 	cargo clean

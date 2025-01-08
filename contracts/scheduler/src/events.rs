@@ -5,6 +5,15 @@ use crate::types::{ ProposalAction, VoteCount };
 pub struct SchedulerEvents {}
 
 impl SchedulerEvents {
+    /// Emitted when a the Scheduler is initialized
+    ///
+    /// - topics - `["initialize", admin: Address]`
+    /// - data - ()
+    pub fn initialize(e: &Env, admin: Address) {
+        let topics = (Symbol::new(&e, "initialize"), admin);
+        e.events().publish(topics, ());
+    }
+
     /// Emitted when a schedule is created for trading a single asset
     ///
     /// Note: Asset support is limited to active synth markets.
@@ -12,7 +21,7 @@ impl SchedulerEvents {
     ///
     /// - topics - `["new_asset_schedule", schedule_id: u32, creator: Address]`
     /// - data - `[amm_id: Address, params: ScheduleData]`
-    pub fn new_asset_schedule(
+    pub fn new_schedule(
         e: &Env,
         schedule_id: u32,
         creator: Address,
@@ -23,30 +32,21 @@ impl SchedulerEvents {
         e.events().publish(topics, (title, desc, action, vote_start, vote_end));
     }
 
-    /// Emitted when a schedule is created for trading a cryto
+    /// Emitted when a user makes a deposit
     ///
-    /// Note: Indexes do not have accompanying AMMs. Instead index tokens
-    /// are minted/redeemed directly from the contract.
-    ///
-    /// - topics - `["new_index_schedule", schedule_id: u32, creator: Address]`
-    /// - data - `[index_id: u32, params: ScheduleData]`
-    pub fn new_index_schedule(
-        e: &Env,
-        schedule_id: u32,
-        creator: Address,
-        index_id: u32,
-        params: ScheduleData
-    ) {
-        let topics = (Symbol::new(&e, "new_index_schedule"), schedule_id, creator);
-        e.events().publish(topics, (index_id, params));
+    /// - topics - `["deposit", user: Address]`
+    /// - data - `[asset: Option<Address>, amount: u128]`
+    pub fn deposit(e: &Env, user: Address, asset: Option<Address>, amount: u128) {
+        let topics = (Symbol::new(&e, "deposit"), user);
+        e.events().publish(topics, (asset, amount));
     }
 
-    /// Emitted when a user deposits assets into the schedule address
+    /// Emitted when a user withdraws assets from the schedule address
     ///
-    /// - topics - `["deposit", schedule_id: u32]`
+    /// - topics - `["withdrawal", schedule_id: u32]`
     /// - data - `[user: Address, asset: Asset, amount: u128]`
-    pub fn deposit(e: &Env, schedule_id: u32, user: Address, asset: Asset, amount: u128) {
-        let topics = (Symbol::new(&e, "deposit"), schedule_id);
+    pub fn withdrawal(e: &Env, schedule_id: u32, user: Address, asset: Asset, amount: u128) {
+        let topics = (Symbol::new(&e, "withdrawal"), schedule_id);
         e.events().publish(topics, (user, asset, amount));
     }
 
@@ -63,26 +63,17 @@ impl SchedulerEvents {
     ///
     /// - topics - `["modify_schedule", schedule_id: u32]`
     /// - data - `[]`
-    pub fn modify_schedule(e: &Env, schedule_id: u32) {
+    pub fn update_schedule(e: &Env, schedule_id: u32) {
         let topics = (Symbol::new(&e, "modify_schedule"), schedule_id);
         e.events().publish(topics, ());
     }
 
-    /// Emitted when a user withdraws assets from the schedule address
-    ///
-    /// - topics - `["withdrawal", schedule_id: u32]`
-    /// - data - `[user: Address, asset: Asset, amount: u128]`
-    pub fn withdrawal(e: &Env, schedule_id: u32, user: Address, asset: Asset, amount: u128) {
-        let topics = (Symbol::new(&e, "withdrawal"), schedule_id);
-        e.events().publish(topics, (user, asset, amount));
-    }
-
     /// Emitted when a user deletes a schedule
     ///
-    /// - topics - `["delete_schedule", schedule_id: u32]`
-    /// - data - ()
-    pub fn delete_schedule(e: &Env, schedule_id: u32) {
-        let topics = (Symbol::new(&e, "delete_schedule"), schedule_id);
-        e.events().publish(topics, ());
+    /// - topics - `["delete_schedule", user: Address]`
+    /// - data - [schedule_timestamp: u64]
+    pub fn delete_schedule(e: &Env, user: Address, schedule_timestamp: u64) {
+        let topics = (Symbol::new(&e, "delete_schedule"), user);
+        e.events().publish(topics, schedule_timestamp);
     }
 }

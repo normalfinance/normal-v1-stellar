@@ -129,3 +129,11 @@ pub struct IndexParams {
     /// precision = PRICE_PRECISION
     pub expiry_price: i64,
 }
+
+
+#[derive(Clone)]
+#[contracttype]
+pub enum OrderDirection {
+    Buy,
+    Sell,
+}
