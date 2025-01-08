@@ -1,16 +1,27 @@
-default: build
+ifeq (,$(BUILD_FLAGS))
+  DEPS = ../index ../index_token
+endif
 
-all: test
+default: all
 
-test: build
+all: lint build test
+
+test: build # because of token dependency
 	cargo test
 
 build:
-	stellar contract build
-	@ls -l target/wasm32-unknown-unknown/release/*.wasm
+	@for dir in $(DEPS) ; do \
+		$(MAKE) -C $$dir build || break; \
+	done
+	cargo build --target wasm32-unknown-unknown --release
+
+lint: fmt clippy
 
 fmt:
 	cargo fmt --all
+
+clippy: build
+	cargo clippy --all-targets -- -D warnings -A clippy::too_many_arguments
 
 clean:
 	cargo clean

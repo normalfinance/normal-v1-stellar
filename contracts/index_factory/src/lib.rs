@@ -2,6 +2,8 @@
 
 mod contract;
 mod errors;
-mod interfaces;
 mod storage;
-mod storage_types;
+mod utils;
+
+#[cfg(test)]
+mod tests;
