@@ -89,6 +89,9 @@ pub trait IndexFactoryTrait {
 
     fn query_all_indexes_details(env: Env) -> Vec<IndexInfo>;
 
+    // For indexes to query AMMs via the Synth Market Factory
+    fn query_for_amm_by_market(env: Env, marekt: Address) -> Address;
+
     // fn query_for_pool_by_token_pair(env: Env, token_a: Address, token_b: Address) -> Address;
 
     fn get_admin(env: Env) -> Address;
@@ -286,7 +289,12 @@ impl IndexFactoryTrait for IndexFactory {
         result
     }
 
-    // ..
+    // ....
+
+    fn query_for_amm_by_market(env: Env, market: Address) -> Address {
+        // TODO: return the AMM address for a market via the Synth Market Factory
+        // ...
+    }
 
     fn get_admin(env: Env) -> Address {
         env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
