@@ -493,7 +493,7 @@ impl IndexTrait for Index {
 }
 
 fn convert_index_token_amount_to_quote_amount(
-    &env,
+    &env: Env,
     index_token_amount: i128,
     index_price: i128
 ) -> (i128, i128) {
@@ -531,7 +531,7 @@ fn convert_index_token_amount_to_quote_amount(
     (quote_token_amount, oracle_price_data.price)
 }
 
-fn get_index_price(&env, index: Index) -> u128 {
+fn get_index_price(&env: Env, index: Index) -> u128 {
     let current_nav = calculate_current_nav(&env, index.component_balances);
 
     let price = (current_nav / index.base_nav) * index.initial_price;

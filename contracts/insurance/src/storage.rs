@@ -173,7 +173,7 @@ pub struct Stake {
 
 pub fn is_governor(e: &Env) {
     if e.invoker() != get_governor(e) {
-        return Err(ErrorCode:OnlyGovernor)
+        return Err(ErrorCode::OnlyGovernor)
     }
     // TODO: do we need to auth the governor?
     // governor.require_auth();

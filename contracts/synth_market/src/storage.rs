@@ -542,7 +542,7 @@ pub enum Operation {
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Debug, Eq)]
 pub enum PositionStatus {
-    Active = 0
+    Active = 0,
     BeingLiquidated = 1,
     Bankrupt = 2,
     ReduceOnly = 3,
