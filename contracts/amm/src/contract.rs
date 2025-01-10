@@ -228,7 +228,9 @@ impl AMMTrait for AMM {
         set_reward_emissions(&e, id, emissions_per_second_x64);
     }
 
-    // User
+    // ################################################################
+    //                             USER
+    // ################################################################
 
     fn create_position(e: Env, tick_lower_index: i32, tick_upper_index: i32) {
         let new_position = Position {
@@ -243,6 +245,15 @@ impl AMMTrait for AMM {
         AMMEvents::CreatePosition();
     }
 
+    fn modify_position(e: Env, sender: Address, position_ts: u64, update: PositionUpdate) {
+        sender.require_auth();
+
+        // fetch psition
+
+
+        position.update(update);
+    }
+
     fn close_position(e: Env, position_timestamp: u64) {
         if !Position::is_position_empty(&ctx.accounts.position) {
             return Err(ErrorCode::ClosePositionNotEmpty.into());
@@ -251,7 +262,7 @@ impl AMMTrait for AMM {
         AMMEvents::ClosePosition();
     }
 
-    pub fn increase_liquidity(
+    fn increase_liquidity(
         e: Env,
         sender: Address,
         liquidity_amount: u128,
@@ -462,8 +473,6 @@ impl AMMTrait for AMM {
 //     }
 // }
 
-
-
 fn do_swap(
     env: Env,
     sender: Address,
@@ -475,6 +484,3 @@ fn do_swap(
     max_spread: Option<i64>,
     max_allowed_fee_bps: Option<i64>
 ) -> i128 {}
-
-
-

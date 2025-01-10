@@ -1,6 +1,5 @@
 use soroban_sdk::{ contractclient, Address, Env, String };
 
-
 #[contractclient(name = "AMMClient")]
 pub trait AMMTrait {
     // Sets the token contract addresses for this pool
@@ -36,8 +35,19 @@ pub trait AMMTrait {
     fn initialize_reward(e: Env, reward_index: u8);
     fn set_reward_emissions(e: Env, reward_timestamp: u64, emissions_per_second_x64: u128);
 
-    // User
+    // ################################################################
+    //                             KEEPER
+    // ################################################################
+
+    //    ...
+
+    // ################################################################
+    //                             USER
+    // ################################################################
+
     fn create_position(e: Env, sender: Address, tick_lower_index: i32, tick_upper_index: i32);
+
+    fn modify_position(e: Env, sender: Address, position_ts: u64, update: PositionUpdate);
 
     fn increase_liquidity(
         e: Env,
