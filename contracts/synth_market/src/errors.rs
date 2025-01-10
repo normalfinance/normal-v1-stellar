@@ -7,9 +7,9 @@ pub enum Error {
     InvalidMarginRatio,
     UserCantLiquidateThemself,
     #[msg("UserBankrupt")]
-	UserBankrupt,
-	#[msg("UserNotBankrupt")]
-	UserNotBankrupt,
+    UserBankrupt,
+    #[msg("UserNotBankrupt")]
+    UserNotBankrupt,
     #[msg("Cant transfer between same user account")]
-	CantTransferBetweenSameUserAccount,
+    CantTransferBetweenSameUserAccount,
 }

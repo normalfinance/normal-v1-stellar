@@ -1,14 +1,5 @@
 use soroban_sdk::{
-    contract,
-    contractimpl,
-    contractmeta,
-    log,
-    panic_with_error,
-    Address,
-    BytesN,
-    Env,
-    String,
-    U256,
+    contract, contractimpl, contractmeta, log, panic_with_error, Address, BytesN, Env, String, U256,
 };
 
 use num_integer::Roots;
@@ -17,28 +8,17 @@ use crate::{
     error::ContractError,
     stake_contract,
     storage::{
-        get_config,
-        get_default_slippage_bps,
-        save_config,
-        save_default_slippage_bps,
-        utils::{ self, get_admin_old, is_initialized, set_initialized },
-        Asset,
-        ComputeSwap,
-        Config,
-        LiquidityPoolInfo,
-        PairType,
-        PoolResponse,
-        SimulateReverseSwapResponse,
-        SimulateSwapResponse,
-        ADMIN,
+        get_config, get_default_slippage_bps, save_config, save_default_slippage_bps,
+        utils::{self, get_admin_old, is_initialized, set_initialized},
+        Asset, ComputeSwap, Config, LiquidityPoolInfo, PairType, PoolResponse,
+        SimulateReverseSwapResponse, SimulateSwapResponse, ADMIN,
     },
     token_contract,
 };
 use normal::{
-    ttl::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD },
-    utils::{ convert_i128_to_u128, is_approx_ratio, AMMParams },
-    validate_bps,
-    validate_int_parameters,
+    ttl::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD},
+    utils::{convert_i128_to_u128, is_approx_ratio, AMMParams},
+    validate_bps, validate_int_parameters,
 };
 use soroban_decimal::Decimal;
 contractmeta!(
@@ -60,10 +40,13 @@ impl AMMTrait for AMM {
         share_token_name: String,
         share_token_symbol: String,
         default_slippage_bps: i64,
-        max_allowed_fee_bps: i64
+        max_allowed_fee_bps: i64,
     ) {
         if is_initialized(&e) {
-            log!(&e, "Pool: Initialize: initializing contract twice is not allowed");
+            log!(
+                &e,
+                "Pool: Initialize: initializing contract twice is not allowed"
+            );
             panic_with_error!(&e, ContractError::AlreadyInitialized);
         }
 
@@ -101,7 +84,7 @@ impl AMMTrait for AMM {
             e.current_contract_address(),
             share_token_decimals,
             share_token_name,
-            share_token_symbol
+            share_token_symbol,
         );
 
         let config = Config {
@@ -150,11 +133,13 @@ impl AMMTrait for AMM {
         protocol_fee_rate: Option<i64>,
         max_allowed_slippage_bps: Option<i64>,
         max_allowed_spread_bps: Option<i64>,
-        max_allowed_variance_bps: Option<i64>
+        max_allowed_variance_bps: Option<i64>,
     ) {
         let admin: Address = utils::get_admin_old(&env);
         admin.require_auth();
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let mut config = get_config(&env);
 
@@ -250,7 +235,6 @@ impl AMMTrait for AMM {
 
         // fetch psition
 
-
         position.update(update);
     }
 
@@ -267,7 +251,7 @@ impl AMMTrait for AMM {
         sender: Address,
         liquidity_amount: u128,
         token_max_a: u64,
-        token_max_b: u64
+        token_max_b: u64,
     ) {
         // Depositor needs to authorize the deposit
         sender.require_auth();
@@ -283,7 +267,7 @@ impl AMMTrait for AMM {
             &ctx.accounts.tick_array_lower,
             &ctx.accounts.tick_array_upper,
             liquidity_delta,
-            timestamp
+            timestamp,
         )?;
 
         let token_a_client = token::Client::new(&e, &get_token_a(&e));
@@ -320,7 +304,7 @@ impl AMMTrait for AMM {
         sender: Address,
         liquidity_amount: u128,
         token_max_a: u64,
-        token_max_b: u64
+        token_max_b: u64,
     ) -> (i128, i128) {
         to.require_auth();
 
@@ -359,13 +343,15 @@ impl AMMTrait for AMM {
         other_amount_threshold: u64,
         sqrt_price_limit: u128,
         amount_specified_is_input: bool,
-        a_to_b: bool // Zero for one
+        a_to_b: bool, // Zero for one
     ) {
         // validate amount above 0?
 
         sender.require_auth();
 
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         // do swap
 
@@ -374,9 +360,9 @@ impl AMMTrait for AMM {
             vec![
                 ctx.accounts.tick_array_0.to_account_info(),
                 ctx.accounts.tick_array_1.to_account_info(),
-                ctx.accounts.tick_array_2.to_account_info()
+                ctx.accounts.tick_array_2.to_account_info(),
             ],
-            None
+            None,
         )?;
         let mut swap_tick_sequence = builder.build()?;
 
@@ -388,21 +374,19 @@ impl AMMTrait for AMM {
             sqrt_price_limit,
             amount_specified_is_input,
             a_to_b,
-            timestamp
+            timestamp,
         )?;
 
         // ---
 
         if amount_specified_is_input {
-            if
-                (a_to_b && other_amount_threshold > swap_update.amount_quote) ||
-                (!a_to_b && other_amount_threshold > swap_update.amount_synthetic)
+            if (a_to_b && other_amount_threshold > swap_update.amount_quote)
+                || (!a_to_b && other_amount_threshold > swap_update.amount_synthetic)
             {
                 return Err(ErrorCode::AmountOutBelowMinimum.into());
             }
-        } else if
-            (a_to_b && other_amount_threshold < swap_update.amount_synthetic) ||
-            (!a_to_b && other_amount_threshold < swap_update.amount_quote)
+        } else if (a_to_b && other_amount_threshold < swap_update.amount_synthetic)
+            || (!a_to_b && other_amount_threshold < swap_update.amount_quote)
         {
             return Err(ErrorCode::AmountInAboveMaximum.into());
         }
@@ -418,7 +402,7 @@ impl AMMTrait for AMM {
             swap_update,
             synthetic_to_quote,
             timestamp,
-            inside_range
+            inside_range,
         );
 
         AMMEvents::swap(&e, to, buy_a, out, in_max);
@@ -431,13 +415,17 @@ impl AMMTrait for AMM {
     // Queries
 
     fn query_share_token_address(env: Env) -> Address {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         get_config(&env).share_token
     }
 
     fn query_pool_info(env: Env) -> PoolResponse {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         let config = get_config(&env);
 
         PoolResponse {
@@ -482,5 +470,6 @@ fn do_swap(
     offer_amount: i128,
     ask_asset_min_amount: Option<i128>,
     max_spread: Option<i64>,
-    max_allowed_fee_bps: Option<i64>
-) -> i128 {}
+    max_allowed_fee_bps: Option<i64>,
+) -> i128 {
+}

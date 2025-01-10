@@ -1,4 +1,4 @@
-use soroban_sdk::{ Address, Env, String, Symbol };
+use soroban_sdk::{Address, Env, String, Symbol};
 
 pub struct IndexEvents {}
 
@@ -39,7 +39,8 @@ impl IndexEvents {
     /// - data - `[redeemer: Address, amount: u64]`
     pub fn index_updated(e: &Env) {
         let topics = (Symbol::new(&e, "index_updated"), proposal_id, proposer);
-        e.events().publish(topics, (title, desc, action, vote_start, vote_end));
+        e.events()
+            .publish(topics, (title, desc, action, vote_start, vote_end));
     }
 
     /// Emitted when index tokens are redeemed (a withdrawal)
@@ -48,6 +49,7 @@ impl IndexEvents {
     /// - data - `[redeemer: Address, amount: u64]`
     pub fn index_deleted(e: &Env) {
         let topics = (Symbol::new(&e, "index_created"), proposal_id, proposer);
-        e.events().publish(topics, (title, desc, action, vote_start, vote_end));
+        e.events()
+            .publish(topics, (title, desc, action, vote_start, vote_end));
     }
 }

@@ -1,21 +1,10 @@
-use normal::ttl::{ PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD };
+use normal::ttl::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD};
 use soroban_sdk::{
-    contracttype,
-    log,
-    panic_with_error,
-    symbol_short,
-    xdr::ToXdr,
-    Address,
-    Bytes,
-    BytesN,
-    ConversionError,
-    Env,
-    Symbol,
-    TryFromVal,
-    Val,
+    contracttype, log, panic_with_error, symbol_short, xdr::ToXdr, Address, Bytes, BytesN,
+    ConversionError, Env, Symbol, TryFromVal, Val,
 };
 
-use crate::{ error::ContractError, token_contract };
+use crate::{error::ContractError, token_contract};
 use soroban_decimal::Decimal;
 
 #[derive(Clone, Copy)]
@@ -75,9 +64,11 @@ const CONFIG: Symbol = symbol_short!("CONFIG");
 const DEFAULT_SLIPPAGE_BPS: Symbol = symbol_short!("DSLIPBPS");
 pub fn save_default_slippage_bps(env: &Env, bps: i64) {
     env.storage().persistent().set(&DEFAULT_SLIPPAGE_BPS, &bps);
-    env.storage()
-        .persistent()
-        .extend_ttl(&DEFAULT_SLIPPAGE_BPS, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT)
+    env.storage().persistent().extend_ttl(
+        &DEFAULT_SLIPPAGE_BPS,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    )
 }
 
 pub fn get_default_slippage_bps(env: &Env) -> i64 {
@@ -87,9 +78,11 @@ pub fn get_default_slippage_bps(env: &Env) -> i64 {
         .get(&DEFAULT_SLIPPAGE_BPS)
         .expect("Stable wasm hash not set");
 
-    env.storage()
-        .persistent()
-        .extend_ttl(&DEFAULT_SLIPPAGE_BPS, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &DEFAULT_SLIPPAGE_BPS,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
     bps
 }
 
@@ -110,7 +103,7 @@ impl Config {
     pub fn update_rewards(
         &mut self,
         reward_infos: [AMMRewardInfo; NUM_REWARDS],
-        reward_last_updated_timestamp: u64
+        reward_last_updated_timestamp: u64,
     ) {
         self.reward_last_updated_timestamp = reward_last_updated_timestamp;
         self.reward_infos = reward_infos;
@@ -120,7 +113,7 @@ impl Config {
         &mut self,
         reward_infos: [AMMRewardInfo; NUM_REWARDS],
         liquidity: u128,
-        reward_last_updated_timestamp: u64
+        reward_last_updated_timestamp: u64,
     ) {
         self.update_rewards(reward_infos, reward_last_updated_timestamp);
         self.liquidity = liquidity;
@@ -136,7 +129,7 @@ impl Config {
         reward_infos: [AMMRewardInfo; NUM_REWARDS],
         protocol_fee: u64,
         is_token_fee_in_a: bool,
-        reward_last_updated_timestamp: u64
+        reward_last_updated_timestamp: u64,
     ) {
         self.tick_current_index = tick_index;
         self.sqrt_price = sqrt_price;
@@ -157,23 +150,27 @@ impl Config {
 
 pub fn get_config(env: &Env) -> Config {
     let config = env.storage().persistent().get(&CONFIG).unwrap();
-    env.storage()
-        .persistent()
-        .extend_ttl(&CONFIG, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &CONFIG,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
     config
 }
 
 pub fn save_config(env: &Env, config: Config) {
     env.storage().persistent().set(&CONFIG, &config);
-    env.storage()
-        .persistent()
-        .extend_ttl(&CONFIG, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &CONFIG,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 // ...
 
 pub mod utils {
-    use normal::ttl::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD };
+    use normal::ttl::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
     use soroban_sdk::String;
 
     use super::*;
@@ -187,7 +184,7 @@ pub mod utils {
         admin: Address,
         decimals: u32,
         name: String,
-        symbol: String
+        symbol: String,
     ) -> Address {
         let mut salt = Bytes::new(env);
         salt.append(&token_a.clone().to_xdr(env));
@@ -202,27 +199,29 @@ pub mod utils {
 
     pub fn save_total_shares(e: &Env, amount: i128) {
         e.storage().persistent().set(&DataKey::TotalShares, &amount);
-        e.storage()
-            .persistent()
-            .extend_ttl(
-                &DataKey::TotalShares,
-                PERSISTENT_LIFETIME_THRESHOLD,
-                PERSISTENT_BUMP_AMOUNT
-            );
+        e.storage().persistent().extend_ttl(
+            &DataKey::TotalShares,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
     }
 
     pub fn save_pool_balance_a(e: &Env, amount: i128) {
         e.storage().persistent().set(&DataKey::ReserveA, &amount);
-        e.storage()
-            .persistent()
-            .extend_ttl(&DataKey::ReserveA, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        e.storage().persistent().extend_ttl(
+            &DataKey::ReserveA,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
     }
 
     pub fn save_pool_balance_b(e: &Env, amount: i128) {
         e.storage().persistent().set(&DataKey::ReserveB, &amount);
-        e.storage()
-            .persistent()
-            .extend_ttl(&DataKey::ReserveB, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        e.storage().persistent().extend_ttl(
+            &DataKey::ReserveB,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
     }
 
     // ...
@@ -247,30 +246,32 @@ pub mod utils {
 
     pub fn get_total_shares(e: &Env) -> i128 {
         let total_shares = e.storage().persistent().get(&DataKey::TotalShares).unwrap();
-        e.storage()
-            .persistent()
-            .extend_ttl(
-                &DataKey::TotalShares,
-                PERSISTENT_LIFETIME_THRESHOLD,
-                PERSISTENT_BUMP_AMOUNT
-            );
+        e.storage().persistent().extend_ttl(
+            &DataKey::TotalShares,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
 
         total_shares
     }
     pub fn get_pool_balance_a(e: &Env) -> i128 {
         let balance_a = e.storage().persistent().get(&DataKey::ReserveA).unwrap();
-        e.storage()
-            .persistent()
-            .extend_ttl(&DataKey::ReserveA, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        e.storage().persistent().extend_ttl(
+            &DataKey::ReserveA,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
 
         balance_a
     }
 
     pub fn get_pool_balance_b(e: &Env) -> i128 {
         let balance_b = e.storage().persistent().get(&DataKey::ReserveB).unwrap();
-        e.storage()
-            .persistent()
-            .extend_ttl(&DataKey::ReserveB, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        e.storage().persistent().extend_ttl(
+            &DataKey::ReserveB,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
 
         balance_b
     }
@@ -282,17 +283,18 @@ pub mod utils {
     // ...
 
     pub fn is_initialized(e: &Env) -> bool {
-        e.storage().persistent().get(&DataKey::Initialized).unwrap_or(false)
+        e.storage()
+            .persistent()
+            .get(&DataKey::Initialized)
+            .unwrap_or(false)
     }
 
     pub fn set_initialized(e: &Env) {
         e.storage().persistent().set(&DataKey::Initialized, &true);
-        e.storage()
-            .persistent()
-            .extend_ttl(
-                &DataKey::Initialized,
-                PERSISTENT_LIFETIME_THRESHOLD,
-                PERSISTENT_BUMP_AMOUNT
-            );
+        e.storage().persistent().extend_ttl(
+            &DataKey::Initialized,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
     }
 }

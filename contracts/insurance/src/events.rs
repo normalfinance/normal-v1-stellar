@@ -1,4 +1,4 @@
-use soroban_sdk::{ Address, Env, String, Symbol };
+use soroban_sdk::{Address, Env, String, Symbol};
 
 pub struct InsuranceEvents {}
 
@@ -20,10 +20,15 @@ impl InsuranceEvents {
         desc: String,
         action: ProposalAction,
         vote_start: u32,
-        vote_end: u32
+        vote_end: u32,
     ) {
-        let topics = (Symbol::new(&e, "insurance_fund_initialization"), proposal_id, proposer);
-        e.events().publish(topics, (title, desc, action, vote_start, vote_end));
+        let topics = (
+            Symbol::new(&e, "insurance_fund_initialization"),
+            proposal_id,
+            proposer,
+        );
+        e.events()
+            .publish(topics, (title, desc, action, vote_start, vote_end));
     }
 
     // TODO: claim?

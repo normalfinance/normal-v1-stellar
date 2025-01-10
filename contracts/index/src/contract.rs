@@ -1,19 +1,20 @@
-use soroban_sdk::{ assert_with_error, contract, contractimpl, Address, Env };
+use soroban_sdk::{assert_with_error, contract, contractimpl, Address, Env};
 
 use crate::{
-    errors,
-    storage::{ DataKey, get_admin },
+    amm_contract, errors,
     events::IndexEvents,
     index::IndexTrait,
+    index_factory_contract, index_token_contract,
+    storage::{get_admin, DataKey},
     token_contract,
-    index_token_contract,
-    index_factory_contract,
-    amm_contract,
 };
 
-use normal::oracle::{ get_oracle_price, oracle_validity };
+use normal::oracle::{get_oracle_price, oracle_validity};
 
-contractmeta!(key = "Description", val = "Diversified exposure to a basket of cryptocurrencies");
+contractmeta!(
+    key = "Description",
+    val = "Diversified exposure to a basket of cryptocurrencies"
+);
 
 #[contract]
 pub struct Index;
@@ -44,10 +45,13 @@ impl IndexTrait for Index {
         manager_fee_bps: i64,
         revenue_share_bps: i64,
         whitelist: Option<Vec<Address>>,
-        blacklist: Option<Vec<Address>>
+        blacklist: Option<Vec<Address>>,
     ) {
         if is_initialized(&env) {
-            log!(&env, "Index: Initialize: initializing contract twice is not allowed");
+            log!(
+                &env,
+                "Index: Initialize: initializing contract twice is not allowed"
+            );
             panic_with_error!(&env, ContractError::AlreadyInitialized);
         }
 
@@ -96,17 +100,18 @@ impl IndexTrait for Index {
             env.current_contract_address(),
             index_token_decimals,
             name,
-            symbol
+            symbol,
         );
         index.index_token = index_token_address;
 
         let initial_mint_amount = base_nav / initial_price;
 
         let index_token_client = index_token_client::Client::new(&env, &index_token_address);
-        env.invoke_contract(&index_token_client, &symbol_short!("mint"), (
-            admin.clone(),
-            &initial_mint_amount,
-        ));
+        env.invoke_contract(
+            &index_token_client,
+            &symbol_short!("mint"),
+            (admin.clone(), &initial_mint_amount),
+        );
 
         swap_and_update_component_balances(&env, operations, index);
 
@@ -119,7 +124,7 @@ impl IndexTrait for Index {
         env: Env,
         sender: Address,
         manager_fee_bps: Option<i64>,
-        revenue_share_bps: Option<i64>
+        revenue_share_bps: Option<i64>,
     ) {
         if index.fee_authority != sender {
             log!(&env, "Index: Update fees: You are not authorized!");
@@ -155,12 +160,17 @@ impl IndexTrait for Index {
 
     fn update_whitelist(env: Env, sender: Address, to_add: Vec<Address>, to_remove: Vec<Address>) {
         sender.require_auth();
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let mut index = get_index(&env);
 
         if index.access_authority != sender {
-            log!(&env, "Index: Update whitelist accounts: You are not authorized!");
+            log!(
+                &env,
+                "Index: Update whitelist accounts: You are not authorized!"
+            );
             panic_with_error!(&env, ContractError::NotAuthorized);
         }
 
@@ -178,22 +188,24 @@ impl IndexTrait for Index {
             }
         });
 
-        save_index(&env, Index {
-            whitelist,
-            ..index
-        });
+        save_index(&env, Index { whitelist, ..index });
 
         whitelist
     }
 
     fn update_blacklist(env: Env, sender: Address, to_add: Vec<Address>, to_remove: Vec<Address>) {
         sender.require_auth();
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let mut index = get_index(&env);
 
         if index.access_authority != sender {
-            log!(&env, "Index: Update blacklist accounts: You are not authorized!");
+            log!(
+                &env,
+                "Index: Update blacklist accounts: You are not authorized!"
+            );
             panic_with_error!(&env, ContractError::NotAuthorized);
         }
 
@@ -211,10 +223,7 @@ impl IndexTrait for Index {
             }
         });
 
-        save_index(&env, Index {
-            blacklist,
-            ..index
-        });
+        save_index(&env, Index { blacklist, ..index });
 
         blacklist
     }
@@ -316,12 +325,16 @@ impl IndexTrait for Index {
         // find send address
         let recipient_address = match to {
             Some(to_address) => to_address, // Use the provided `to` address
-            None => sender, // Otherwise use the sender address
+            None => sender,                 // Otherwise use the sender address
         };
 
         // transfer token
         let token_contractclient = token_contract::Client::new(&env, &x);
-        token_client.transfer(&recipient_address, &env.current_contract_address(), &can_withdraw);
+        token_client.transfer(
+            &recipient_address,
+            &env.current_contract_address(),
+            &can_withdraw,
+        );
 
         // update balances
         // index.
@@ -343,15 +356,16 @@ impl IndexTrait for Index {
         let index_price = get_index_price(&env, index);
 
         // Compute amount of quote asset needed
-        let quote_token_amount = convert_index_token_amount_to_quote_amount(
-            &env,
-            index_token_amount,
-            index_price
-        );
+        let quote_token_amount =
+            convert_index_token_amount_to_quote_amount(&env, index_token_amount, index_price);
 
         // Deposit quote asset
         let quote_token_client = token_contract::Client::new(&env, &index.quote_asset);
-        quote_token_client.transfer(&sender, &env.current_contract_address(), &quote_token_amount);
+        quote_token_client.transfer(
+            &sender,
+            &env.current_contract_address(),
+            &quote_token_amount,
+        );
 
         // Compute asset amounts / swaps
         let operations: Vec<Swap> = [];
@@ -374,16 +388,23 @@ impl IndexTrait for Index {
         // Mint index tokens
         let recipient_address = match to {
             Some(to_address) => to_address, // Use the provided `to` address
-            None => sender, // Otherwise use the sender address
+            None => sender,                 // Otherwise use the sender address
         };
 
         let index_token_client = index_token_client::Client::new(&env, &index.index_token);
-        env.invoke_contract(&index_token_client, &symbol_short!("mint"), (
-            recipient_address.clone(),
-            &index_token_amount,
-        ));
+        env.invoke_contract(
+            &index_token_client,
+            &symbol_short!("mint"),
+            (recipient_address.clone(), &index_token_amount),
+        );
 
-        IndexEvents::mint(&env, index.name, sender, recipient_address, index_token_amount);
+        IndexEvents::mint(
+            &env,
+            index.name,
+            sender,
+            recipient_address,
+            index_token_amount,
+        );
     }
 
     fn redeem(env: Env, sender: Address, index_token_amount: i128, to: Option<Address>) {
@@ -398,11 +419,8 @@ impl IndexTrait for Index {
         let index_price = get_index_price(&env, index);
 
         // Compute amount of quote asset needed
-        let quote_token_amount = convert_index_token_amount_to_quote_amount(
-            &env,
-            index_token_amount,
-            index_price
-        );
+        let quote_token_amount =
+            convert_index_token_amount_to_quote_amount(&env, index_token_amount, index_price);
 
         // Ensure sufficient quote funds
         let quote_token_client = token_contract::Client::new(&env, &index.quote_token);
@@ -413,7 +431,11 @@ impl IndexTrait for Index {
 
         // Burn tokens
         let index_token_client = index_token_client::Client::new(&env, &index.index_token);
-        env.invoke_contract(&index_token_client, &symbol_short!("burn"), (to.clone(), amount));
+        env.invoke_contract(
+            &index_token_client,
+            &symbol_short!("burn"),
+            (to.clone(), amount),
+        );
 
         // Compute asset amounts / swaps
         let operations: Vec<Swap> = [];
@@ -435,7 +457,7 @@ impl IndexTrait for Index {
         // Transfer quote token back to user
         let recipient_address = match to {
             Some(to_address) => to_address, // Use the provided `to` address
-            None => sender, // Otherwise use the sender address
+            None => sender,                 // Otherwise use the sender address
         };
 
         quote_token_client.transfer(&env.current_contract_address(), &recipient_address, &amount);
@@ -454,12 +476,16 @@ impl IndexTrait for Index {
         // find send address
         let recipient_address = match to {
             Some(to_address) => to_address, // Use the provided `to` address
-            None => sender, // Otherwise use the sender address
+            None => sender,                 // Otherwise use the sender address
         };
 
         // transfer token
         let token_client = token::Client::new(&env, &env);
-        token_client.transfer(&recipient_address, &env.current_contract_address(), &can_withdraw);
+        token_client.transfer(
+            &recipient_address,
+            &env.current_contract_address(),
+            &can_withdraw,
+        );
 
         // update balances
         // index.
@@ -470,13 +496,17 @@ impl IndexTrait for Index {
     // ################################################################
 
     fn query_index(env: Env) -> Index {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         get_index(&env)
     }
 
     fn query_price(env: Env) -> i128 {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let index = get_index(&env);
 
@@ -484,7 +514,9 @@ impl IndexTrait for Index {
     }
 
     fn query_nav(env: Env) -> i128 {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let index = get_index(&env);
 
@@ -495,7 +527,7 @@ impl IndexTrait for Index {
 fn convert_index_token_amount_to_quote_amount(
     &env: Env,
     index_token_amount: i128,
-    index_price: i128
+    index_price: i128,
 ) -> (i128, i128) {
     // Get quote asset price
     let oracle_price_data = get_oracle_price(
@@ -503,7 +535,7 @@ fn convert_index_token_amount_to_quote_amount(
         index.oracle_source,
         index.oracle,
         index.quote_asset,
-        "USD"
+        "USD",
     );
 
     let oracle_validity = oracle_validity(
@@ -512,7 +544,7 @@ fn convert_index_token_amount_to_quote_amount(
         oracle_price_data,
         oracle_guard_rails().validity, // import from Oracle module
         market.get_max_confidence_interval_multiplier()?,
-        false
+        false,
     )?;
 
     validate!(
@@ -542,13 +574,15 @@ fn get_index_price(&env: Env, index: Index) -> u128 {
 fn calculate_current_nav(env: Env, component_balances: Map<Address, u128>) -> u128 {
     let nav = 0;
 
-    component_balances.iter().for_each(|(token_address, token_balance)| {
-        // TODO: Fetch the asset price from the synth token AMM
-        let price = 0;
+    component_balances
+        .iter()
+        .for_each(|(token_address, token_balance)| {
+            // TODO: Fetch the asset price from the synth token AMM
+            let price = 0;
 
-        // Add total value to NAV
-        nav += token_balance * price;
-    });
+            // Add total value to NAV
+            nav += token_balance * price;
+        });
 
     nav
 }
@@ -567,7 +601,7 @@ fn swap_and_update_component_balances(env: Env, operations: Vec<Swap>, index: In
             &next_offer_amount,
             &op.ask_asset_min_amount,
             &max_spread_bps,
-            &max_allowed_fee_bps
+            &max_allowed_fee_bps,
         );
 
         let signed_amount = util(swap_response);

@@ -1,10 +1,10 @@
 use crate::{
-    checkpoints::{ add_supply_checkpoint, Checkpoint },
+    checkpoints::{add_supply_checkpoint, Checkpoint},
     error::TokenVotesError,
     storage,
     voting_units::move_voting_units,
 };
-use soroban_sdk::{ panic_with_error, Address, Env };
+use soroban_sdk::{panic_with_error, Address, Env};
 
 use crate::emissions;
 
@@ -27,11 +27,20 @@ pub fn mint_balance(e: &Env, to: &Address, amount: i128) {
         supply = supply
             .checked_add(amount)
             .unwrap_or_else(|| panic_with_error!(e, TokenVotesError::OverflowError));
-        storage::set_total_supply(e, &u128::from_checkpoint_data(e, e.ledger().sequence(), supply));
+        storage::set_total_supply(
+            e,
+            &u128::from_checkpoint_data(e, e.ledger().sequence(), supply),
+        );
 
         let vote_ledgers = storage::get_vote_ledgers(e);
         add_supply_checkpoint(e, &vote_ledgers, total_supply_checkpoint);
-        move_voting_units(e, &vote_ledgers, None, Some(&storage::get_delegate(e, to)), amount);
+        move_voting_units(
+            e,
+            &vote_ledgers,
+            None,
+            Some(&storage::get_delegate(e, to)),
+            amount,
+        );
 
         storage::set_balance(e, to, &(balance + amount));
     }
@@ -61,11 +70,20 @@ pub fn burn_balance(e: &Env, from: &Address, amount: i128) {
         if supply < 0 {
             panic_with_error!(e, TokenVotesError::InsufficientVotesError);
         }
-        storage::set_total_supply(e, &u128::from_checkpoint_data(e, e.ledger().sequence(), supply));
+        storage::set_total_supply(
+            e,
+            &u128::from_checkpoint_data(e, e.ledger().sequence(), supply),
+        );
 
         let vote_ledgers = storage::get_vote_ledgers(e);
         add_supply_checkpoint(e, &vote_ledgers, total_supply_checkpoint);
-        move_voting_units(e, &vote_ledgers, Some(&storage::get_delegate(e, from)), None, amount);
+        move_voting_units(
+            e,
+            &vote_ledgers,
+            Some(&storage::get_delegate(e, from)),
+            None,
+            amount,
+        );
 
         storage::set_balance(e, from, &(balance - amount));
     }
@@ -97,7 +115,7 @@ pub fn transfer_balance(e: &Env, from: &Address, to: &Address, amount: i128) {
             &vote_ledgers,
             Some(&storage::get_delegate(e, from)),
             Some(&storage::get_delegate(e, to)),
-            amount
+            amount,
         );
     }
 }

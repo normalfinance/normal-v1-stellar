@@ -1,4 +1,4 @@
-use soroban_sdk::{ contracttype, Address };
+use soroban_sdk::{contracttype, Address};
 
 pub(crate) const MAX_FEE_BASIS_POINTS: u32 = 1000; // Maximum fee: 10% (in basis points)
 
@@ -75,7 +75,6 @@ pub struct Index {
     pub rebalance_threshold: i64,
 
     // NAV
-
     /// The NAV at the inception of the index - what the creator deposits (e.g. $1,000)
     pub base_nav: i64,
     /// The price assigned to the index at inception (e.g. $100)
@@ -94,7 +93,6 @@ pub struct Index {
     /// The price at which tokens will be redeemed. Only set if index is expired
     /// precision = PRICE_PRECISION
     pub expiry_price: i64,
-
     // pub total_minted: u64,
     // pub total_redeemed: i64,
 }
@@ -119,13 +117,10 @@ impl Index {
     }
 
     pub fn get_total_weight(&self) -> u8 {
-        self.assets
-            .values()
-            .map(|asset| asset.weight)
-            .sum::<u8>()
+        self.assets.values().map(|asset| asset.weight).sum::<u8>()
     }
 
-    pub fn update_asset_weight(&mut self, asset: Pubkey, new_weight: u8) -> NormalResult<> {
+    pub fn update_asset_weight(&mut self, asset: Pubkey, new_weight: u8) -> NormalResult {
         if self.public {
             msg!("Publc index funds cannot be updated");
             return Ok(());
@@ -142,19 +137,27 @@ impl Index {
 }
 
 pub fn get_index(env: &Env) -> Index {
-    let index = env.storage().persistent().get(&INDEX).expect("Index: Index not set");
-    env.storage()
+    let index = env
+        .storage()
         .persistent()
-        .extend_ttl(&INDEX, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        .get(&INDEX)
+        .expect("Index: Index not set");
+    env.storage().persistent().extend_ttl(
+        &INDEX,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 
     index
 }
 
 pub fn save_index(env: &Env, index: Index) {
     env.storage().persistent().set(&INDEX, &index);
-    env.storage()
-        .persistent()
-        .extend_ttl(&INDEX, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &INDEX,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 // ################################################################

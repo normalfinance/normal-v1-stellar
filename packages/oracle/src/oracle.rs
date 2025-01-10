@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{ contracttype, vec, Env, Vec };
+use soroban_sdk::{contracttype, vec, Env, Vec};
 
 pub(crate) const PERCENTAGE_PRECISION: u128 = 1_000_000; // expo -6 (represents 100%)
 pub(crate) const PERCENTAGE_PRECISION_I128: i128 = PERCENTAGE_PRECISION as i128;
@@ -25,7 +25,7 @@ pub enum OracleError {
 #[contracttype]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum OracleSource {
-    Band, // (https://github.com/bandprotocol/band-std-reference-contracts-soroban/tree/main)
+    Band,      // (https://github.com/bandprotocol/band-std-reference-contracts-soroban/tree/main)
     Reflector, // (https://github.com/reflector-network/reflector-contract)
     // Dia,
     QuoteAsset,
@@ -46,20 +46,21 @@ impl Oracle {
         oracle_source: OracleSource,
         price_oracle_address: Address,
         base_asset: Option<Symbol>, // ("BTC", "USD")
-        quote_asset: Option<Symbol>
+        quote_asset: Option<Symbol>,
     ) -> OraclePriceData {
         match oracle_source {
-            OracleSource::Band =>
-                Self::get_band_price(&env, price_oracle_address, base_asset, quote_asset),
-            OracleSource::Reflector =>
-                Self::get_reflector_price(env, price_oracle_address, base_asset),
-            OracleSource::QuoteAsset =>
-                OraclePriceData {
-                    price: PRICE_PRECISION_I64,
-                    confidence: 1,
-                    delay: 0,
-                    has_sufficient_number_of_data_points: true,
-                },
+            OracleSource::Band => {
+                Self::get_band_price(&env, price_oracle_address, base_asset, quote_asset)
+            }
+            OracleSource::Reflector => {
+                Self::get_reflector_price(env, price_oracle_address, base_asset)
+            }
+            OracleSource::QuoteAsset => OraclePriceData {
+                price: PRICE_PRECISION_I64,
+                confidence: 1,
+                delay: 0,
+                has_sufficient_number_of_data_points: true,
+            },
         }
     }
 
@@ -98,7 +99,7 @@ impl Oracle {
     pub fn is_oracle_too_divergent_with_twap_5min(
         oracle_price: i64,
         oracle_twap_5min: i64,
-        max_divergence: i64
+        max_divergence: i64,
     ) -> bool {
         let percent_diff = oracle_price
             .safe_sub(oracle_twap_5min)?
@@ -124,14 +125,15 @@ fn get_band_price(
     env: Env,
     oracle_contract_address: Address,
     base_asset: Symbol,
-    quote_asset: Symbol
+    quote_asset: Symbol,
 ) -> OraclePriceData {
     let client = band_std_reference::Client::new(&env, &oracle_contract_address);
 
     let price = client
         .get_reference_data(&Vec::from_array(&env, [(base_asset, quote_asset)]))
         .get_unchecked(0)
-        .unwrap().rate;
+        .unwrap()
+        .rate;
 
     let price_data = generate_oracle_price_data();
 
@@ -141,7 +143,7 @@ fn get_band_price(
 fn get_reflector_price(
     env: Env,
     price_oracle: &AccountInfo,
-    base_asset: Symbol
+    base_asset: Symbol,
 ) -> OraclePriceData {
     let client = reflector_price_oracle::Client::new(&env, &reflector_contract_id);
 
@@ -166,9 +168,9 @@ impl OracleGuardRails {
         OracleGuardRails {
             price_divergence: PriceDivergenceGuardRails::default(),
             validity: ValidityGuardRails {
-                slots_before_stale_for_amm: 10, // ~5 seconds
+                slots_before_stale_for_amm: 10,       // ~5 seconds
                 confidence_interval_max_size: 20_000, // 2% of price
-                too_volatile_ratio: 5, // 5x or 80% down
+                too_volatile_ratio: 5,                // 5x or 80% down
             },
         }
     }
@@ -196,4 +198,137 @@ pub struct ValidityGuardRails {
     pub slots_before_stale_for_amm: i64,
     pub confidence_interval_max_size: u64,
     pub too_volatile_ratio: i64,
+}
+
+//  ----------
+
+fn should_get_quote_asset_price_data(&self, pubkey: &Pubkey) -> bool {
+    pubkey == &Pubkey::default()
+}
+
+pub fn get_price_data(&mut self, pubkey: &Pubkey) -> DriftResult<&OraclePriceData> {
+    if self.should_get_quote_asset_price_data(pubkey) {
+        return Ok(&self.quote_asset_price_data);
+    }
+
+    if self.price_data.contains_key(pubkey) {
+        return self.price_data.get(pubkey).safe_unwrap();
+    }
+
+    let (account_info, oracle_source) = match self.oracles.get(pubkey) {
+        Some(AccountInfoAndOracleSource {
+            account_info,
+            oracle_source,
+        }) => (account_info, oracle_source),
+        None => {
+            msg!("oracle pubkey not found in oracle_map: {}", pubkey);
+            return Err(ErrorCode::OracleNotFound);
+        }
+    };
+
+    let price_data = get_oracle_price(oracle_source, account_info, self.slot)?;
+
+    self.price_data.insert(*pubkey, price_data);
+
+    self.price_data.get(pubkey).safe_unwrap()
+}
+
+pub fn get_price_data_and_validity(
+    &mut self,
+    market_type: MarketType,
+    market_index: u16,
+    pubkey: &Pubkey,
+    last_oracle_price_twap: i64,
+    max_confidence_interval_multiplier: u64,
+) -> DriftResult<(&OraclePriceData, OracleValidity)> {
+    if self.should_get_quote_asset_price_data(pubkey) {
+        return Ok((&self.quote_asset_price_data, OracleValidity::Valid));
+    }
+
+    if self.price_data.contains_key(pubkey) {
+        let oracle_price_data = self.price_data.get(pubkey).safe_unwrap()?;
+
+        let oracle_validity = if let Some(oracle_validity) = self.validity.get(pubkey) {
+            *oracle_validity
+        } else {
+            let oracle_validity = oracle_validity(
+                market_type,
+                market_index,
+                last_oracle_price_twap,
+                oracle_price_data,
+                &self.oracle_guard_rails.validity,
+                max_confidence_interval_multiplier,
+                true,
+            )?;
+            self.validity.insert(*pubkey, oracle_validity);
+            oracle_validity
+        };
+        return Ok((oracle_price_data, oracle_validity));
+    }
+
+    let (account_info, oracle_source) = match self.oracles.get(pubkey) {
+        Some(AccountInfoAndOracleSource {
+            account_info,
+            oracle_source,
+        }) => (account_info, oracle_source),
+        None => {
+            msg!("oracle pubkey not found in oracle_map: {}", pubkey);
+            return Err(ErrorCode::OracleNotFound);
+        }
+    };
+
+    let price_data = get_oracle_price(oracle_source, account_info, self.slot)?;
+
+    self.price_data.insert(*pubkey, price_data);
+
+    let oracle_price_data = self.price_data.get(pubkey).safe_unwrap()?;
+    let oracle_validity = oracle_validity(
+        market_type,
+        market_index,
+        last_oracle_price_twap,
+        oracle_price_data,
+        &self.oracle_guard_rails.validity,
+        max_confidence_interval_multiplier,
+        true,
+    )?;
+    self.validity.insert(*pubkey, oracle_validity);
+
+    Ok((oracle_price_data, oracle_validity))
+}
+
+pub fn get_price_data_and_guard_rails(
+    &mut self,
+    pubkey: &Pubkey,
+) -> DriftResult<(&OraclePriceData, &ValidityGuardRails)> {
+    if self.should_get_quote_asset_price_data(pubkey) {
+        let validity_guard_rails = &self.oracle_guard_rails.validity;
+        return Ok((&self.quote_asset_price_data, validity_guard_rails));
+    }
+
+    if self.price_data.contains_key(pubkey) {
+        let oracle_price_data = self.price_data.get(pubkey).safe_unwrap()?;
+        let validity_guard_rails = &self.oracle_guard_rails.validity;
+
+        return Ok((oracle_price_data, validity_guard_rails));
+    }
+
+    let (account_info, oracle_source) = match self.oracles.get(pubkey) {
+        Some(AccountInfoAndOracleSource {
+            account_info,
+            oracle_source,
+        }) => (account_info, oracle_source),
+        None => {
+            msg!("oracle pubkey not found in oracle_map: {}", pubkey);
+            return Err(ErrorCode::OracleNotFound);
+        }
+    };
+
+    let price_data = get_oracle_price(oracle_source, account_info, self.slot)?;
+
+    self.price_data.insert(*pubkey, price_data);
+
+    let oracle_price_data = self.price_data.get(pubkey).safe_unwrap()?;
+    let validity_guard_rails = &self.oracle_guard_rails.validity;
+
+    Ok((oracle_price_data, validity_guard_rails))
 }

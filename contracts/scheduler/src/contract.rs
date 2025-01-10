@@ -1,9 +1,9 @@
-use soroban_sdk::{ assert_with_error, contract, contractimpl, Address, Env };
+use soroban_sdk::{assert_with_error, contract, contractimpl, Address, Env};
 
 use crate::{
     errors::ErrorCode,
-    storage::{ get_config, is_initialized, save_config, set_initialized, Asset, Config, ADMIN },
     scheduler::SchedulerTrait,
+    storage::{get_config, is_initialized, save_config, set_initialized, Asset, Config, ADMIN},
     token_contract,
 };
 
@@ -25,10 +25,13 @@ impl SchedulerTrait for Scheduler {
         index_factory_address: Address,
         keeper_accounts: Vec<Address>,
         protocol_fee_bps: u64,
-        keeper_fee_bps: u64
+        keeper_fee_bps: u64,
     ) {
         if is_initialized(&env) {
-            log!(&env, "Scheduler: Initialize: initializing contract twice is not allowed");
+            log!(
+                &env,
+                "Scheduler: Initialize: initializing contract twice is not allowed"
+            );
             panic_with_error!(&env, ErrorCode::AlreadyInitialized);
         }
 
@@ -42,14 +45,17 @@ impl SchedulerTrait for Scheduler {
 
         set_initialized(&env);
 
-        save_config(&env, Config {
-            admin: admin.clone(),
-            synth_market_factory_address,
-            index_factory_address,
-            keeper_accounts,
-            protocol_fee_bps,
-            keeper_fee_bps,
-        });
+        save_config(
+            &env,
+            Config {
+                admin: admin.clone(),
+                synth_market_factory_address,
+                index_factory_address,
+                keeper_accounts,
+                protocol_fee_bps,
+                keeper_fee_bps,
+            },
+        );
 
         SchedulerEvents::initialize(&env, admin);
     }
@@ -61,11 +67,13 @@ impl SchedulerTrait for Scheduler {
         synth_market_factory_address: Option<Address>,
         index_factory_address: Option<Address>,
         protocol_fee_bps: Option<u64>,
-        keeper_fee_bps: Option<u64>
+        keeper_fee_bps: Option<u64>,
     ) {
         let admin: Address = utils::get_admin_old(&env);
         admin.require_auth();
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         // TODO: do we need manual admin check here?
 
@@ -96,15 +104,20 @@ impl SchedulerTrait for Scheduler {
         env: Env,
         sender: Address,
         to_add: Vec<Address>,
-        to_remove: Vec<Address>
+        to_remove: Vec<Address>,
     ) {
         sender.require_auth();
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let config = get_config(&env);
 
         if config.admin != sender {
-            log!(&env, "Scheduler: Update keeper accounts: You are not authorized!");
+            log!(
+                &env,
+                "Scheduler: Update keeper accounts: You are not authorized!"
+            );
             panic_with_error!(&env, ErrorCode::NotAuthorized);
         }
 
@@ -122,10 +135,13 @@ impl SchedulerTrait for Scheduler {
             }
         });
 
-        save_config(&env, Config {
-            keeper_accounts,
-            ..config
-        })
+        save_config(
+            &env,
+            Config {
+                keeper_accounts,
+                ..config
+            },
+        )
     }
 
     fn collect_protocol_fees(env: Env, sender: Address, to: Address) {
@@ -134,7 +150,10 @@ impl SchedulerTrait for Scheduler {
         let config = get_config(&env);
 
         if config.admin != sender {
-            log!(&env, "Scheduler: Collect protocol fees: You are not authorized!");
+            log!(
+                &env,
+                "Scheduler: Collect protocol fees: You are not authorized!"
+            );
             panic_with_error!(&env, ErrorCode::NotAuthorized);
         }
 
@@ -143,7 +162,7 @@ impl SchedulerTrait for Scheduler {
             _,
             &env.current_contract_address(),
             &to,
-            &config.fees_to_collect
+            &config.fees_to_collect,
         );
 
         config.fees_to_collect = 0;
@@ -222,7 +241,7 @@ impl SchedulerTrait for Scheduler {
         active: bool,
         interval_seconds: u64,
         min_price: Option<u16>,
-        max_price: Option<u16>
+        max_price: Option<u16>,
     ) {
         user.require_auth();
 
@@ -260,7 +279,7 @@ impl SchedulerTrait for Scheduler {
         interval_seconds: Option<u64>,
         total_orders: Option<u16>,
         min_price: Option<u16>,
-        max_price: Option<u16>
+        max_price: Option<u16>,
     ) {
         user.require_auth();
         // env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
@@ -327,9 +346,8 @@ impl SchedulerTrait for Scheduler {
         }
 
         // TODO: how do we error if no schedule is found
-        let mut schedule = get_schedule_by_timestamp(&env, &user, &schedule_timestamp).ok_or(
-            "Schedule not found"
-        )?;
+        let mut schedule = get_schedule_by_timestamp(&env, &user, &schedule_timestamp)
+            .ok_or("Schedule not found")?;
 
         // TODO: Validate the schedule needs to be executed
 
@@ -358,8 +376,8 @@ impl SchedulerTrait for Scheduler {
                         other_amount_threshold,
                         sqrt_price_limit,
                         amount_specified_is_input,
-                        a_to_b
-                    ]
+                        a_to_b,
+                    ],
                 );
                 assert!(
                     amm_response.ask_amount.is_some(),
@@ -370,7 +388,7 @@ impl SchedulerTrait for Scheduler {
                 let index_response: MintResponse = env.invoke_contract(
                     &schedule.target_contract_address,
                     &Symbol::new(&env, "mint"),
-                    vec![&env, user.into_val(&env), amount]
+                    vec![&env, user.into_val(&env), amount],
                 );
                 assert!(
                     index_response.mint_amount.is_some(),
@@ -402,7 +420,7 @@ impl SchedulerTrait for Scheduler {
 
         let recipient_address = match to {
             Some(to_address) => to_address, // Use the provided `to` address
-            None => keeper, // Otherwise use the keeper address
+            None => keeper,                 // Otherwise use the keeper address
         };
 
         for asset in keeper_info.fees_owed {
@@ -411,7 +429,7 @@ impl SchedulerTrait for Scheduler {
                 &asset.address,
                 &env.current_contract_address(),
                 &recipient_address,
-                &asset.amount
+                &asset.amount,
             );
             asset.amount = 0; // TODO: is this the correct way to zero this?
         }
@@ -425,12 +443,16 @@ impl SchedulerTrait for Scheduler {
     // Queries
 
     fn query_schedules(env: Env) -> Vec<Address> {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         // get_lp_vec(&env)
     }
 
     fn query_pool_details(env: Env, pool_address: Address) -> LiquidityPoolInfo {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         // let pool_response: LiquidityPoolInfo = env.invoke_contract(
         //     &pool_address,
         //     &Symbol::new(&env, "query_pool_info_for_factory"),
@@ -446,7 +468,7 @@ fn validate_target_info(schedule_type: &ScheduleType, target_contract_address: A
             let amm_response: SimulateSwapResponse = env.invoke_contract(
                 &target_contract_address,
                 &Symbol::new(&env, "simulate_swap"),
-                Vec::new(&env) // TODO: update args OR use health_ping call instead
+                Vec::new(&env), // TODO: update args OR use health_ping call instead
             );
             assert!(
                 amm_response.ask_amount.is_some(),
@@ -457,7 +479,7 @@ fn validate_target_info(schedule_type: &ScheduleType, target_contract_address: A
             let index_response: SimulateMintResponse = env.invoke_contract(
                 &target_contract_address,
                 &Symbol::new(&env, "simulate_mint"),
-                Vec::new(&env) // TODO: update args OR use health_ping call instead
+                Vec::new(&env), // TODO: update args OR use health_ping call instead
             );
             assert!(
                 index_response.mint_amount.is_some(),

@@ -1,5 +1,5 @@
-use normal::utils::{ OrderDirection };
-use soroban_sdk::{ contracttype, Address, BytesN, String, Symbol, Val, Vec };
+use normal::utils::OrderDirection;
+use soroban_sdk::{contracttype, Address, BytesN, String, Symbol, Val, Vec};
 
 pub const ADMIN: Symbol = symbol_short!("ADMIN");
 
@@ -46,17 +46,25 @@ const CONFIG: Symbol = symbol_short!("CONFIG");
 
 pub fn save_config(env: &Env, config: Config) {
     env.storage().persistent().set(&DataKey::Config, &config);
-    env.storage()
-        .persistent()
-        .extend_ttl(&DataKey::Config, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &DataKey::Config,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn get_config(env: &Env) -> Config {
-    let config = env.storage().persistent().get(&DataKey::Config).expect("Config not set");
-
-    env.storage()
+    let config = env
+        .storage()
         .persistent()
-        .extend_ttl(&DataKey::Config, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        .get(&DataKey::Config)
+        .expect("Config not set");
+
+    env.storage().persistent().extend_ttl(
+        &DataKey::Config,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 
     config
 }
@@ -111,7 +119,6 @@ pub struct SchedulingInfo {
     pub total_deposits: i128,
     /// Total amount of staked tokens
     pub total_withdrawals: i128,
-
     // TODO: move to a state-like struct
     // /// List of assets and amounts owed in fees
     // pub protocol_fees_owed: Vec<Asset>,
@@ -124,31 +131,31 @@ pub struct SchedulingInfo {
 pub fn get_schedules(env: &Env, key: &Address) -> SchedulingInfo {
     let scheduling_info = match env.storage().persistent().get::<_, SchedulingInfo>(key) {
         Some(stake) => stake,
-        None =>
-            SchedulingInfo {
-                schedules: Vec::new(env),
-                // reward_debt: 0u128,
-                // last_reward_time: 0u64,
-                // total_stake: 0i128,
-            },
+        None => SchedulingInfo {
+            schedules: Vec::new(env),
+            // reward_debt: 0u128,
+            // last_reward_time: 0u64,
+            // total_stake: 0i128,
+        },
     };
-    env.storage()
-        .persistent()
-        .has(&key)
-        .then(|| {
-            env.storage()
-                .persistent()
-                .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
-        });
+    env.storage().persistent().has(&key).then(|| {
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
+    });
 
     scheduling_info
 }
 
 pub fn save_schedules(env: &Env, key: &Address, scheduling_info: &SchedulingInfo) {
     env.storage().persistent().set(key, scheduling_info);
-    env.storage()
-        .persistent()
-        .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 // ################################################################
@@ -173,39 +180,39 @@ pub struct KeeperInfo {
 pub fn get_keeper_info(env: &Env, key: &Address) -> KeeperInfo {
     let keeper_info = match env.storage().persistent().get::<_, KeeperInfo>(key) {
         Some(info) => info,
-        None =>
-            KeeperInfo {
-                fees_owed: Vec::new(env),
-                total_fees: 0u64,
-                last_fee_collection_time: 0u64,
-                total_orders: 0u64,
-                total_order_amount: 0u128,
-                last_order_time: 0u64,
-            },
+        None => KeeperInfo {
+            fees_owed: Vec::new(env),
+            total_fees: 0u64,
+            last_fee_collection_time: 0u64,
+            total_orders: 0u64,
+            total_order_amount: 0u128,
+            last_order_time: 0u64,
+        },
     };
-    env.storage()
-        .persistent()
-        .has(&key)
-        .then(|| {
-            env.storage()
-                .persistent()
-                .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
-        });
+    env.storage().persistent().has(&key).then(|| {
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
+    });
 
     keeper_info
 }
 
 pub fn save_keeper_info(env: &Env, key: &Address, keeper_info: &KeeperInfo) {
     env.storage().persistent().set(key, keeper_info);
-    env.storage()
-        .persistent()
-        .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 // ################################################################
 
 pub mod utils {
-    use normal::ttl::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD };
+    use normal::ttl::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
     use soroban_sdk::String;
 
     use super::*;
@@ -215,7 +222,7 @@ pub mod utils {
         asset: Option<Address>,
         from: &Address,
         to: &Address,
-        amount: u128
+        amount: u128,
     ) {
         match asset {
             // Handle XLM
@@ -233,36 +240,37 @@ pub mod utils {
     pub fn _save_admin(env: &Env, admin_addr: Address) {
         env.storage().instance().set(&ADMIN, &admin_addr);
 
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
     }
 
     pub fn _get_admin(env: &Env) -> Address {
-        let admin_addr = env
-            .storage()
-            .instance()
-            .get(&ADMIN)
-            .unwrap_or_else(|| {
-                log!(env, "Factory: Admin not set");
-                panic_with_error!(&env, ContractError::AdminNotSet)
-            });
+        let admin_addr = env.storage().instance().get(&ADMIN).unwrap_or_else(|| {
+            log!(env, "Factory: Admin not set");
+            panic_with_error!(&env, ContractError::AdminNotSet)
+        });
 
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         admin_addr
     }
 
     pub fn is_initialized(e: &Env) -> bool {
-        e.storage().persistent().get(&DataKey::Initialized).unwrap_or(false)
+        e.storage()
+            .persistent()
+            .get(&DataKey::Initialized)
+            .unwrap_or(false)
     }
 
     pub fn set_initialized(e: &Env) {
         e.storage().persistent().set(&DataKey::Initialized, &true);
-        e.storage()
-            .persistent()
-            .extend_ttl(
-                &DataKey::Initialized,
-                PERSISTENT_LIFETIME_THRESHOLD,
-                PERSISTENT_BUMP_AMOUNT
-            );
+        e.storage().persistent().extend_ttl(
+            &DataKey::Initialized,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
     }
 }

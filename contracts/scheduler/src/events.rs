@@ -1,6 +1,6 @@
-use soroban_sdk::{ Address, Env, String, Symbol };
+use soroban_sdk::{Address, Env, String, Symbol};
 
-use crate::types::{ ProposalAction, VoteCount };
+use crate::types::{ProposalAction, VoteCount};
 
 pub struct SchedulerEvents {}
 
@@ -26,10 +26,11 @@ impl SchedulerEvents {
         schedule_id: u32,
         creator: Address,
         amm_id: Address,
-        params: ScheduleData
+        params: ScheduleData,
     ) {
         let topics = (Symbol::new(&e, "new_asset_schedule"), schedule_id, creator);
-        e.events().publish(topics, (title, desc, action, vote_start, vote_end));
+        e.events()
+            .publish(topics, (title, desc, action, vote_start, vote_end));
     }
 
     /// Emitted when a user makes a deposit

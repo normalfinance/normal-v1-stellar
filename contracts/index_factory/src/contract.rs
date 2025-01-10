@@ -1,44 +1,29 @@
 use crate::{
     error::ErrorCode,
     storage::{
-        get_config,
-        get_index_vec,
-        is_initialized,
-        save_config,
-        save_index_vec,
-        save_index_vec_with_tuple_as_key,
-        set_initialized,
-        Asset,
-        Config,
-        IndexInfo,
-        PairTupleKey,
+        get_config, get_index_vec, is_initialized, save_config, save_index_vec,
+        save_index_vec_with_tuple_as_key, set_initialized, Asset, Config, IndexInfo, PairTupleKey,
         ADMIN,
     },
-    utils::{ deploy_index_contract },
+    utils::deploy_index_contract,
 };
-use normal::{ ttl::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD }, validate_bps };
 use normal::{
-    ttl::{ PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD },
-    utils::{ IndexParms },
+    ttl::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD},
+    validate_bps,
+};
+use normal::{
+    ttl::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
+    utils::IndexParms,
 };
 use soroban_sdk::{
-    contract,
-    contractimpl,
-    contractmeta,
-    log,
-    panic_with_error,
-    vec,
-    Address,
-    BytesN,
-    Env,
-    IntoVal,
-    String,
-    Symbol,
-    Val,
-    Vec,
+    contract, contractimpl, contractmeta, log, panic_with_error, vec, Address, BytesN, Env,
+    IntoVal, String, Symbol, Val, Vec,
 };
 
-contractmeta!(key = "Description", val = "Factory for creating new Indexes");
+contractmeta!(
+    key = "Description",
+    val = "Factory for creating new Indexes"
+);
 
 #[contract]
 pub struct IndexFactory;
@@ -53,7 +38,7 @@ pub trait IndexFactoryTrait {
         paused_operations: u8,
         max_manager_fee_bps: i64,
         protocol_fee_bps: i64,
-        default_oracle: Address
+        default_oracle: Address,
     );
 
     #[allow(clippy::too_many_arguments)]
@@ -62,13 +47,13 @@ pub trait IndexFactoryTrait {
         sender: Address,
         index_params: IndexParams,
         index_token_name: String,
-        index_token_symbol: String
+        index_token_symbol: String,
     ) -> Address;
 
     fn update_wasm_hashes(
         env: Env,
         index_wasm_hash: Option<BytesN<32>>,
-        index_token_wasm_hash: Option<BytesN<32>>
+        index_token_wasm_hash: Option<BytesN<32>>,
     );
 
     // Allows admin address set during initialization to change some parameters of the
@@ -80,7 +65,7 @@ pub trait IndexFactoryTrait {
         paused_operations: Option<u8>,
         max_manager_fee_bps: Option<i64>,
         protocol_fee_bps: Option<i64>,
-        default_oracle: Option<Address>
+        default_oracle: Option<Address>,
     );
 
     fn query_indexes(env: Env) -> Vec<Address>;
@@ -114,28 +99,35 @@ impl IndexFactoryTrait for IndexFactory {
         paused_operations: u8,
         max_manager_fee_bps: i64,
         protocol_fee_bps: i64,
-        default_oracle: Address
+        default_oracle: Address,
     ) {
         if is_initialized(&env) {
-            log!(&env, "Index Factory: Initialize: initializing contract twice is not allowed");
+            log!(
+                &env,
+                "Index Factory: Initialize: initializing contract twice is not allowed"
+            );
             panic_with_error!(&env, ErrorCode::AlreadyInitialized);
         }
 
         set_initialized(&env);
 
-        save_config(&env, Config {
-            admin: admin.clone(),
-            index_wasm_hash,
-            index_token_wasm_hash,
-            paused_operations,
-            max_manager_fee_bps,
-            protocol_fee_bps,
-            default_oracle,
-        });
+        save_config(
+            &env,
+            Config {
+                admin: admin.clone(),
+                index_wasm_hash,
+                index_token_wasm_hash,
+                paused_operations,
+                max_manager_fee_bps,
+                protocol_fee_bps,
+                default_oracle,
+            },
+        );
 
         save_index_vec(&env, Vec::new(&env));
 
-        env.events().publish(("initialize", "Index factory contract"), admin);
+        env.events()
+            .publish(("initialize", "Index factory contract"), admin);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -144,10 +136,12 @@ impl IndexFactoryTrait for IndexFactory {
         sender: Address,
         index_params: IndexParams,
         index_token_name: String,
-        index_token_symbol: String
+        index_token_symbol: String,
     ) -> Address {
         sender.require_auth();
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         // validate_token_info(&env, &lp_init_info.token_init_info, &lp_init_info.stake_init_info);
 
@@ -159,7 +153,7 @@ impl IndexFactoryTrait for IndexFactory {
             &env,
             index_hash,
             &index_params.token_init_info.token_a,
-            &index_params.token_init_info.token_b
+            &index_params.token_init_info.token_b,
         );
 
         validate_bps!(
@@ -177,7 +171,8 @@ impl IndexFactoryTrait for IndexFactory {
             factory_addr,
             index_token_name,
             index_token_symbol,
-        ).into_val(&env);
+        )
+            .into_val(&env);
 
         // if let PoolType::Xyk = pool_type {
         //     init_fn_args.push_back(default_slippage_bps.into_val(&env));
@@ -196,7 +191,8 @@ impl IndexFactoryTrait for IndexFactory {
         let token_b = &lp_init_info.token_init_info.token_b;
         save_index_vec_with_tuple_as_key(&env, (token_a, token_b), &index_contract_address);
 
-        env.events().publish(("create", "index"), &index_contract_address);
+        env.events()
+            .publish(("create", "index"), &index_contract_address);
 
         index_contract_address
     }
@@ -204,18 +200,24 @@ impl IndexFactoryTrait for IndexFactory {
     fn update_wasm_hashes(
         env: Env,
         index_wasm_hash: Option<BytesN<32>>,
-        index_token_wasm_hash: Option<BytesN<32>>
+        index_token_wasm_hash: Option<BytesN<32>>,
     ) {
         let config = get_config(&env);
 
         config.admin.require_auth();
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-        save_config(&env, Config {
-            index_wasm_hash: index_wasm_hash.unwrap_or(config.index_wasm_hash),
-            index_token_wasm_hash: index_token_wasm_hash.unwrap_or(config.index_token_wasm_hash),
-            ..config
-        });
+        save_config(
+            &env,
+            Config {
+                index_wasm_hash: index_wasm_hash.unwrap_or(config.index_wasm_hash),
+                index_token_wasm_hash: index_token_wasm_hash
+                    .unwrap_or(config.index_token_wasm_hash),
+                ..config
+            },
+        );
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -225,11 +227,13 @@ impl IndexFactoryTrait for IndexFactory {
         paused_operations: Option<u8>,
         max_manager_fee_bps: Option<i64>,
         protocol_fee_bps: Option<i64>,
-        default_oracle: Option<Address>
+        default_oracle: Option<Address>,
     ) {
         let admin: Address = utils::get_admin_old(&env);
         admin.require_auth();
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let mut config = get_config(&env);
 
@@ -258,29 +262,35 @@ impl IndexFactoryTrait for IndexFactory {
     }
 
     fn query_indexes(env: Env) -> Vec<Address> {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         get_lp_vec(&env)
     }
 
     fn query_index_details(env: Env, index_address: Address) -> IndexInfo {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         let index_response: IndexInfo = env.invoke_contract(
             &index_address,
             &Symbol::new(&env, "query_index_info_for_factory"),
-            Vec::new(&env)
+            Vec::new(&env),
         );
         index_response
     }
 
     fn query_all_indexes_details(env: Env) -> Vec<IndexInfo> {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         let all_index_vec_addresses = get_index_vec(&env);
         let mut result = Vec::new(&env);
         for address in all_index_vec_addresses {
             let pool_response: IndexInfo = env.invoke_contract(
                 &address,
                 &Symbol::new(&env, "query_index_info_for_factory"),
-                Vec::new(&env)
+                Vec::new(&env),
             );
 
             result.push_back(pool_response);
@@ -297,12 +307,16 @@ impl IndexFactoryTrait for IndexFactory {
     }
 
     fn get_admin(env: Env) -> Address {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         get_config(&env).admin
     }
 
     fn get_config(env: Env) -> Config {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         get_config(&env)
     }
 

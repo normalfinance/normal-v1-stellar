@@ -1,8 +1,8 @@
-use soroban_sdk::{ Address, Env };
+use soroban_sdk::{Address, Env};
 
-use crate::storage_types::{ DataKey, Stake };
+use crate::storage_types::{DataKey, Stake};
 
-use soroban_sdk::{ contracttype, Address };
+use soroban_sdk::{contracttype, Address};
 
 pub const ADMIN: Symbol = symbol_short!("ADMIN");
 pub const GOVERNOR: Symbol = symbol_short!("GOVERNOR");
@@ -27,7 +27,7 @@ pub fn is_admin(env: &Env, address: Address) {
         .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
     if admin_addr != address {
-        return Err(ErrorCode::NotAuthorized)
+        return Err(ErrorCode::NotAuthorized);
     }
 }
 
@@ -42,10 +42,9 @@ pub fn is_governor(env: &Env, address: Address) {
         .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
     if governor_addr != address {
-        return Err(ErrorCode::NotAuthorized)
+        return Err(ErrorCode::NotAuthorized);
     }
 }
-
 
 // ################################################################
 
@@ -63,18 +62,13 @@ pub struct SynthMarket {
     /// The market's liquidity pool
     pub amm: Address,
 
+    /// LP Management
 
-
-    /// LP Management 
-    
     /// The optimatal AMM position to deposit new liquidity into
     pub liquidity_position_ts: u64,
     pub last_liquidity_position_rebalance_ts: u64,
 
-
-    /// End LP Management 
-     
-
+    /// End LP Management
 
     /// Encoded display name for the market e.g. BTC-XLM
     pub name: String,
@@ -339,9 +333,9 @@ impl SynthMarket {
             SynthTier::A => Some(10_i64),         // 10%
             SynthTier::B => Some(5_i64),          // 20%
             SynthTier::C => Some(2_i64),          // 50%
-            SynthTier::Speculative => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
+            SynthTier::Speculative => None,       // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
             SynthTier::HighlySpeculative => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
-            SynthTier::Isolated => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
+            SynthTier::Isolated => None,          // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
         }
     }
 
@@ -356,10 +350,7 @@ impl SynthMarket {
         }
     }
 
-    pub fn get_max_price_divergence_for_funding_rate(
-        self,
-        oracle_price_twap: i64,
-    ) -> i64 {
+    pub fn get_max_price_divergence_for_funding_rate(self, oracle_price_twap: i64) -> i64 {
         // clamp to to 3% price divergence for safer markets and higher for lower contract tiers
         if self.synth_tier.is_as_safe_as_synth(&SynthTier::B) {
             oracle_price_twap.safe_div(33) // 3%
@@ -387,7 +378,7 @@ impl SynthMarket {
             size,
             self.imf_factor,
             default_margin_ratio,
-            MARGIN_PRECISION_U128
+            MARGIN_PRECISION_U128,
         )?;
 
         let margin_ratio = default_margin_ratio.max(size_adj_margin_ratio);
@@ -396,12 +387,13 @@ impl SynthMarket {
     }
 
     pub fn get_max_liquidation_fee(&self) -> u32 {
-        let max_liquidation_fee = self.liquidator_fee
+        let max_liquidation_fee = self
+            .liquidator_fee
             .safe_mul(MAX_LIQUIDATION_MULTIPLIER)?
             .min(
                 self.margin_ratio_maintenance
                     .safe_mul(LIQUIDATION_FEE_PRECISION)?
-                    .safe_div(MARGIN_PRECISION)?
+                    .safe_div(MARGIN_PRECISION)?,
             );
         max_liquidation_fee
     }
@@ -474,7 +466,9 @@ impl SynthMarket {
 }
 
 pub fn save_market(env: &Env, market: SynthMarket) {
-    env.storage().persistent().set(&DataKey::SynthMarket, &market);
+    env.storage()
+        .persistent()
+        .set(&DataKey::SynthMarket, &market);
     env.storage().persistent().extend_ttl(
         &DataKey::SynthMarket,
         PERSISTENT_LIFETIME_THRESHOLD,
@@ -582,14 +576,13 @@ pub struct Position {
 }
 
 impl Position {
-
     pub fn is_open_position(&self) -> bool {
         self.cumulative_deposits != 0
     }
 
     pub fn is_being_liquidated(&self) -> bool {
-        self.status & ((PositionStatus::BeingLiquidated as u8) | (PositionStatus::Bankrupt as u8)) >
-            0
+        self.status & ((PositionStatus::BeingLiquidated as u8) | (PositionStatus::Bankrupt as u8))
+            > 0
     }
 
     pub fn is_bankrupt(&self) -> bool {
@@ -612,7 +605,7 @@ impl Position {
         &mut self,
         amount: u64,
         price: i64,
-        precision: u128
+        precision: u128,
     ) -> NormalResult {
         let value = self.get_deposit_value(amount, price, precision);
         self.total_deposits = self.total_deposits.saturating_add(value);
@@ -624,7 +617,7 @@ impl Position {
         &mut self,
         amount: u64,
         price: i64,
-        precision: u128
+        precision: u128,
     ) -> NormalResult {
         let value = amount
             .cast::<u128>()?
@@ -682,7 +675,7 @@ impl Position {
         &mut self,
 
         context: MarginContext,
-        now: i64
+        now: i64,
     ) -> NormalResult<MarginCalculation> {
         let margin_calculation =
             calculate_margin_requirement_and_total_collateral_and_liability_info(self, context)?;
@@ -696,15 +689,13 @@ impl Position {
         margin_requirement_type: MarginRequirementType,
         withdraw_market_index: u16,
         withdraw_amount: u128,
-        now: i64
+        now: i64,
     ) -> NormalResult<bool> {
         let strict = margin_requirement_type == MarginRequirementType::Initial;
         let context = MarginContext::standard(margin_requirement_type).strict(strict);
 
-        let calculation = calculate_margin_requirement_and_total_collateral_and_liability_info(
-            self,
-            context
-        )?;
+        let calculation =
+            calculate_margin_requirement_and_total_collateral_and_liability_info(self, context)?;
 
         if calculation.margin_requirement > 0 || calculation.get_num_of_liabilities()? > 0 {
             validate!(
@@ -731,22 +722,20 @@ impl Position {
 pub fn get_position(env: &Env, key: &Address) -> Position {
     let position_info = match env.storage().persistent().get::<_, Position>(key) {
         Some(position) => position,
-        None =>
-            Position {
-                stakes: Vec::new(env),
-                reward_debt: 0u128,
-                last_reward_time: 0u64,
-                total_stake: 0i128,
-            },
+        None => Position {
+            stakes: Vec::new(env),
+            reward_debt: 0u128,
+            last_reward_time: 0u64,
+            total_stake: 0i128,
+        },
     };
-    env.storage()
-        .persistent()
-        .has(&key)
-        .then(|| {
-            env.storage()
-                .persistent()
-                .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
-        });
+    env.storage().persistent().has(&key).then(|| {
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
+    });
 
     position_info
 }

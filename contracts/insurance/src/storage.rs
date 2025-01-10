@@ -1,31 +1,28 @@
-use soroban_sdk::{ Address, Env };
+use soroban_sdk::{Address, Env};
 
-use crate::storage_types::{ DataKey, Stake };
-
+use crate::storage_types::{DataKey, Stake};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct State {
     pub total_shares: u128,
-	pub user_shares: u128,
-	pub shares_base: u128, // exponent for lp shares (for rebasing)
-	pub last_revenue_settle_ts: i64,
-	pub total_factor: u32, // percentage of interest for total insurance
-	pub user_factor: u32, // percentage of interest for user staked insurance
-	pub paused_operations: u8,
+    pub user_shares: u128,
+    pub shares_base: u128, // exponent for lp shares (for rebasing)
+    pub last_revenue_settle_ts: i64,
+    pub total_factor: u32, // percentage of interest for total insurance
+    pub user_factor: u32,  // percentage of interest for user staked insurance
+    pub paused_operations: u8,
 }
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Config {   
-	pub unstaking_period: i64,
-	pub revenue_settle_period: i64,
-	pub max_insurance: u64,
-	pub paused_operations: u8,
+pub struct Config {
+    pub unstaking_period: i64,
+    pub revenue_settle_period: i64,
+    pub max_insurance: u64,
+    pub paused_operations: u8,
 }
 const CONFIG: Symbol = symbol_short!("CONFIG");
-
-
 
 pub fn get_config(env: &Env) -> Config {
     let config = env
@@ -51,94 +48,76 @@ pub fn save_config(env: &Env, config: Config) {
     );
 }
 
-
 // ################################################################
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub struct Stake {
-	pub authority: Address,
-	if_shares: u128,
-	pub last_withdraw_request_shares: u128, // get zero as 0 when not in escrow
-	pub if_base: u128, // exponent for if_shares decimal places (for rebase)
-	pub last_valid_ts: i64,
-	pub last_withdraw_request_value: u64,
-	pub last_withdraw_request_ts: i64,
-	pub cost_basis: i64,
-	pub padding: [u8; 14],
+    pub authority: Address,
+    if_shares: u128,
+    pub last_withdraw_request_shares: u128, // get zero as 0 when not in escrow
+    pub if_base: u128,                      // exponent for if_shares decimal places (for rebase)
+    pub last_valid_ts: i64,
+    pub last_withdraw_request_value: u64,
+    pub last_withdraw_request_ts: i64,
+    pub cost_basis: i64,
+    pub padding: [u8; 14],
 }
 
 impl Stake {
-	pub fn new(authority: Address, now: i64) -> Self {
-		InsuranceFundStake {
-			authority,
-			last_withdraw_request_shares: 0,
-			last_withdraw_request_value: 0,
-			last_withdraw_request_ts: 0,
-			cost_basis: 0,
-			if_base: 0,
-			last_valid_ts: now,
-			if_shares: 0,
-		}
-	}
+    pub fn new(authority: Address, now: i64) -> Self {
+        InsuranceFundStake {
+            authority,
+            last_withdraw_request_shares: 0,
+            last_withdraw_request_value: 0,
+            last_withdraw_request_ts: 0,
+            cost_basis: 0,
+            if_base: 0,
+            last_valid_ts: now,
+            if_shares: 0,
+        }
+    }
 
-	// fn validate_base(&self, spot_market: &SpotMarket) -> NormalResult {
-	// 	validate!(
-	// 		self.if_base == spot_market.insurance_fund.shares_base,
-	// 		ErrorCode::InvalidIFRebase,
-	// 		"if stake bases mismatch. user base: {} market base {}",
-	// 		self.if_base,
-	// 		spot_market.insurance_fund.shares_base
-	// 	)?;
+    // fn validate_base(&self, spot_market: &SpotMarket) -> NormalResult {
+    // 	validate!(
+    // 		self.if_base == spot_market.insurance_fund.shares_base,
+    // 		ErrorCode::InvalidIFRebase,
+    // 		"if stake bases mismatch. user base: {} market base {}",
+    // 		self.if_base,
+    // 		spot_market.insurance_fund.shares_base
+    // 	)?;
 
-	// 	Ok(())
-	// }
+    // 	Ok(())
+    // }
 
-	pub fn checked_if_shares(
-		&self,
-		spot_market: &SpotMarket
-	) -> NormalResult<u128> {
-		self.validate_base(spot_market)?;
-		Ok(self.if_shares)
-	}
+    pub fn checked_if_shares(&self, spot_market: &SpotMarket) -> NormalResult<u128> {
+        self.validate_base(spot_market)?;
+        Ok(self.if_shares)
+    }
 
-	pub fn unchecked_if_shares(&self) -> u128 {
-		self.if_shares
-	}
+    pub fn unchecked_if_shares(&self) -> u128 {
+        self.if_shares
+    }
 
-	pub fn increase_if_shares(
-		&mut self,
-		delta: u128,
-		spot_market: &SpotMarket
-	) -> NormalResult {
-		self.validate_base(spot_market)?;
-		safe_increment!(self.if_shares, delta);
-		Ok(())
-	}
+    pub fn increase_if_shares(&mut self, delta: u128, spot_market: &SpotMarket) -> NormalResult {
+        self.validate_base(spot_market)?;
+        safe_increment!(self.if_shares, delta);
+        Ok(())
+    }
 
-	pub fn decrease_if_shares(
-		&mut self,
-		delta: u128,
-		spot_market: &SpotMarket
-	) -> NormalResult {
-		self.validate_base(spot_market)?;
-		safe_decrement!(self.if_shares, delta);
-		Ok(())
-	}
+    pub fn decrease_if_shares(&mut self, delta: u128, spot_market: &SpotMarket) -> NormalResult {
+        self.validate_base(spot_market)?;
+        safe_decrement!(self.if_shares, delta);
+        Ok(())
+    }
 
-	pub fn update_if_shares(
-		&mut self,
-		new_shares: u128,
-		spot_market: &SpotMarket
-	) -> NormalResult {
-		self.validate_base(spot_market)?;
-		self.if_shares = new_shares;
+    pub fn update_if_shares(&mut self, new_shares: u128, spot_market: &SpotMarket) -> NormalResult {
+        self.validate_base(spot_market)?;
+        self.if_shares = new_shares;
 
-		Ok(())
-	}
+        Ok(())
+    }
 }
-
-
 
 // ################################################################
 
@@ -146,7 +125,7 @@ impl Stake {
 #[derive(Clone, Debug)]
 pub enum DataKey {
     Admin,
-   
+
     Stake(Address),
 }
 
@@ -162,7 +141,7 @@ pub struct Stake {
     pub authority: Address,
     if_shares: u128,
     pub last_withdraw_request_shares: u128, // get zero as 0 when not in escrow
-    pub if_base: u128, // exponent for if_shares decimal places (for rebase)
+    pub if_base: u128,                      // exponent for if_shares decimal places (for rebase)
     pub last_valid_ts: i64,
     pub last_withdraw_request_value: u64,
     pub last_withdraw_request_ts: i64,
@@ -173,7 +152,7 @@ pub struct Stake {
 
 pub fn is_governor(e: &Env) {
     if e.invoker() != get_governor(e) {
-        return Err(ErrorCode::OnlyGovernor)
+        return Err(ErrorCode::OnlyGovernor);
     }
     // TODO: do we need to auth the governor?
     // governor.require_auth();
@@ -210,7 +189,9 @@ pub fn is_admin(e: &Env) {
 
 // Max Insurance
 pub fn set_max_insurance(e: &Env, max_insurance: u64) {
-    e.storage().instance().set(&DataKey::MaxInsurance, &max_insurance);
+    e.storage()
+        .instance()
+        .set(&DataKey::MaxInsurance, &max_insurance);
 }
 
 pub fn get_max_insurance(e: &Env) -> u64 {
@@ -220,17 +201,24 @@ pub fn get_max_insurance(e: &Env) -> u64 {
 // Unstaking period
 
 pub fn set_unstaking_period(e: &Env, unstaking_period: i64) {
-    e.storage().instance().set(&DataKey::UnstakingPeriod, &unstaking_period);
+    e.storage()
+        .instance()
+        .set(&DataKey::UnstakingPeriod, &unstaking_period);
 }
 
 pub fn get_unstaking_period(e: &Env) -> i64 {
-    e.storage().instance().get(&DataKey::UnstakingPeriod).unwrap()
+    e.storage()
+        .instance()
+        .get(&DataKey::UnstakingPeriod)
+        .unwrap()
 }
 
 // Paused operations
 
 pub fn set_paused_operations(e: &Env, paused_operations: Vec<Operation>) {
-    e.storage().instance().set(&DataKey::PausedOperations, &paused_operations);
+    e.storage()
+        .instance()
+        .set(&DataKey::PausedOperations, &paused_operations);
 }
 
 pub fn get_paused_operations(e: &Env) -> Vec<Operation> {

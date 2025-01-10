@@ -1,15 +1,15 @@
-use soroban_sdk::{ assert_with_error, contract, contractimpl, Address, Env, Symbol };
+use soroban_sdk::{assert_with_error, contract, contractimpl, Address, Env, Symbol};
 
 use crate::{
+    constants::{LIQUIDATION_FEE_TO_MARGIN_PRECISION_RATIO, MAX_MARGIN_RATIO, MIN_MARGIN_RATIO},
     errors,
-    storage::{ DataKey, get_admin, get_market, save_market, get_position, save_position },
-    constants::{ MIN_MARGIN_RATIO, MAX_MARGIN_RATIO, LIQUIDATION_FEE_TO_MARGIN_PRECISION_RATIO },
+    storage::{get_admin, get_market, get_position, save_market, save_position, DataKey},
     synth_market::SynthMarketTrait,
     token_contract,
 };
 
-use normal::utils::{ validate };
-use normal::oracle::{ is_oracle_too_divergent_with_twap_5min, oracle_validity };
+use normal::oracle::{is_oracle_too_divergent_with_twap_5min, oracle_validity};
+use normal::utils::validate;
 
 contractmeta!(
     key = "Description",
@@ -57,7 +57,7 @@ impl SynthMarketTrait for SynthMarket {
         validate_margin(
             params.margin_ratio_initial,
             params.margin_ratio_maintenance,
-            params.liquidator_fee
+            params.liquidator_fee,
         )?;
 
         let market = SynthMarket::new(params);
@@ -70,11 +70,18 @@ impl SynthMarketTrait for SynthMarket {
 
         let mut market = get_market(&env);
 
-        e.storage().instance().set(&DataKey::PausedOperations, &paused_operations);
+        e.storage()
+            .instance()
+            .set(&DataKey::PausedOperations, &paused_operations);
 
         save_market(&env, market);
 
-        log_all_operations_paused(e.storage().instance().get(&DataKey::PausedOperations).unwrap())
+        log_all_operations_paused(
+            e.storage()
+                .instance()
+                .get(&DataKey::PausedOperations)
+                .unwrap(),
+        )
     }
 
     fn update_amm(env: Env, admin: Address, amm: Address) {
@@ -100,7 +107,7 @@ impl SynthMarketTrait for SynthMarket {
         env: Env,
         admin: Address,
         debt_floor: Option<u32>,
-        debt_ceiling: Option<u128>
+        debt_ceiling: Option<u128>,
     ) {
         is_admin(&env, sender);
 
@@ -151,7 +158,7 @@ impl SynthMarketTrait for SynthMarket {
         admin: Address,
         imf_factor: Option<u32>,
         margin_ratio_initial: Option<u32>,
-        margin_ratio_maintenance: Option<u32>
+        margin_ratio_maintenance: Option<u32>,
     ) {
         is_admin(&env, sender);
 
@@ -159,7 +166,11 @@ impl SynthMarketTrait for SynthMarket {
 
         log!(env, "updating market {} margin ratio", market.name);
 
-        validate_margin(margin_ratio_initial, margin_ratio_maintenance, market.liquidator_fee)?;
+        validate_margin(
+            margin_ratio_initial,
+            margin_ratio_maintenance,
+            market.liquidator_fee,
+        )?;
 
         log!(
             env,
@@ -198,7 +209,7 @@ impl SynthMarketTrait for SynthMarket {
         admin: Address,
         liquidation_fee: u32,
         if_liquidation_fee: u32,
-        liquidation_penalty: Option<u32>
+        liquidation_penalty: Option<u32>,
     ) {
         is_admin(&env, sender);
 
@@ -221,10 +232,15 @@ impl SynthMarketTrait for SynthMarket {
         validate_margin(
             market.margin_ratio_initial,
             market.margin_ratio_maintenance,
-            liquidator_fee
+            liquidator_fee,
         )?;
 
-        log!(env, "market.liquidator_fee: {} -> {}", market.liquidator_fee, liquidator_fee);
+        log!(
+            env,
+            "market.liquidator_fee: {} -> {}",
+            market.liquidator_fee,
+            liquidator_fee
+        );
 
         log!(
             env,
@@ -289,7 +305,12 @@ impl SynthMarketTrait for SynthMarket {
         let mut market = get_market(&env);
 
         log!(env, "market {}", market.name);
-        log!(env, "market.synth_tier: {} -> {}", market.synth_tier, synth_tier);
+        log!(
+            env,
+            "market.synth_tier: {} -> {}",
+            market.synth_tier,
+            synth_tier
+        );
         market.synth_tier = synth_tier;
 
         save_market(&env, market)
@@ -324,8 +345,18 @@ impl SynthMarketTrait for SynthMarket {
             "Market expiry ts must later than current clock timestamp"
         )?;
 
-        log!(env, "market.status {} -> {}", market.status, MarketStatus::ReduceOnly);
-        log!(env, "market.expiry_ts {} -> {}", market.expiry_ts, expiry_ts);
+        log!(
+            env,
+            "market.status {} -> {}",
+            market.status,
+            MarketStatus::ReduceOnly
+        );
+        log!(
+            env,
+            "market.expiry_ts {} -> {}",
+            market.expiry_ts,
+            expiry_ts
+        );
 
         // automatically enter reduce only
         market.status = MarketStatus::ReduceOnly;
@@ -343,7 +374,7 @@ impl SynthMarketTrait for SynthMarket {
         liquidator: Address,
         user: Address,
         liquidator_max_base_asset_amount: u64,
-        limit_price: Option<u64>
+        limit_price: Option<u64>,
     ) {
         liquidator.require_auth();
 
@@ -358,7 +389,11 @@ impl SynthMarketTrait for SynthMarket {
 
         let mut position = get_position(&env, &user);
 
-        validate!(!position.is_bankrupt(), ErrorCode::UserBankrupt, "user bankrupt")?;
+        validate!(
+            !position.is_bankrupt(),
+            ErrorCode::UserBankrupt,
+            "user bankrupt"
+        )?;
 
         validate!(
             !market.is_operation_paused(SynthOperation::Liquidation),
@@ -370,9 +405,8 @@ impl SynthMarketTrait for SynthMarket {
         let margin_calculation =
             calculate_margin_requirement_and_total_collateral_and_liability_info(
                 user,
-                MarginContext::liquidation(
-                    liquidation_margin_buffer_ratio
-                ).track_market_margin_requirement(MarketIdentifier::perp(market_index))?
+                MarginContext::liquidation(liquidation_margin_buffer_ratio)
+                    .track_market_margin_requirement(MarketIdentifier::perp(market_index))?,
             )?;
 
         if !position.is_being_liquidated() && margin_calculation.meets_margin_requirement() {
@@ -400,7 +434,7 @@ impl SynthMarketTrait for SynthMarket {
             oracle_price_data,
             state,
             now,
-            Some(DriftAction::Liquidate)
+            Some(DriftAction::Liquidate),
         )?;
 
         let oracle_price = if market.status == MarketStatus::Settlement {
@@ -411,10 +445,15 @@ impl SynthMarketTrait for SynthMarket {
 
         let oracle_price_too_divergent = is_oracle_too_divergent_with_twap_5min(
             oracle_price,
-            perp_market_map.get_ref(
-                &market_index
-            )?.amm.historical_oracle_data.last_oracle_price_twap_5min,
-            state.oracle_guard_rails.max_oracle_twap_5min_percent_divergence().cast()?
+            perp_market_map
+                .get_ref(&market_index)?
+                .amm
+                .historical_oracle_data
+                .last_oracle_price_twap_5min,
+            state
+                .oracle_guard_rails
+                .max_oracle_twap_5min_percent_divergence()
+                .cast()?,
         )?;
 
         validate!(!oracle_price_too_divergent, ErrorCode::PriceBandsBreached)?;
@@ -423,7 +462,7 @@ impl SynthMarketTrait for SynthMarket {
 
         let margin_ratio = SynthMarket::get_margin_ratio(
             user_base_asset_amount.cast()?,
-            MarginRequirementType::Maintenance
+            MarginRequirementType::Maintenance,
         )?;
 
         let margin_ratio_with_buffer = margin_ratio.safe_add(liquidation_margin_buffer_ratio)?;
@@ -441,7 +480,7 @@ impl SynthMarketTrait for SynthMarket {
             liquidator_fee,
             oracle_price,
             quote_oracle_price,
-            market.if_liquidation_fee
+            market.if_liquidation_fee,
         )?;
         let base_asset_amount_to_cover_margin_shortage = standardize_base_asset_amount_ceil(
             calculate_base_asset_amount_to_cover_margin_shortage(
@@ -450,9 +489,9 @@ impl SynthMarketTrait for SynthMarket {
                 liquidator_fee,
                 if_liquidation_fee,
                 oracle_price,
-                quote_oracle_price
+                quote_oracle_price,
             )?,
-            market.amm.order_step_size // TODO: is this the tick spacing?
+            market.amm.order_step_size, // TODO: is this the tick spacing?
         )?;
 
         // ...
@@ -460,7 +499,6 @@ impl SynthMarketTrait for SynthMarket {
 
     fn resolve_position_bankruptcy(e: Env, sender: Address) {
         sender.require_auth();
-
     }
 
     // ################################################################
@@ -512,8 +550,16 @@ impl SynthMarketTrait for SynthMarket {
     fn transfer_collateral(env: Env, from_user: Address, to_user: Address, amount: u64) {
         from_user.require_auth();
 
-        validate!(!to_user.is_bankrupt(), ErrorCode::UserBankrupt, "to_user bankrupt")?;
-        validate!(!from_user.is_bankrupt(), ErrorCode::UserBankrupt, "from_user bankrupt")?;
+        validate!(
+            !to_user.is_bankrupt(),
+            ErrorCode::UserBankrupt,
+            "to_user bankrupt"
+        )?;
+        validate!(
+            !from_user.is_bankrupt(),
+            ErrorCode::UserBankrupt,
+            "from_user bankrupt"
+        )?;
 
         validate!(
             from_user_key != to_user_key,
@@ -533,7 +579,7 @@ impl SynthMarketTrait for SynthMarket {
         to_user.increment_total_deposits(
             amount,
             oracle_price,
-            spot_market.get_precision().cast()?
+            spot_market.get_precision().cast()?,
         )?;
 
         let total_deposits_after = to_user.total_deposits;
@@ -601,7 +647,7 @@ impl SynthMarketTrait for SynthMarket {
                         tick_lower_index: new_tick_lower_index,
                         tick_upper_index: new_tick_upper_index,
                     }
-                ]
+                ],
             );
         }
 
@@ -616,7 +662,7 @@ impl SynthMarketTrait for SynthMarket {
                 liquidity_amount: amount,
                 token_max_a: 0,
                 token_max_b: 0
-            ]
+            ],
         );
 
         // Update market liquidity provisioning properties
@@ -630,7 +676,7 @@ impl SynthMarketTrait for SynthMarket {
 pub fn validate_margin(
     margin_ratio_initial: u32,
     margin_ratio_maintenance: u32,
-    liquidation_fee: u32
+    liquidation_fee: u32,
 ) {
     if !(MIN_MARGIN_RATIO..=MAX_MARGIN_RATIO).contains(&margin_ratio_initial) {
         return Err(ErrorCode::InvalidMarginRatio);
@@ -657,7 +703,7 @@ pub fn update_amm_and_check_validity(
     oracle_price_data: &OraclePriceData,
     state: &State,
     now: i64,
-    action: Option<DriftAction>
+    action: Option<DriftAction>,
 ) -> DriftResult {
     // _update_amm(market, oracle_price_data, state, now, clock_slot)?;
 
@@ -670,7 +716,7 @@ pub fn update_amm_and_check_validity(
         oracle_price_data,
         oracle_guard_rails().validity, // import from Oracle module
         market.get_max_confidence_interval_multiplier()?,
-        false
+        false,
     )?;
 
     validate!(

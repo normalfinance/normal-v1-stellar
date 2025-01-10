@@ -1,18 +1,9 @@
 use soroban_sdk::{
-    contracttype,
-    symbol_short,
-    unwrap::UnwrapOptimized,
-    Address,
-    Env,
-    IntoVal,
-    String,
-    Symbol,
-    TryFromVal,
-    Val,
-    Vec,
+    contracttype, symbol_short, unwrap::UnwrapOptimized, Address, Env, IntoVal, String, Symbol,
+    TryFromVal, Val, Vec,
 };
 
-use crate::constants::{ MAX_CHECKPOINT_AGE_LEDGERS, MAX_PROPOSAL_AGE_LEDGERS };
+use crate::constants::{MAX_CHECKPOINT_AGE_LEDGERS, MAX_PROPOSAL_AGE_LEDGERS};
 
 pub(crate) const DAY_IN_LEDGERS: u32 = 17280;
 pub(crate) const INSTANCE_BUMP_AMOUNT: u32 = 31 * DAY_IN_LEDGERS;
@@ -99,7 +90,9 @@ pub struct UserEmissionData {
 
 /// Bump the instance lifetime by the defined amount
 pub fn extend_instance(e: &Env) {
-    e.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    e.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 }
 
 /// Fetch an entry in persistent storage that has a default value if it doesn't exist
@@ -108,10 +101,12 @@ fn get_persistent_default<K: IntoVal<Env, Val>, V: TryFromVal<Env, Val>, F: FnOn
     key: &K,
     default: F,
     bump_threshold: u32,
-    bump_amount: u32
+    bump_amount: u32,
 ) -> V {
     if let Some(result) = e.storage().persistent().get::<K, V>(key) {
-        e.storage().persistent().extend_ttl(key, bump_threshold, bump_amount);
+        e.storage()
+            .persistent()
+            .extend_ttl(key, bump_threshold, bump_amount);
         result
     } else {
         default()
@@ -122,9 +117,13 @@ fn get_persistent_default<K: IntoVal<Env, Val>, V: TryFromVal<Env, Val>, F: FnOn
 fn get_temporary_default<K: IntoVal<Env, Val>, V: TryFromVal<Env, Val>, F: FnOnce() -> V>(
     e: &Env,
     key: &K,
-    default: F
+    default: F,
 ) -> V {
-    if let Some(result) = e.storage().temporary().get::<K, V>(key) { result } else { default() }
+    if let Some(result) = e.storage().temporary().get::<K, V>(key) {
+        result
+    } else {
+        default()
+    }
 }
 
 //********** Instance **********//
@@ -138,7 +137,9 @@ pub fn get_is_init(e: &Env) -> bool {
 
 /// Set the contract as initialized
 pub fn set_is_init(e: &Env) {
-    e.storage().instance().set::<Symbol, bool>(&IS_INIT_KEY, &true);
+    e.storage()
+        .instance()
+        .set::<Symbol, bool>(&IS_INIT_KEY, &true);
 }
 
 // Token
@@ -181,15 +182,17 @@ pub fn get_total_supply(e: &Env) -> u128 {
         &TOTAL_SUPPLY_KEY,
         || 0,
         BALANCE_LIFETIME_THRESHOLD,
-        BALANCE_BUMP_AMOUNT
+        BALANCE_BUMP_AMOUNT,
     )
 }
 
 pub fn set_total_supply(e: &Env, checkpoint: &u128) {
     e.storage().persistent().set(&TOTAL_SUPPLY_KEY, checkpoint);
-    e.storage()
-        .persistent()
-        .extend_ttl(&TOTAL_SUPPLY_KEY, BALANCE_LIFETIME_THRESHOLD, BALANCE_BUMP_AMOUNT);
+    e.storage().persistent().extend_ttl(
+        &TOTAL_SUPPLY_KEY,
+        BALANCE_LIFETIME_THRESHOLD,
+        BALANCE_BUMP_AMOUNT,
+    );
 }
 
 // Balance
@@ -200,14 +203,16 @@ pub fn get_balance(e: &Env, address: &Address) -> i128 {
         &DataKey::Balance(address.clone()),
         || 0_i128,
         BALANCE_LIFETIME_THRESHOLD,
-        BALANCE_BUMP_AMOUNT
+        BALANCE_BUMP_AMOUNT,
     )
 }
 
 pub fn set_balance(e: &Env, address: &Address, balance: &i128) {
     let key = DataKey::Balance(address.clone());
     e.storage().persistent().set(&key, balance);
-    e.storage().persistent().extend_ttl(&key, BALANCE_LIFETIME_THRESHOLD, BALANCE_BUMP_AMOUNT);
+    e.storage()
+        .persistent()
+        .extend_ttl(&key, BALANCE_LIFETIME_THRESHOLD, BALANCE_BUMP_AMOUNT);
 }
 
 // Vote Units
@@ -218,14 +223,16 @@ pub fn get_voting_units(e: &Env, address: &Address) -> u128 {
         &DataKey::Votes(address.clone()),
         || 0,
         BALANCE_LIFETIME_THRESHOLD,
-        BALANCE_BUMP_AMOUNT
+        BALANCE_BUMP_AMOUNT,
     )
 }
 
 pub fn set_voting_units(e: &Env, address: &Address, checkpoint: &u128) {
     let key = DataKey::Votes(address.clone());
     e.storage().persistent().set(&key, checkpoint);
-    e.storage().persistent().extend_ttl(&key, BALANCE_LIFETIME_THRESHOLD, BALANCE_BUMP_AMOUNT);
+    e.storage()
+        .persistent()
+        .extend_ttl(&key, BALANCE_LIFETIME_THRESHOLD, BALANCE_BUMP_AMOUNT);
 }
 
 // Delegate
@@ -236,14 +243,16 @@ pub fn get_delegate(e: &Env, address: &Address) -> Address {
         &DataKey::Delegate(address.clone()),
         || address.clone(),
         BALANCE_LIFETIME_THRESHOLD,
-        BALANCE_BUMP_AMOUNT
+        BALANCE_BUMP_AMOUNT,
     )
 }
 
 pub fn set_delegate(e: &Env, address: &Address, delegatee: &Address) {
     let key = DataKey::Delegate(address.clone());
     e.storage().persistent().set(&key, delegatee);
-    e.storage().persistent().extend_ttl(&key, BALANCE_LIFETIME_THRESHOLD, BALANCE_BUMP_AMOUNT);
+    e.storage()
+        .persistent()
+        .extend_ttl(&key, BALANCE_LIFETIME_THRESHOLD, BALANCE_BUMP_AMOUNT);
 }
 
 //********** Temporary **********//
@@ -267,7 +276,7 @@ pub fn set_allowance(
     from: &Address,
     spender: &Address,
     amount: i128,
-    expiration_ledger: u32
+    expiration_ledger: u32,
 ) {
     let key = DataKey::Allowance(AllowanceDataKey {
         from: from.clone(),
@@ -282,7 +291,9 @@ pub fn set_allowance(
         let ledgers_to_live = expiration_ledger
             .checked_sub(e.ledger().sequence())
             .unwrap_optimized();
-        e.storage().temporary().extend_ttl(&key, ledgers_to_live, ledgers_to_live);
+        e.storage()
+            .temporary()
+            .extend_ttl(&key, ledgers_to_live, ledgers_to_live);
     }
 }
 
@@ -296,9 +307,11 @@ pub fn set_vote_ledgers(e: &Env, vote_ledgers: &Vec<u32>) {
     e.storage().temporary().set(&VOTE_LEDGERS_KEY, vote_ledgers);
     // extend for at least the max proposal age to ensure the voting period has closed
     // before the vote ledger is removed
-    e.storage()
-        .temporary()
-        .extend_ttl(&VOTE_LEDGERS_KEY, MAX_PROPOSAL_AGE_LEDGERS, MAX_PROPOSAL_AGE_LEDGERS);
+    e.storage().temporary().extend_ttl(
+        &VOTE_LEDGERS_KEY,
+        MAX_PROPOSAL_AGE_LEDGERS,
+        MAX_PROPOSAL_AGE_LEDGERS,
+    );
 }
 
 // Total Supply Checkpoints
@@ -308,17 +321,17 @@ pub fn get_total_supply_checkpoints(e: &Env) -> Vec<u128> {
 }
 
 pub fn set_total_supply_checkpoints(e: &Env, balance: &Vec<u128>) {
-    e.storage().temporary().set(&TOTAL_SUPPLY_CHECK_KEY, balance);
+    e.storage()
+        .temporary()
+        .set(&TOTAL_SUPPLY_CHECK_KEY, balance);
     // Checkpoints only need to exist for at least 7 days to ensure that correct
     // vote periods can be tracked for the entire max voting period of 7 days.
     // TTL is 8 days of ledgers, providing some wiggle room for fast ledgers.
-    e.storage()
-        .temporary()
-        .extend_ttl(
-            &TOTAL_SUPPLY_CHECK_KEY,
-            MAX_CHECKPOINT_AGE_LEDGERS,
-            MAX_CHECKPOINT_AGE_LEDGERS
-        );
+    e.storage().temporary().extend_ttl(
+        &TOTAL_SUPPLY_CHECK_KEY,
+        MAX_CHECKPOINT_AGE_LEDGERS,
+        MAX_CHECKPOINT_AGE_LEDGERS,
+    );
 }
 
 // Vote Units Checkpoints
@@ -333,9 +346,11 @@ pub fn set_voting_units_checkpoints(e: &Env, address: &Address, balance: &Vec<u1
     // Checkpoints only need to exist for at least 7 days to ensure that correct
     // vote periods can be tracked for the entire max voting period of 7 days.
     // Instance bump amount is 8 days, providing some wiggle room for fast ledgers.
-    e.storage()
-        .temporary()
-        .extend_ttl(&key, MAX_CHECKPOINT_AGE_LEDGERS, MAX_CHECKPOINT_AGE_LEDGERS);
+    e.storage().temporary().extend_ttl(
+        &key,
+        MAX_CHECKPOINT_AGE_LEDGERS,
+        MAX_CHECKPOINT_AGE_LEDGERS,
+    );
 }
 
 // ********** Emissions **********
@@ -348,28 +363,38 @@ pub fn get_emission_config(e: &Env) -> Option<EmissionConfig> {
         &EMIS_CONFIG,
         || None,
         BALANCE_LIFETIME_THRESHOLD,
-        BALANCE_BUMP_AMOUNT
+        BALANCE_BUMP_AMOUNT,
     )
 }
 
 pub fn set_emission_config(e: &Env, config: &EmissionConfig) {
     e.storage().persistent().set(&EMIS_CONFIG, config);
-    e.storage()
-        .persistent()
-        .extend_ttl(&EMIS_CONFIG, BALANCE_LIFETIME_THRESHOLD, BALANCE_BUMP_AMOUNT);
+    e.storage().persistent().extend_ttl(
+        &EMIS_CONFIG,
+        BALANCE_LIFETIME_THRESHOLD,
+        BALANCE_BUMP_AMOUNT,
+    );
 }
 
 // Emission data
 
 pub fn get_emission_data(e: &Env) -> Option<EmissionData> {
-    get_persistent_default(e, &EMIS_DATA, || None, BALANCE_LIFETIME_THRESHOLD, BALANCE_BUMP_AMOUNT)
+    get_persistent_default(
+        e,
+        &EMIS_DATA,
+        || None,
+        BALANCE_LIFETIME_THRESHOLD,
+        BALANCE_BUMP_AMOUNT,
+    )
 }
 
 pub fn set_emission_data(e: &Env, config: &EmissionData) {
     e.storage().persistent().set(&EMIS_DATA, config);
-    e.storage()
-        .persistent()
-        .extend_ttl(&EMIS_DATA, BALANCE_LIFETIME_THRESHOLD, BALANCE_BUMP_AMOUNT);
+    e.storage().persistent().extend_ttl(
+        &EMIS_DATA,
+        BALANCE_LIFETIME_THRESHOLD,
+        BALANCE_BUMP_AMOUNT,
+    );
 }
 
 // User emission data
@@ -380,12 +405,14 @@ pub fn get_user_emission_data(e: &Env, user: &Address) -> Option<UserEmissionDat
         &EmisKey(user.clone()),
         || None,
         BALANCE_LIFETIME_THRESHOLD,
-        BALANCE_BUMP_AMOUNT
+        BALANCE_BUMP_AMOUNT,
     )
 }
 
 pub fn set_user_emission_data(e: &Env, user: &Address, data: &UserEmissionData) {
     let key = EmisKey(user.clone());
     e.storage().persistent().set(&key, data);
-    e.storage().persistent().extend_ttl(&key, BALANCE_LIFETIME_THRESHOLD, BALANCE_BUMP_AMOUNT);
+    e.storage()
+        .persistent()
+        .extend_ttl(&key, BALANCE_LIFETIME_THRESHOLD, BALANCE_BUMP_AMOUNT);
 }

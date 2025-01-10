@@ -1,4 +1,4 @@
-use soroban_sdk::{ xdr::ToXdr, Address, Bytes, BytesN, Env, IntoVal, Symbol, Val, Vec };
+use soroban_sdk::{xdr::ToXdr, Address, Bytes, BytesN, Env, IntoVal, Symbol, Val, Vec};
 
 pub fn deploy_index_contract(
     env: &Env,
@@ -11,5 +11,7 @@ pub fn deploy_index_contract(
     salt.append(&index_token_symbol.to_xdr(env));
     let salt = env.crypto().sha256(&salt);
 
-    env.deployer().with_current_contract(salt).deploy_v2(wasm_hash, ())
+    env.deployer()
+        .with_current_contract(salt)
+        .deploy_v2(wasm_hash, ())
 }

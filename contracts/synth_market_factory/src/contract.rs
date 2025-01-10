@@ -2,51 +2,31 @@ use crate::{
     error::ContractError,
     stake_contract::StakedResponse,
     storage::{
-        get_config,
-        get_lp_vec,
-        get_stable_wasm_hash,
-        is_initialized,
-        save_config,
-        save_lp_vec,
-        save_lp_vec_with_tuple_as_key,
-        save_stable_wasm_hash,
-        set_initialized,
-        Asset,
-        Config,
-        LiquidityPoolInfo,
-        LpPortfolio,
-        PairTupleKey,
-        StakePortfolio,
-        UserPortfolio,
-        ADMIN,
+        get_config, get_lp_vec, get_stable_wasm_hash, is_initialized, save_config, save_lp_vec,
+        save_lp_vec_with_tuple_as_key, save_stable_wasm_hash, set_initialized, Asset, Config,
+        LiquidityPoolInfo, LpPortfolio, PairTupleKey, StakePortfolio, UserPortfolio, ADMIN,
     },
-    utils::{ deploy_and_initialize_multihop_contract, deploy_lp_contract },
+    utils::{deploy_and_initialize_multihop_contract, deploy_lp_contract},
     ConvertVec,
 };
-use normal::{ ttl::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD }, validate_bps };
 use normal::{
-    ttl::{ PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD },
-    utils::{ LiquidityPoolInitInfo, PoolType, StakeInitInfo, TokenInitInfo },
-    oracle::{ OracleSource },
+    oracle::OracleSource,
+    ttl::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
+    utils::{LiquidityPoolInitInfo, PoolType, StakeInitInfo, TokenInitInfo},
+};
+use normal::{
+    ttl::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD},
+    validate_bps,
 };
 use soroban_sdk::{
-    contract,
-    contractimpl,
-    contractmeta,
-    log,
-    panic_with_error,
-    vec,
-    Address,
-    BytesN,
-    Env,
-    IntoVal,
-    String,
-    Symbol,
-    Val,
-    Vec,
+    contract, contractimpl, contractmeta, log, panic_with_error, vec, Address, BytesN, Env,
+    IntoVal, String, Symbol, Val, Vec,
 };
 
-contractmeta!(key = "Description", val = "Factory for creating new Synth Markets");
+contractmeta!(
+    key = "Description",
+    val = "Factory for creating new Synth Markets"
+);
 
 #[contract]
 pub struct SynthMarketFactory;
@@ -70,14 +50,14 @@ pub trait SynthMarketFactoryTrait {
     fn update_oracle_guard_rails(
         env: Env,
         admin: Address,
-        oracle_guard_rails: OracleGuardRails
+        oracle_guard_rails: OracleGuardRails,
     ) -> OracleGuardRails;
 
     fn update_emergency_oracles(
         env: Env,
         sender: Address,
         to_add: Vec<Address>,
-        to_remove: Vec<Address>
+        to_remove: Vec<Address>,
     ) -> Vec<Address>;
 
     // ...
@@ -98,55 +78,62 @@ impl SynthMarketFactoryTrait for SynthMarketFactory {
     #[allow(clippy::too_many_arguments)]
     fn initialize(env: Env, admin: Address, governor: Address, market_wasm_hash: BytesN<32>) {
         if is_initialized(&env) {
-            log!(&env, "Factory: Initialize: initializing contract twice is not allowed");
+            log!(
+                &env,
+                "Factory: Initialize: initializing contract twice is not allowed"
+            );
             panic_with_error!(&env, ContractError::AlreadyInitialized);
         }
 
         set_initialized(&env);
 
-        save_config(&env, Config {
-            admin: admin.clone(),
-            token_wasm_hash,
-            emergency_oracle_accounts: [],
-            oracle_guard_rails: OracleGuardRails::default(),
-        });
+        save_config(
+            &env,
+            Config {
+                admin: admin.clone(),
+                token_wasm_hash,
+                emergency_oracle_accounts: [],
+                oracle_guard_rails: OracleGuardRails::default(),
+            },
+        );
 
         save_lp_vec(&env, Vec::new(&env));
 
-        env.events().publish(("initialize", "LP factory contract"), admin);
+        env.events()
+            .publish(("initialize", "LP factory contract"), admin);
     }
 
     #[allow(clippy::too_many_arguments)]
     fn create_synth_market(
         env: Env,
         sender: Address,
-        params: SynthMarketParams
+        params: SynthMarketParams, // // Market
+                                   // name: String,
+                                   // token_name: String,
+                                   // token_symbol: String,
+                                   // active_status: bool,
+                                   // synthetic_tier: SyntheticTier,
 
-        // // Market
-        // name: String,
-        // token_name: String,
-        // token_symbol: String,
-        // active_status: bool,
-        // synthetic_tier: SyntheticTier,
+                                   // // Oracle
+                                   // oracle_source: OracleSource,
+                                   // oracle: Address,
 
-        // // Oracle
-        // oracle_source: OracleSource,
-        // oracle: Address,
+                                   // // Margin
+                                   // margin_ratio_initial: u32,
+                                   // margin_ratio_maintenance: u32,
+                                   // imf_factor: u32,
 
-        // // Margin
-        // margin_ratio_initial: u32,
-        // margin_ratio_maintenance: u32,
-        // imf_factor: u32,
-
-        // // Liquidation
-        // liquidation_penalty: u32,
-        // liquidator_fee: u32,
-        // insurance_fund_liquidation_fee: u32,
-        // debt_ceiling: u128,
-        // debt_floor: u32
+                                   // // Liquidation
+                                   // liquidation_penalty: u32,
+                                   // liquidator_fee: u32,
+                                   // insurance_fund_liquidation_fee: u32,
+                                   // debt_ceiling: u128,
+                                   // debt_floor: u32
     ) -> Address {
         sender.require_auth();
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         // validate_pool_info(&pool_type, &amp);
 
         // validate_token_info(&env, &lp_init_info.token_init_info, &lp_init_info.stake_init_info);
@@ -163,7 +150,7 @@ impl SynthMarketFactoryTrait for SynthMarketFactory {
             &env,
             pool_hash,
             &lp_init_info.token_init_info.token_a,
-            &lp_init_info.token_init_info.token_b
+            &lp_init_info.token_init_info.token_b,
         );
 
         validate_bps!(
@@ -184,7 +171,8 @@ impl SynthMarketFactoryTrait for SynthMarketFactory {
             config.lp_token_decimals,
             share_token_name,
             share_token_symbol,
-        ).into_val(&env);
+        )
+            .into_val(&env);
 
         init_fn_args.push_back(default_slippage_bps.into_val(&env));
 
@@ -201,7 +189,8 @@ impl SynthMarketFactoryTrait for SynthMarketFactory {
         let token_b = &market_init_info.token_init_info.token_b;
         save_market_vec_with_tuple_as_key(&env, (token_a, token_b), &market_contract_address);
 
-        env.events().publish(("create", "liquidity_pool"), &market_contract_address);
+        env.events()
+            .publish(("create", "liquidity_pool"), &market_contract_address);
 
         market_contract_address
     }
@@ -254,10 +243,12 @@ impl SynthMarketFactoryTrait for SynthMarketFactory {
         env: Env,
         sender: Address,
         to_add: Vec<Address>,
-        to_remove: Vec<Address>
+        to_remove: Vec<Address>,
     ) -> Vec<Address> {
         sender.require_auth();
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let config = get_config(&env);
 
@@ -284,10 +275,13 @@ impl SynthMarketFactoryTrait for SynthMarketFactory {
             }
         });
 
-        save_config(&env, Config {
-            emergency_oracle_accounts,
-            ..config
-        });
+        save_config(
+            &env,
+            Config {
+                emergency_oracle_accounts,
+                ..config
+            },
+        );
 
         emergency_oracle_accounts
     }
@@ -295,18 +289,23 @@ impl SynthMarketFactoryTrait for SynthMarketFactory {
     fn update_wasm_hashes(
         env: Env,
         lp_wasm_hash: Option<BytesN<32>>,
-        token_wasm_hash: Option<BytesN<32>>
+        token_wasm_hash: Option<BytesN<32>>,
     ) {
         let config = get_config(&env);
 
         config.admin.require_auth();
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-        save_config(&env, Config {
-            lp_wasm_hash: lp_wasm_hash.unwrap_or(config.lp_wasm_hash),
-            token_wasm_hash: token_wasm_hash.unwrap_or(config.token_wasm_hash),
-            ..config
-        });
+        save_config(
+            &env,
+            Config {
+                lp_wasm_hash: lp_wasm_hash.unwrap_or(config.lp_wasm_hash),
+                token_wasm_hash: token_wasm_hash.unwrap_or(config.token_wasm_hash),
+                ..config
+            },
+        );
     }
 
     fn migrate_admin_key(env: Env) -> Result<(), ContractError> {

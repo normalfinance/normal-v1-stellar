@@ -1,15 +1,18 @@
-use soroban_sdk::{ assert_with_error, contract, contractimpl, Address, Env };
+use soroban_sdk::{assert_with_error, contract, contractimpl, Address, Env};
 
 use crate::{
     errors,
-    storage::{ get_config, set_config, DataKey },
     events::InsuranceEvents,
     insurance_fund::InsuranceFundTrait,
+    storage::{get_config, set_config, DataKey},
 };
 
-use normal::utils::{ validate };
+use normal::utils::validate;
 
-contractmeta!(key = "Description", val = "Staking vault used to cover protocol debt");
+contractmeta!(
+    key = "Description",
+    val = "Staking vault used to cover protocol debt"
+);
 
 #[contract]
 pub struct Insurance;
@@ -27,10 +30,13 @@ impl InsuranceFundTrait for Insurance {
         max_insurance: u64,
         unstaking_period: i64,
         paused_operations: u32,
-        min_reward: i128
+        min_reward: i128,
     ) {
         if is_initialized(&env) {
-            log!(&env, "Insurance Fund: Initialize: initializing contract twice is not allowed");
+            log!(
+                &env,
+                "Insurance Fund: Initialize: initializing contract twice is not allowed"
+            );
             panic_with_error!(&env, ContractError::AlreadyInitialized);
         }
 
@@ -73,8 +79,8 @@ impl InsuranceFundTrait for Insurance {
         // )?;
 
         validate!(
-            insurance_fund_stake.last_withdraw_request_shares == 0 &&
-                insurance_fund_stake.last_withdraw_request_value == 0,
+            insurance_fund_stake.last_withdraw_request_shares == 0
+                && insurance_fund_stake.last_withdraw_request_value == 0,
             ErrorCode::IFWithdrawRequestInProgress,
             "withdraw request in progress"
         )?;
@@ -84,7 +90,7 @@ impl InsuranceFundTrait for Insurance {
             ctx.accounts.insurance_fund_vault.amount,
             insurance_fund_stake,
             insurance_fund,
-            clock.unix_timestamp
+            clock.unix_timestamp,
         )?;
 
         controller::token::receive(
@@ -93,7 +99,7 @@ impl InsuranceFundTrait for Insurance {
             &ctx.accounts.insurance_fund_vault,
             &ctx.accounts.authority,
             amount,
-            &mint
+            &mint,
         )?;
     }
 
@@ -131,7 +137,9 @@ impl InsuranceFundTrait for Insurance {
     }
 
     fn withdraw_rewards(env: Env, sender: Address) {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         env.events().publish(("withdraw_rewards", "user"), &sender);
 
@@ -139,11 +147,14 @@ impl InsuranceFundTrait for Insurance {
 
         for asset in get_distributions(&env) {
             let pending_reward = calculate_pending_rewards(&env, &asset, &stakes);
-            env.events().publish(("withdraw_rewards", "reward_token"), &asset);
+            env.events()
+                .publish(("withdraw_rewards", "reward_token"), &asset);
 
-            token_contract::Client
-                ::new(&env, &asset)
-                .transfer(&env.current_contract_address(), &sender, &pending_reward);
+            token_contract::Client::new(&env, &asset).transfer(
+                &env.current_contract_address(),
+                &sender,
+                &pending_reward,
+            );
         }
         stakes.last_reward_time = env.ledger().timestamp();
         save_stakes(&env, &sender, &stakes);
@@ -157,8 +168,9 @@ impl BufferTrait for Insurance {
         env: Env,
         norm_token_contract_address: Address,
         lp_contract_address: Address,
-        max_balance: i128
-    ) {}
+        max_balance: i128,
+    ) {
+    }
 
     fn deposit(env: Env, amount: i128) {
         if amount <= 0 {
@@ -183,18 +195,19 @@ impl BufferTrait for Insurance {
             vec![
                 &env,
                 sender.into_val(&env),
-                0, // _amount0_out: i128,
-                0, // _amount1_out: i128,
+                0,                               // _amount0_out: i128,
+                0,                               // _amount1_out: i128,
                 &env.current_contract_address(), // _to: Address,
-                [] // _data: Bytes
-            ]
+                [],                              // _data: Bytes
+            ],
         );
 
         // Burn it
-        env.invoke_contract(&norm_token_contract_address, &Symbol::new(&env, "burn"), (
-            env.current_contract_address(),
-            amount,
-        ));
+        env.invoke_contract(
+            &norm_token_contract_address,
+            &Symbol::new(&env, "burn"),
+            (env.current_contract_address(), amount),
+        );
 
         // Update things
     }
@@ -205,10 +218,11 @@ impl BufferTrait for Insurance {
         }
 
         // Mint NORM tokens
-        env.invoke_contract(&norm_token_contract_address, &Symbol::new(&env, "mint"), (
-            env.current_contract_address(),
-            amount,
-        ));
+        env.invoke_contract(
+            &norm_token_contract_address,
+            &Symbol::new(&env, "mint"),
+            (env.current_contract_address(), amount),
+        );
 
         // Sell them
         let swap_response: SwapResponse = env.invoke_contract(
@@ -217,11 +231,11 @@ impl BufferTrait for Insurance {
             vec![
                 &env,
                 sender.into_val(&env),
-                0, // _amount0_out: i128,
-                0, // _amount1_out: i128,
+                0,                               // _amount0_out: i128,
+                0,                               // _amount1_out: i128,
                 &env.current_contract_address(), // _to: Address,
-                [] // _data: Bytes
-            ]
+                [],                              // _data: Bytes
+            ],
         );
 
         // Transfer proceeds to recipient
