@@ -1,9 +1,10 @@
-use phoenix::ttl::{
+use normal::ttl::{
     INSTANCE_BUMP_AMOUNT,
     INSTANCE_LIFETIME_THRESHOLD,
     PERSISTENT_BUMP_AMOUNT,
     PERSISTENT_LIFETIME_THRESHOLD,
 };
+use normal::oracle::{ OracleGuardRails };
 use soroban_sdk::{
     contracttype,
     log,
@@ -44,9 +45,8 @@ impl TryFromVal<Env, DataKey> for Val {
 pub struct Config {
     pub admin: Address,
     pub synth_market_wasm_hash: BytesN<32>,
-    pub token_wasm_hash: BytesN<32>,
-    // pub whitelisted_accounts: Vec<Address>,
-    // pub lp_token_decimals: u32,
+    pub emergency_oracle_accounts: Vec<Address>,
+    pub oracle_guard_rails: OracleGuardRails,
 }
 
 // ...

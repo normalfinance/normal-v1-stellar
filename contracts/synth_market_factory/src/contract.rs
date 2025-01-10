@@ -23,10 +23,11 @@ use crate::{
     utils::{ deploy_and_initialize_multihop_contract, deploy_lp_contract },
     ConvertVec,
 };
-use phoenix::{ ttl::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD }, validate_bps };
-use phoenix::{
+use normal::{ ttl::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD }, validate_bps };
+use normal::{
     ttl::{ PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD },
     utils::{ LiquidityPoolInitInfo, PoolType, StakeInitInfo, TokenInitInfo },
+    oracle::{ OracleSource },
 };
 use soroban_sdk::{
     contract,
@@ -52,30 +53,32 @@ pub struct SynthMarketFactory;
 
 pub trait SynthMarketFactoryTrait {
     #[allow(clippy::too_many_arguments)]
-    fn initialize(
-        env: Env,
-        admin: Address,
-        multihop_wasm_hash: BytesN<32>,
-        lp_wasm_hash: BytesN<32>,
-        stable_wasm_hash: BytesN<32>,
-        stake_wasm_hash: BytesN<32>,
-        token_wasm_hash: BytesN<32>,
-        whitelisted_accounts: Vec<Address>,
-        lp_token_decimals: u32
-    );
+    fn initialize(env: Env, admin: Address, governor: Address, market_wasm_hash: BytesN<32>);
 
     #[allow(clippy::too_many_arguments)]
-    fn create_synth_market(
+    fn create_synth_market(env: Env, sender: Address, params: SynthMarketParams) -> Address;
+
+    // TODO: should this be here or on the Market?
+    fn initialize_synth_market_shutdown() {}
+
+    fn delete_initialized_synth_market(env: Env, sender: Address, market: Address);
+
+    fn freeze_oracle(env: Env, keeper: Address, market: Address);
+
+    fn unfreeze_oracle(env: Env, keeper: Address, market: Address);
+
+    fn update_oracle_guard_rails(
+        env: Env,
+        admin: Address,
+        oracle_guard_rails: OracleGuardRails
+    ) -> OracleGuardRails;
+
+    fn update_emergency_oracles(
         env: Env,
         sender: Address,
-        lp_init_info: LiquidityPoolInitInfo,
-        share_token_name: String,
-        share_token_symbol: String,
-        pool_type: PoolType,
-        amp: Option<u64>,
-        default_slippage_bps: i64,
-        max_allowed_fee_bps: i64
-    ) -> Address;
+        to_add: Vec<Address>,
+        to_remove: Vec<Address>
+    ) -> Vec<Address>;
 
     // ...
 
@@ -93,39 +96,20 @@ pub trait SynthMarketFactoryTrait {
 #[contractimpl]
 impl SynthMarketFactoryTrait for SynthMarketFactory {
     #[allow(clippy::too_many_arguments)]
-    fn initialize(
-        env: Env,
-        admin: Address,
-        market_wasm_hash: BytesN<32>,
-        token_wasm_hash: BytesN<32>,
-        whitelisted_accounts: Vec<Address>,
-        lp_token_decimals: u32
-    ) {
+    fn initialize(env: Env, admin: Address, governor: Address, market_wasm_hash: BytesN<32>) {
         if is_initialized(&env) {
             log!(&env, "Factory: Initialize: initializing contract twice is not allowed");
             panic_with_error!(&env, ContractError::AlreadyInitialized);
-        }
-
-        if whitelisted_accounts.is_empty() {
-            log!(
-                &env,
-                "Factory: Initialize: there must be at least one whitelisted account able to create liquidity pools."
-            );
-            panic_with_error!(&env, ContractError::WhiteListeEmpty);
         }
 
         set_initialized(&env);
 
         save_config(&env, Config {
             admin: admin.clone(),
-            multihop_address,
-            lp_wasm_hash,
-            stake_wasm_hash,
             token_wasm_hash,
-            whitelisted_accounts,
-            lp_token_decimals,
+            emergency_oracle_accounts: [],
+            oracle_guard_rails: OracleGuardRails::default(),
         });
-        save_stable_wasm_hash(&env, stable_wasm_hash);
 
         save_lp_vec(&env, Vec::new(&env));
 
@@ -133,30 +117,39 @@ impl SynthMarketFactoryTrait for SynthMarketFactory {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn create_liquidity_pool(
+    fn create_synth_market(
         env: Env,
         sender: Address,
-        lp_init_info: LiquidityPoolInitInfo,
-        share_token_name: String,
-        share_token_symbol: String,
+        params: SynthMarketParams
 
-        amp: Option<u64>,
-        default_slippage_bps: i64,
-        max_allowed_fee_bps: i64
+        // // Market
+        // name: String,
+        // token_name: String,
+        // token_symbol: String,
+        // active_status: bool,
+        // synthetic_tier: SyntheticTier,
+
+        // // Oracle
+        // oracle_source: OracleSource,
+        // oracle: Address,
+
+        // // Margin
+        // margin_ratio_initial: u32,
+        // margin_ratio_maintenance: u32,
+        // imf_factor: u32,
+
+        // // Liquidation
+        // liquidation_penalty: u32,
+        // liquidator_fee: u32,
+        // insurance_fund_liquidation_fee: u32,
+        // debt_ceiling: u128,
+        // debt_floor: u32
     ) -> Address {
         sender.require_auth();
         env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-        validate_pool_info(&pool_type, &amp);
+        // validate_pool_info(&pool_type, &amp);
 
-        if !get_config(&env).whitelisted_accounts.contains(sender) {
-            log!(
-                &env,
-                "Factory: Create Liquidity Pool: You are not authorized to create liquidity pool!"
-            );
-            panic_with_error!(&env, ContractError::NotAuthorized);
-        }
-
-        validate_token_info(&env, &lp_init_info.token_init_info, &lp_init_info.stake_init_info);
+        // validate_token_info(&env, &lp_init_info.token_init_info, &lp_init_info.stake_init_info);
 
         let config = get_config(&env);
         let token_wasm_hash = config.token_wasm_hash;
@@ -193,52 +186,127 @@ impl SynthMarketFactoryTrait for SynthMarketFactory {
             share_token_symbol,
         ).into_val(&env);
 
-        if let PoolType::Xyk = pool_type {
-            init_fn_args.push_back(default_slippage_bps.into_val(&env));
-        }
-
-        if let PoolType::Stable = pool_type {
-            init_fn_args.push_back(amp.unwrap().into_val(&env));
-        }
+        init_fn_args.push_back(default_slippage_bps.into_val(&env));
 
         init_fn_args.push_back(max_allowed_fee_bps.into_val(&env));
 
-        env.invoke_contract::<Val>(&lp_contract_address, &init_fn, init_fn_args);
+        env.invoke_contract::<Val>(&market_contract_address, &init_fn, init_fn_args);
 
-        let mut lp_vec = get_lp_vec(&env);
+        let mut market_vec = get_market_vec(&env);
 
-        lp_vec.push_back(lp_contract_address.clone());
+        market_vec.push_back(market_contract_address.clone());
 
-        save_lp_vec(&env, lp_vec);
-        let token_a = &lp_init_info.token_init_info.token_a;
-        let token_b = &lp_init_info.token_init_info.token_b;
-        save_lp_vec_with_tuple_as_key(&env, (token_a, token_b), &lp_contract_address);
+        save_market_vec(&env, market_vec);
+        let token_a = &market_init_info.token_init_info.token_a;
+        let token_b = &market_init_info.token_init_info.token_b;
+        save_market_vec_with_tuple_as_key(&env, (token_a, token_b), &market_contract_address);
 
-        env.events().publish(("create", "liquidity_pool"), &lp_contract_address);
+        env.events().publish(("create", "liquidity_pool"), &market_contract_address);
 
-        lp_contract_address
+        market_contract_address
+    }
+
+    fn delete_initialized_synth_market(env: Env, sender: Address, market: Address) {
+        let mut market = query_market_details();
+
+        log!(env, "market {}", market.name);
+        // let config = get_config(&env);
+
+        // to preserve all protocol invariants, can only remove the last market if it hasn't been "activated"
+
+        validate!(
+            state.number_of_markets - 1 == market_index,
+            ErrorCode::InvalidMarketAccountforDeletion,
+            "state.number_of_markets={} != market_index={}",
+            state.number_of_markets,
+            market_index
+        )?;
+        validate!(
+            market.status == MarketStatus::Initialized,
+            ErrorCode::InvalidMarketAccountforDeletion,
+            "market.status != Initialized"
+        )?;
+        validate!(
+            market.number_of_users == 0,
+            ErrorCode::InvalidMarketAccountforDeletion,
+            "market.number_of_users={} != 0",
+            market.number_of_users
+        )?;
+        validate!(
+            market.market_index == market_index,
+            ErrorCode::InvalidMarketAccountforDeletion,
+            "market_index={} != market.market_index={}",
+            market_index,
+            market.market_index
+        )?;
+
+        safe_decrement!(state.number_of_markets, 1);
+        // ...
+    }
+
+    fn freeze_oracle(env: Env, keeper: Address, market_address: Address) {}
+
+    fn unfreeze_oracle(env: Env, keeper: Address, market_address: Address) {}
+
+    fn update_oracle_guard_rails(env: Env) -> OracleGuardRails {}
+
+    fn update_emergency_oracles(
+        env: Env,
+        sender: Address,
+        to_add: Vec<Address>,
+        to_remove: Vec<Address>
+    ) -> Vec<Address> {
+        sender.require_auth();
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+
+        let config = get_config(&env);
+
+        // TODO: do we want to limit this to the admin or the DAO?
+        if config.admin != sender {
+            log!(
+                &env,
+                "Synth Marekt Factory: Update emergency oracle accounts: You are not authorized!"
+            );
+            panic_with_error!(&env, ContractError::NotAuthorized);
+        }
+
+        let mut emergency_oracle_accounts = config.emergency_oracle_accounts;
+
+        to_add.into_iter().for_each(|addr| {
+            if !emergency_oracle_accounts.contains(addr.clone()) {
+                emergency_oracle_accounts.push_back(addr);
+            }
+        });
+
+        to_remove.into_iter().for_each(|addr| {
+            if let Some(id) = emergency_oracle_accounts.iter().position(|x| x == addr) {
+                emergency_oracle_accounts.remove(id as u32);
+            }
+        });
+
+        save_config(&env, Config {
+            emergency_oracle_accounts,
+            ..config
+        });
+
+        emergency_oracle_accounts
     }
 
     fn update_wasm_hashes(
         env: Env,
         lp_wasm_hash: Option<BytesN<32>>,
-        token_wasm_hash: Option<BytesN<32>>,
+        token_wasm_hash: Option<BytesN<32>>
     ) {
         let config = get_config(&env);
 
         config.admin.require_auth();
-        env.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-        save_config(
-            &env,
-            Config {
-                lp_wasm_hash: lp_wasm_hash.unwrap_or(config.lp_wasm_hash),
-                token_wasm_hash: token_wasm_hash.unwrap_or(config.token_wasm_hash),
-                ..config
-            },
-        );
+        save_config(&env, Config {
+            lp_wasm_hash: lp_wasm_hash.unwrap_or(config.lp_wasm_hash),
+            token_wasm_hash: token_wasm_hash.unwrap_or(config.token_wasm_hash),
+            ..config
+        });
     }
 
     fn migrate_admin_key(env: Env) -> Result<(), ContractError> {
