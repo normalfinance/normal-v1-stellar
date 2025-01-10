@@ -1,0 +1,18 @@
+[package]
+name = "normal-insurance"
+authors = ["jblewnormal <joshua@normalfinance.io>"]
+version = { workspace = true }
+repository = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+
+[lib]
+crate-type = ["cdylib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+num-integer = { version = "0.1.45", default-features = false, features = ["i128"] }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
