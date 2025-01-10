@@ -22,7 +22,7 @@ impl GovernorEvents {
         vote_start: u32,
         vote_end: u32,
     ) {
-        let topics = (Symbol::new(&e, "proposal_created"), proposal_id, proposer);
+        let topics = (Symbol::new(e, "proposal_created"), proposal_id, proposer);
         e.events()
             .publish(topics, (title, desc, action, vote_start, vote_end));
     }
@@ -32,7 +32,7 @@ impl GovernorEvents {
     /// - topics - `["proposal_canceled", proposal_id: u32]`
     /// - data - ()
     pub fn proposal_canceled(e: &Env, proposal_id: u32) {
-        let topics = (Symbol::new(&e, "proposal_canceled"), proposal_id);
+        let topics = (Symbol::new(e, "proposal_canceled"), proposal_id);
         e.events().publish(topics, ());
     }
 
@@ -48,7 +48,7 @@ impl GovernorEvents {
         final_votes: VoteCount,
     ) {
         let topics = (
-            Symbol::new(&e, "proposal_voting_closed"),
+            Symbol::new(e, "proposal_voting_closed"),
             proposal_id,
             status,
             eta,
@@ -61,7 +61,7 @@ impl GovernorEvents {
     /// - topics - `["proposal_executed", proposal_id: u32]`
     /// - data - Void
     pub fn proposal_executed(e: &Env, proposal_id: u32) {
-        let topics = (Symbol::new(&e, "proposal_executed"), proposal_id);
+        let topics = (Symbol::new(e, "proposal_executed"), proposal_id);
         e.events().publish(topics, ());
     }
 
@@ -70,7 +70,7 @@ impl GovernorEvents {
     /// - topics - `["proposal_expired", proposal_id: u32]`
     /// - data - Void
     pub fn proposal_expired(e: &Env, proposal_id: u32) {
-        let topics = (Symbol::new(&e, "proposal_expired"), proposal_id);
+        let topics = (Symbol::new(e, "proposal_expired"), proposal_id);
         e.events().publish(topics, ());
     }
 
@@ -79,7 +79,7 @@ impl GovernorEvents {
     /// - topics - `["vote_cast", proposal_id: u32, voter: Address]`
     /// - data - `[support: u32, amount: i128]`
     pub fn vote_cast(e: &Env, proposal_id: u32, voter: Address, support: u32, amount: i128) {
-        let topics = (Symbol::new(&e, "vote_cast"), proposal_id, voter);
+        let topics = (Symbol::new(e, "vote_cast"), proposal_id, voter);
         e.events().publish(topics, (support, amount));
     }
 }

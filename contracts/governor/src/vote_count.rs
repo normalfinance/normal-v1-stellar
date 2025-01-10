@@ -31,9 +31,15 @@ impl VoteCount {
     /// * If the support is not 0, 1, or 2
     pub fn add_vote(&mut self, e: &Env, support: u32, amount: i128) {
         match support {
-            0 => self.against += amount,
-            1 => self._for += amount,
-            2 => self.abstain += amount,
+            0 => {
+                self.against += amount;
+            }
+            1 => {
+                self._for += amount;
+            }
+            2 => {
+                self.abstain += amount;
+            }
             _ => panic_with_error!(e, GovernorError::InvalidProposalSupportError),
         }
     }
@@ -50,7 +56,7 @@ impl VoteCount {
     /// * False if the vote has not reached quorum
     pub fn is_over_quorum(&self, quorum: u32, counting_type: u32, total_votes: i128) -> bool {
         let quorum_votes = self.count_quorum(counting_type);
-        let quorum_requirement_floor = (total_votes * quorum as i128) / (BPS_SCALAR as i128);
+        let quorum_requirement_floor = (total_votes * (quorum as i128)) / (BPS_SCALAR as i128);
         quorum_votes > quorum_requirement_floor
     }
 
@@ -67,7 +73,8 @@ impl VoteCount {
         if against_and_for_votes == 0 {
             return false;
         }
-        let vote_requirement_floor = (against_and_for_votes * vote_threshold as i128) / (BPS_SCALAR as i128);
+        let vote_requirement_floor =
+            (against_and_for_votes * (vote_threshold as i128)) / (BPS_SCALAR as i128);
         self._for > vote_requirement_floor
     }
 
@@ -77,16 +84,22 @@ impl VoteCount {
     /// * `counting_type` - The type of votes to count in the quorum where {MSB}...{against}{for}{abstain}
     fn count_quorum(&self, counting_type: u32) -> i128 {
         let mut quorum_votes = 0;
-        if counting_type & 0b100 != 0 {
+        if (counting_type & 0b100) != 0 {
             quorum_votes += self.against;
         }
-        if counting_type & 0b010 != 0 {
+        if (counting_type & 0b010) != 0 {
             quorum_votes += self._for;
         }
-        if counting_type & 0b001 != 0 {
+        if (counting_type & 0b001) != 0 {
             quorum_votes += self.abstain;
         }
         quorum_votes
+    }
+}
+
+impl Default for VoteCount {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -117,14 +130,15 @@ mod tests {
     fn test_is_over_quorum_precision() {
         let e = Env::default();
         let mut vote_count = VoteCount::new();
-        vote_count.add_vote(&e, 1, 1 * 10_i128.pow(18));
+        // vote_count.add_vote(&e, 1, 1 * 10_i128.pow(18));
+        vote_count.add_vote(&e, 1, (10_i128).pow(18));
 
         // qourum = 1
-        assert!(!vote_count.is_over_quorum(1, 0b010, 10000 * 10_i128.pow(18)));
+        assert!(!vote_count.is_over_quorum(1, 0b010, 10000 * (10_i128).pow(18)));
 
         // anything exceeding an exact match pases
         vote_count.add_vote(&e, 1, 1);
-        assert!(vote_count.is_over_quorum(1, 0b010, 10000 * 10_i128.pow(18)));
+        assert!(vote_count.is_over_quorum(1, 0b010, 10000 * (10_i128).pow(18)));
     }
 
     #[test]
@@ -147,8 +161,10 @@ mod tests {
     fn test_is_over_threshold_precision() {
         let e = Env::default();
         let mut vote_count = VoteCount::new();
-        vote_count.add_vote(&e, 0, 1 * 10_i128.pow(18));
-        vote_count.add_vote(&e, 1, 1 * 10_i128.pow(18));
+        // vote_count.add_vote(&e, 0, 1 * 10_i128.pow(18));
+        vote_count.add_vote(&e, 0, (10_i128).pow(18));
+        // vote_count.add_vote(&e, 1, 1 * 10_i128.pow(18));
+        vote_count.add_vote(&e, 1, (10_i128).pow(18));
 
         // exact blocked
         assert!(!vote_count.is_over_threshold(5000));

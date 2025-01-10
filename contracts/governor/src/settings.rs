@@ -63,7 +63,7 @@ mod tests {
         };
 
         require_valid_settings(&e, &settings);
-        assert!(true);
+        // assert!(true);
     }
 
     #[test]
@@ -81,7 +81,7 @@ mod tests {
         };
 
         require_valid_settings(&e, &settings);
-        assert!(true);
+        // assert!(true);
     }
 
     #[test]
@@ -136,7 +136,7 @@ mod tests {
         };
 
         require_valid_settings(&e, &settings);
-        assert!(true);
+        // assert!(true);
     }
 
     #[test]
@@ -155,7 +155,7 @@ mod tests {
         };
 
         require_valid_settings(&e, &settings);
-        assert!(true);
+        // assert!(true);
     }
 
     #[test]

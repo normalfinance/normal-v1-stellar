@@ -58,20 +58,26 @@ impl Governor for GovernorContract {
             panic_with_error!(&e, GovernorError::ProposalAlreadyOpenError);
         }
 
-        match action {
-            ProposalAction::Upgrade(_) => {
-                let council = storage::get_council_address(&e);
-                if creator != council {
-                    panic_with_error!(&e, GovernorError::UnauthorizedError);
-                }
+        // match action {
+        //     ProposalAction::Upgrade(_) => {
+        //         let council = storage::get_council_address(&e);
+        //         if creator != council {
+        //             panic_with_error!(&e, GovernorError::UnauthorizedError);
+        //         }
+        //     }
+        //     _ => {}
+        // }
+        if let ProposalAction::Upgrade(_) = action {
+            let council = storage::get_council_address(&e);
+            if creator != council {
+                panic_with_error!(&e, GovernorError::UnauthorizedError);
             }
-            _ => {}
-        };
+        }
         let settings = storage::get_settings(&e);
         let votes_client = VotesClient::new(&e, &storage::get_voter_token_address(&e));
         let creater_votes = votes_client.get_votes(&creator);
         if creater_votes < settings.proposal_threshold {
-            panic_with_error!(&e, GovernorError::InsufficientVotingUnitsError)
+            panic_with_error!(&e, GovernorError::InsufficientVotingUnitsError);
         }
 
         let proposal_config =
@@ -138,7 +144,7 @@ impl Governor for GovernorContract {
         }
 
         if e.ledger().sequence() <= proposal_data.vote_end {
-            panic_with_error!(&e, GovernorError::VotePeriodNotFinishedError)
+            panic_with_error!(&e, GovernorError::VotePeriodNotFinishedError);
         }
 
         let settings = storage::get_settings(&e);
@@ -225,11 +231,14 @@ impl Governor for GovernorContract {
                 // block the security council from canceling council proposals
                 let proposal_config =
                     storage::get_proposal_config(&e, proposal_id).unwrap_optimized();
-                match proposal_config.action {
-                    ProposalAction::Council(_) => {
-                        panic_with_error!(&e, GovernorError::UnauthorizedError);
-                    }
-                    _ => {}
+                // match proposal_config.action {
+                //     ProposalAction::Council(_) => {
+                //         panic_with_error!(&e, GovernorError::UnauthorizedError);
+                //     }
+                //     _ => {}
+                // }
+                if let ProposalAction::Council(_) = proposal_config.action {
+                    panic_with_error!(&e, GovernorError::UnauthorizedError);
                 }
             }
         }

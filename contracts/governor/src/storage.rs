@@ -91,14 +91,14 @@ pub fn set_is_init(e: &Env) {
 pub fn set_voter_token_address(e: &Env, voter: &Address) {
     e.storage()
         .instance()
-        .set::<Symbol, Address>(&Symbol::new(&e, VOTER_TOKEN_ADDRESS_KEY), &voter);
+        .set::<Symbol, Address>(&Symbol::new(e, VOTER_TOKEN_ADDRESS_KEY), voter);
 }
 
 /// Get the voter token address
 pub fn get_voter_token_address(e: &Env) -> Address {
     e.storage()
         .instance()
-        .get::<Symbol, Address>(&Symbol::new(&e, VOTER_TOKEN_ADDRESS_KEY))
+        .get::<Symbol, Address>(&Symbol::new(e, VOTER_TOKEN_ADDRESS_KEY))
         .unwrap_optimized()
 }
 
@@ -109,14 +109,14 @@ pub fn get_voter_token_address(e: &Env) -> Address {
 pub fn set_settings(e: &Env, settings: &GovernorSettings) {
     e.storage()
         .instance()
-        .set::<Symbol, GovernorSettings>(&Symbol::new(&e, SETTINGS_KEY), &settings);
+        .set::<Symbol, GovernorSettings>(&Symbol::new(e, SETTINGS_KEY), settings);
 }
 
 /// Get the contract settings
 pub fn get_settings(e: &Env) -> GovernorSettings {
     e.storage()
         .instance()
-        .get::<Symbol, GovernorSettings>(&Symbol::new(&e, SETTINGS_KEY))
+        .get::<Symbol, GovernorSettings>(&Symbol::new(e, SETTINGS_KEY))
         .unwrap_optimized()
 }
 
@@ -127,14 +127,14 @@ pub fn get_settings(e: &Env) -> GovernorSettings {
 pub fn set_council_address(e: &Env, council: &Address) {
     e.storage()
         .instance()
-        .set::<Symbol, Address>(&Symbol::new(&e, COUNCIL_KEY), &council);
+        .set::<Symbol, Address>(&Symbol::new(e, COUNCIL_KEY), council);
 }
 
 /// Get the council address
 pub fn get_council_address(e: &Env) -> Address {
     e.storage()
         .instance()
-        .get::<Symbol, Address>(&Symbol::new(&e, COUNCIL_KEY))
+        .get::<Symbol, Address>(&Symbol::new(e, COUNCIL_KEY))
         .unwrap_optimized()
 }
 
@@ -145,7 +145,7 @@ pub fn get_council_address(e: &Env) -> Address {
 /// ### Arguments
 /// * `proposal_id` - The new proposal_id
 pub fn set_next_proposal_id(e: &Env, proposal_id: u32) {
-    let key = Symbol::new(&e, PROPOSAL_ID_KEY);
+    let key = Symbol::new(e, PROPOSAL_ID_KEY);
     e.storage()
         .persistent()
         .set::<Symbol, u32>(&key, &proposal_id);
@@ -156,8 +156,8 @@ pub fn set_next_proposal_id(e: &Env, proposal_id: u32) {
 
 /// Get the current proposal id
 pub fn get_next_proposal_id(e: &Env) -> u32 {
-    let key = Symbol::new(&e, PROPOSAL_ID_KEY);
-    get_persistent_default::<Symbol, u32>(&e, &key, 0_u32, LEDGER_THRESHOLD, LEDGER_BUMP)
+    let key = Symbol::new(e, PROPOSAL_ID_KEY);
+    get_persistent_default::<Symbol, u32>(e, &key, 0_u32, LEDGER_THRESHOLD, LEDGER_BUMP)
 }
 
 /********** Temporary **********/
@@ -213,7 +213,7 @@ pub fn set_proposal_data(e: &Env, proposal_id: u32, proposal_data: &ProposalData
     let key = GovernorDataKey::Data(proposal_id);
     e.storage()
         .temporary()
-        .set::<GovernorDataKey, ProposalData>(&key, &proposal_data);
+        .set::<GovernorDataKey, ProposalData>(&key, proposal_data);
 }
 
 /// Create the proposal status for proposal at `proposal_id` and bump
@@ -225,7 +225,7 @@ pub fn create_proposal_data(e: &Env, proposal_id: u32, proposal_data: &ProposalD
     let key = GovernorDataKey::Data(proposal_id);
     e.storage()
         .temporary()
-        .set::<GovernorDataKey, ProposalData>(&key, &proposal_data);
+        .set::<GovernorDataKey, ProposalData>(&key, proposal_data);
     e.storage()
         .temporary()
         .extend_ttl(&key, LEDGER_BUMP, LEDGER_BUMP);
