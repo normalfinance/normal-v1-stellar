@@ -12,3 +12,15 @@ pub enum AuctionConfig {
 	/// May be capped to prevent overly large auctions that could affect the market price.
 	pub max_auction_lot_size: u64,
 }
+
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq, Copy)]
+pub enum AuctionType {
+    /// selling collateral from a Vault liquidation
+	Collateral,
+	/// selling newly minted NORM to cover Protocol Debt (the deficit from Collateral Auctions)
+	Debt,
+	/// selling excess synthetic token proceeds over the Insurance Fund max limit for NORM to be burned
+	Surplus,
+}

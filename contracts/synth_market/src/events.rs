@@ -3,7 +3,7 @@ use soroban_sdk::{ Address, Env, String, Symbol };
 pub struct SynthMarketEvents {}
 
 impl SynthMarketEvents {
-    // Market Events
+    // Synth Market Events
 
     /// Emitted when a market is created
     ///
@@ -12,15 +12,9 @@ impl SynthMarketEvents {
     ///
     /// - topics - `["market_initialization", proposal_id: u32, proposer: Address]`
     /// - data - `[title: String, desc: String, action: ProposalAction, vote_start: u32, vote_end: u32]`
-    pub fn market_initialization(
+    pub fn initialization(
         e: &Env,
-        proposal_id: u32,
-        proposer: Address,
-        title: String,
-        desc: String,
-        action: ProposalAction,
-        vote_start: u32,
-        vote_end: u32
+       
     ) {
         let topics = (Symbol::new(&e, "market_initialization"), proposal_id, proposer);
         e.events().publish(topics, (title, desc, action, vote_start, vote_end));
@@ -30,7 +24,7 @@ impl SynthMarketEvents {
     ///
     /// - topics - `["proposal_canceled", proposal_id: u32]`
     /// - data - ()
-    pub fn market_shutdown(e: &Env, proposal_id: u32) {
+    pub fn shutdown(e: &Env, proposal_id: u32) {
         let topics = (Symbol::new(&e, "proposal_canceled"), proposal_id);
         e.events().publish(topics, ());
     }
@@ -39,7 +33,7 @@ impl SynthMarketEvents {
     ///
     /// - topics - `["proposal_canceled", proposal_id: u32]`
     /// - data - ()
-    pub fn market_deletion(e: &Env, proposal_id: u32) {
+    pub fn deletion(e: &Env, proposal_id: u32) {
         let topics = (Symbol::new(&e, "proposal_canceled"), proposal_id);
         e.events().publish(topics, ());
     }
@@ -52,7 +46,7 @@ impl SynthMarketEvents {
     /// - data - `[depositor: Address, collateral_type: Address, amount: u64]`
     pub fn collateral_deposit(
         e: &Env,
-        market_id: u32,
+        market: SynthMarket,
         depositor: Address,
         collateral_type: Address,
         amount: u64
@@ -67,7 +61,7 @@ impl SynthMarketEvents {
     /// - data - `[user: Address, loan_contract: Address, collateral_type: Address, amount: u64, executor: String]`
     pub fn collateral_loan(
         e: &Env,
-        market_id: u32,
+        market: SynthMarket,
         user: Address,
         loan_contract: Address,
         collateral_type: Address,
@@ -84,7 +78,7 @@ impl SynthMarketEvents {
     /// - data - `[user: Address, loan_contract: Address, collateral_type: Address, amount: u64, executor: String]`
     pub fn collateral_loan_recall(
         e: &Env,
-        market_id: u32,
+        market: SynthMarket,
         user: Address,
         loan_contract: Address,
         collateral_type: Address,
@@ -101,7 +95,7 @@ impl SynthMarketEvents {
     /// - data - `[from: Address, to: Address, collateral_type: Address, amount: u64]`
     pub fn collateral_transfer(
         e: &Env,
-        market_id: u32,
+        market: SynthMarket,
         from: Address,
         to: Address,
         collateral_type: Address,
@@ -117,7 +111,7 @@ impl SynthMarketEvents {
     /// - data - `[withdrawer: Address, collateral_type: Address, amount: u64]`
     pub fn collateral_withdrawal(
         e: &Env,
-        market_id: u32,
+        market: SynthMarket,
         withdrawer: Address,
         collateral_type: Address,
         amount: u64
@@ -126,41 +120,7 @@ impl SynthMarketEvents {
         e.events().publish(topics, (withdrawer, collateral_type, amount));
     }
 
-    // Synthetic Events
-
-    /// Emitted when a user transfers collateral to another user
-    ///
-    /// - topics - `["collateral_transfer", proposal_id: u32]`
-    /// - data - `[from: Address, to: Address, collateral_type: Address, amount: u64]`
-    pub fn collateral_transfer(
-        e: &Env,
-        market_id: u32,
-        from: Address,
-        to: Address,
-        collateral_type: Address,
-        amount: u64
-    ) {
-        let topics = (Symbol::new(&e, "collateral_transfer"), market_id);
-        e.events().publish(topics, (from, to, collateral_type, amount));
-    }
-
-    /// Emitted when a user transfers collateral to another user
-    ///
-    /// - topics - `["collateral_transfer", proposal_id: u32]`
-    /// - data - `[from: Address, to: Address, collateral_type: Address, amount: u64]`
-    pub fn collateral_transfer(
-        e: &Env,
-        market_id: u32,
-        from: Address,
-        to: Address,
-        collateral_type: Address,
-        amount: u64
-    ) {
-        let topics = (Symbol::new(&e, "collateral_transfer"), market_id);
-        e.events().publish(topics, (from, to, collateral_type, amount));
-    }
-
-    // Liquidation Events
+    // Keeper Events
 
     /// Emitted when a position is liquidated
     ///
@@ -168,7 +128,7 @@ impl SynthMarketEvents {
     /// - data - `[user: Address, liquidator: Address, margin_requirement: u128, total_collateral: i128, margin_freed: u64, liquidation_id: u16]`
     pub fn liquidation(
         e: &Env,
-        market_id: u32,
+        market: SynthMarket,
         user: Address,
         liquidator: Address,
         margin_requirement: u128,
@@ -187,13 +147,13 @@ impl SynthMarketEvents {
         ));
     }
 
-    /// Emitted when a user is bankrupt
+    /// Emitted when a position is bankrupt
     ///
     /// - topics - `["bankruptcy", market_id: u32]`
     /// - data - ()
     pub fn bankruptcy(
         e: &Env,
-        market_id: u32,
+        market: SynthMarket,
         depositor: Address,
         collateral_type: Address,
         amount: u64

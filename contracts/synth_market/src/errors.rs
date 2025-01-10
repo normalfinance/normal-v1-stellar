@@ -6,5 +6,10 @@ use soroban_sdk::contracterror;
 pub enum Error {
     InvalidMarginRatio,
     UserCantLiquidateThemself,
-    UserBankrupt,
+    #[msg("UserBankrupt")]
+	UserBankrupt,
+	#[msg("UserNotBankrupt")]
+	UserNotBankrupt,
+    #[msg("Cant transfer between same user account")]
+	CantTransferBetweenSameUserAccount,
 }

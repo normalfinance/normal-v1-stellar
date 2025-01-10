@@ -1,28 +1,74 @@
 use soroban_sdk::{ contractclient, Address, Env, String };
 
 #[contractclient(name = "SynthMarketClient")]
-pub trait SynthMarket {
-    /// Setup the governor contract
-    ///
-    /// ### Arguments
-    /// * `votes` - The address of the contract used to track votes
-    /// * `council` - The address of the security council for the DAO
-    /// * `settings` - The settings for the governor
-    fn initialize(e: Env, votes: Address, council: Address, settings: GovernorSettings);
+pub trait SynthMarketTrait {
+    // ################################################################
+    //                             ADMIN
+    // ################################################################
+    fn initialize(env: Env, params: SynthMarketParams);
 
-    pub fn 
+    fn initialize_shutdown(env: Env, sender: Address, expiry_ts: i64);
 
-    pub fn set_fee_rate(e: Env, fee_rate: u128) -> u128 {}
+    fn update_paused_operations(env: Env, admin: Address, operations: Vec<Operation>);
 
-    pub fn freeze_oracle(e: Env) -> u128 {}
+    fn update_amm(env: Env, admin: Address, amm: Address);
 
-    pub fn init_shutdown(e: Env) -> u128 {}
+    fn update_debt_limit(
+        env: Env,
+        admin: Address,
+        debt_floor: Option<u32>,
+        debt_ceiling: Option<u128>
+    );
 
-    pub fn update_debt_floor(e: Env) -> u128 {}
+    fn extend_expiry_timestamp(env: Env, admin: Address, expiry_timestamp: i64);
 
-    pub fn update_debt_ceiling(e: Env) -> u128 {}
+    fn update_margin_config(
+        env: Env,
+        admin: Address,
+        margin_ratio_initial: u32,
+        margin_ratio_maintenance: u32,
+        imf_factor: Option<u32>
+    );
 
-    pub fn liquidate(e: Env, fee_rate: u128) -> u128 {}
+    fn update_liquidation_config(
+        env: Env,
+        admin: Address,
+        liquidation_fee: u32,
+        if_liquidation_fee: u32,
+        liquidation_penalty: Option<u32>
+    );
 
-    pub fn liquidate(e: Env, fee_rate: u128) -> u128 {}
+    fn update_name(env: Env, admin: Address, name: String);
+
+    fn update_status(env: Env, admin: Address, status: MarketStatus);
+
+    fn update_synth_tier(env: Env, admin: Address, synth_tier: SynthTier);
+
+    // ################################################################
+    //                             KEEPER
+    // ################################################################
+
+    fn update_oracle(env: Env, keeper: Address, oracle: Address, oracle_source: OracleSource);
+
+    fn freeze_oracle(env: Env, keeper: Address) {}
+
+    fn lend_collateral(e: Env, fee_rate: u128);
+
+    fn unlend_collateral(e: Env, fee_rate: u128);
+
+    fn liquidate_position(e: Env, fee_rate: u128);
+
+    fn resolve_position_bankruptcy(e: Env, fee_rate: u128);
+
+    // ################################################################
+    //                             USER
+    // ################################################################
+
+    fn deposit_collateral(env: Env, user: Address, amount: i128);
+
+    fn transfer_collateral(env: Env, user: Address, amount: i128);
+
+    fn withdraw_collateral(env: Env, user: Address, amount: i128);
+
+    fn borrow_synthetic_and_provide_liquidity(env: Env, user: Address, amount: i128);
 }

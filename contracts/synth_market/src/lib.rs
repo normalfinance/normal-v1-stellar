@@ -1,11 +1,18 @@
 #![no_std]
 
-pub mod constants;
+mod constants;
 mod contract;
 mod errors;
-mod interfaces;
 mod storage;
-mod storage_types;
+
+pub mod token_contract {
+    // The import will code generate:
+    // - A ContractClient type that can be used to invoke functions on the contract.
+    // - Any types in the contract that were annotated with #[contracttype].
+    soroban_sdk::contractimport!(
+        file = "../../target/wasm32-unknown-unknown/release/soroban_token_contract.wasm"
+    );
+}
 
 fn generate_market_symbol(e: &Env, market_name: &str) -> Symbol {
     Symbol::new(&e, market_name)
