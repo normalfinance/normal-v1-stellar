@@ -9,13 +9,23 @@ license = "Apache-2.0"
 repository = "https://github.com/normalfinance/normal-v1-stellar-contracts"
 
 [workspace.dependencies]
-soroban-sdk = "22.0.4"
-soroban-token-sdk = "22.0.4"
 curve = { path = "./packages/curve" }
+soroban-decimal = { path = "./packages/decimal" }
 normal = { path = "./packages/normal" }
+oracle = { path = "./packages/oracle" }
 num-integer = { version = "0.1.45", default-features = false, features = [
     "i128",
 ] }
+soroban-sdk = "22.0.4"
+soroban-token-sdk = "22.0.4"
+test-case = "3.3"
+pretty_assertions = "1.4.0"
+
+[workspace.dependencies.sep-41-token]
+version = "1.0.0"
+
+[workspace.dependencies.soroban-fixed-point-math]
+version = "1.0.0"
 
 [profile.release]
 opt-level = "z"
