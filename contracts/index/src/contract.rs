@@ -2,27 +2,11 @@ use soroban_sdk::{ assert_with_error, contract, contractimpl, Address, Env };
 
 use crate::{
     errors,
-    interfaces::{ IInsuranceFund::IInsuranceFund },
-    storage::{ get_admin },
-    storage_types::{ DataKey },
-    events:IndexEvents
+    storage::{ DataKey, get_admin },
+    events::IndexEvents,
+    index::IndexTrait,
+    index_token_contract,
 };
-use crate::storage_types::{ MAX_FEE_BASIS_POINTS, DataKey };
-
-// workspace method
-// use soroban_workspace_contract_a_interface::ContractAClient;
-
-mod state {
-    soroban_sdk::contractimport!(
-        file = "../state/target/wasm32-unknown-unknown/release/state_contract.wasm"
-    );
-}
-
-mod amm {
-    soroban_sdk::contractimport!(
-        file = "../amm/target/wasm32-unknown-unknown/release/amm_contract.wasm"
-    );
-}
 
 contractmeta!(key = "Description", val = "Diversified exposure to a basket of cryptocurrencies");
 
@@ -30,21 +14,23 @@ contractmeta!(key = "Description", val = "Diversified exposure to a basket of cr
 pub struct Index;
 
 #[contractimpl]
-impl Index {
-    fn init(
-        e: Env,
-        token_wasm: BytesN<32>, // Bytecode hash of the IndexToken contract
+impl IndexTrait for Index {
+    #[allow(clippy::too_many_arguments)]
+    fn initialize(
+        env: Env,
         admin: Address,
-        token_contract: Address,
         name: String,
-        assets: u64,
-        privacy: bool,
-        protocol_fee: u32,
-        manager_fee: u32,
-        revenue_share: u32,
-        max_insurance: u64,
-        whitelist: Vec<Address>,
-        blacklist: Vec<Address>
+        symbol: String,
+        is_public: bool,
+        delegate: Option<Address>,
+        fee_authority: Option<Address>,
+        access_authority: Option<Address>,
+        rebalance_authority: Option<Address>,
+        assets: Vec<IndexAssetInfo>,
+        manager_fee_bps: i64,
+        revenue_share_bps: i64,
+        whitelist: Option<Vec<Pubkey>>,
+        blacklist: Option<Vec<Pubkey>>
     ) {
         if protocol_fee > MAX_FEE_BASIS_POINTS {
             return Err(ErrorCode::InvalidFee);
@@ -53,103 +39,174 @@ impl Index {
             return Err(ErrorCode::InvalidFee);
         }
 
-        set_admin(&e, admin);
-        set_paused_operations(&e, paused_operations);
-
         // Deploy the IndexToken contract
         let index_token_address = e.deploy_contract(
             &token_wasm, // WASM bytecode for the IndexToken contract
             &e.current_contract_address() // Pass Index contract address to the IndexToken init function
         );
 
-        // Save the IndexToken contract address
-        e.storage().persistent().set("index_token", index_token_address.clone());
-
-        IndexEvents::index_created(
-            &e,
-            creator,
-            index_id,
-            name,
-            symbol,
-        );
+        IndexEvents::initialize(&env, admin, index_id, name, symbol);
     }
 
-    // Getters
-
-    fn get_admin(e: Env) -> Address {
-        get_admin(&e)
-    }
-
-    // fn get_max_insurance(e: Env) -> u64 {
-    //     get_max_insurance(&e)
-    // }
-
-    pub fn get_index_token(e: Env) -> Address {
-        e.storage().persistent().get("index_token").unwrap()
-    }
-
-    // Setters
-
-    fn update_expense_ratio(e: Env, expense_ratio: u64) {
-        is_fund_admin(&e);
-
-        if expense_ratio > MAX_FEE_RATE {
-            return Err(ErrorCode::OperationPaused);
+    fn update_fees(
+        env: Env,
+        sender: Address,
+        manager_fee_bps: Option<i64>,
+        revenue_share_bps: Option<i64>
+    ) {
+        if index.fee_authority != sender {
+            log!(&env, "Index: Update fees: You are not authorized!");
+            panic_with_error!(&env, ContractError::NotAuthorized);
         }
 
-        set_expense_ratio(&e, expense_ratio);
-    }
+        let mut index = get_index(&env);
 
-    fn update_revenue_share(e: Env, revenue_share: u64) {
-        is_fund_admin(&e);
-        set_revenue_share(&e, revenue_share);
-    }
+        if let Some(manager_fee_bps) = manager_fee_bps {
+            if expense_ratio > MAX_FEE_RATE {
+                return Err(ErrorCode::OperationPaused);
+            }
 
-    fn update_expiry(e: Env, expiry: u64) {
-        is_fund_admin(&e);
-        set_expiry(&e, expiry);
+            validate_bps!(manager_fee_bps);
+            index.manager_fee_bps = manager_fee_bps;
+        }
+
+        if let Some(revenue_share_bps) = revenue_share_bps {
+            validate_bps!(revenue_share_bps);
+            index.revenue_share_bps = revenue_share_bps;
+        }
+
+        save_index(&env, index);
     }
 
     fn update_paused_operations(e: Env, paused_operations: Vec<Operation>) {
-        is_fund_admin(&e);
+        let mut index = get_index(&env);
+
+        is_fund_admin(&env, index.admin);
+
         set_paused_operations(&e, paused_operations);
     }
 
-    fn update_privacy(e: Env, private: bool) {
-        is_fund_admin(&e);
+    fn update_is_public(env: Env, sender: Address, is_public: bool) {
+        let mut index = get_index(&env);
 
-        let privacy = get_privacy(&e);
-        if privacy == true {
+        is_fund_admin(&env, index.admin);
+
+        if index.is_public == true {
             return Err(ErrorCode::Idk);
         }
+        index.is_public = is_public;
 
-        set_privacy(&e, private);
+        save_index(&env, index);
     }
 
-    fn update_whitelist(e: Env, whitelist: Vec<Address>) {
-        is_fund_admin(&e);
-        set_max_insurance(&e, max_insurance);
+    fn update_whitelist(env: Env, sender: Address, to_add: Vec<Address>, to_remove: Vec<Address>) {
+        sender.require_auth();
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+
+        let mut index = get_index(&env);
+
+        if index.access_authority != sender {
+            log!(&env, "Index: Update whitelist accounts: You are not authorized!");
+            panic_with_error!(&env, ContractError::NotAuthorized);
+        }
+
+        let mut whitelist = index.whitelist;
+
+        to_add.into_iter().for_each(|addr| {
+            if !whitelist.contains(addr.clone()) {
+                whitelist.push_back(addr);
+            }
+        });
+
+        to_remove.into_iter().for_each(|addr| {
+            if let Some(id) = whitelist.iter().position(|x| x == addr) {
+                whitelist.remove(id as u32);
+            }
+        });
+
+        save_index(&env, Index {
+            whitelist,
+            ..index
+        });
+
+        whitelist
     }
 
-    fn update_blacklist(e: Env, blacklist: Vec<Address>) {
-        is_fund_admin(&e);
-        set_max_insurance(&e, max_insurance);
+    fn update_blacklist(env: Env, sender: Address, to_add: Vec<Address>, to_remove: Vec<Address>) {
+        sender.require_auth();
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+
+        let mut index = get_index(&env);
+
+        if index.access_authority != sender {
+            log!(&env, "Index: Update blacklist accounts: You are not authorized!");
+            panic_with_error!(&env, ContractError::NotAuthorized);
+        }
+
+        let mut blacklist = index.blacklist;
+
+        to_add.into_iter().for_each(|addr| {
+            if !blacklist.contains(addr.clone()) {
+                blacklist.push_back(addr);
+            }
+        });
+
+        to_remove.into_iter().for_each(|addr| {
+            if let Some(id) = blacklist.iter().position(|x| x == addr) {
+                blacklist.remove(id as u32);
+            }
+        });
+
+        save_index(&env, Index {
+            blacklist,
+            ..index
+        });
+
+        blacklist
     }
 
-    fn collect_manager_fees(e: Env, blacklist: Vec<Address>) {
-        is_fund_admin(&e);
-        set_max_insurance(&e, max_insurance);
+    fn rebalance(env: Env, sender: Address) {
+        let mut index = get_index(&env);
+
+        if index.rebalance_authority != sender {
+            log!(&env, "Index: Rebalance: You are not authorized!");
+            panic_with_error!(&env, ContractError::NotAuthorized);
+        }
+
+        // ...
     }
 
-    fn collect_revenue_share(e: Env, blacklist: Vec<Address>) {
-        is_fund_admin(&e);
-        set_max_insurance(&e, max_insurance);
+    fn collect_fees(env: Env, sender: Address, to: Option<Address>) {
+        sender.require_auth();
+
+        let mut index = get_index(&env);
+
+        if index.fee_authority != sender {
+            log!(&env, "Index: Collect fees: You are not authorized!");
+            panic_with_error!(&env, ContractError::NotAuthorized);
+        }
+
+        // fetch available to withdraw
+        let can_withdraw = 0;
+
+        // find send address
+        let recipient_address = match to {
+            Some(to_address) => to_address, // Use the provided `to` address
+            None => sender, // Otherwise use the sender address
+        };
+
+        // transfer token
+        let token_client = token::Client::new(&env, &x);
+        token_client.transfer(&recipient_address, &env.current_contract_address(), &can_withdraw);
+
+        // update balances
+        // index.
     }
 
     // User
 
-    fn mint_index_tokens(e: Env, to: Address, amount: u64) {
-        to.require_auth();
+    fn mint(env: Env, sender: Address, to: Option<Address>, amount: i128) {
+        sender.require_auth();
 
         // Transfer quote asset to Index
         let token_quote_client = token::Client::new(&e, &get_token_quote(&e));
@@ -170,18 +227,19 @@ impl Index {
                     // As this is a simple 'batching' contract, there is no need
                     // for all swaps to succeed, hence we handle the failures
                     // gracefully to try and clear as many swaps as possible.
-                    if swap_client
-                        .try_swap(
-                            &acc_a.address,
-                            &acc_b.address,
-                            &token_a,
-                            &token_b,
-                            &acc_a.amount,
-                            &acc_a.min_recv,
-                            &acc_b.amount,
-                            &acc_b.min_recv,
-                        )
-                        .is_ok()
+                    if
+                        swap_client
+                            .try_swap(
+                                &acc_a.address,
+                                &acc_b.address,
+                                &token_a,
+                                &token_b,
+                                &acc_a.amount,
+                                &acc_a.min_recv,
+                                &acc_b.amount,
+                                &acc_b.min_recv
+                            )
+                            .is_ok()
                     {
                         swaps_b.remove(i);
                         break;
@@ -200,16 +258,11 @@ impl Index {
         // let client = MintClient::new(&env, &contract);
         // client.mint(&to, &index_tokens_to_mint);
 
-        IndexEvents::index_minted(
-            &e,
-            index_id,
-            to,
-            amount,
-        );
+        IndexEvents::index_minted(&e, index_id, to, amount);
     }
 
-    fn redeem_index_tokens(e: Env, from: Address, amount: u64) {
-        from.require_auth();
+    fn redeem(env: Env, sender: Address, amount: i128) {
+        sender.require_auth();
 
         // Burn tokens
 
@@ -226,21 +279,28 @@ impl Index {
         let token_quote_client = token::Client::new(&e, &get_token_quote(&e));
         token_quote_client.transfer(&from, &e.current_contract_address(), &amount);
 
-        IndexEvents::index_redeemed(
-            &e,
-            index_id,
-            from,
-            amount,
-        );
+        IndexEvents::index_redeemed(&e, index_id, from, amount);
     }
 
-    fn rebalance_index(e: Env) {
-        // let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
-        index.rebalance_authority.require_auth();
+    fn collect_revenue_share(env: Env, sender: Address, to: Option<Address>) {
+        sender.require_auth();
 
-        let state = state::Client::new(&env, &contract);
-        if num_assets > state.max_index_assets {
-            return Err(ErrorCode::TooManyAssets);
-        }
+        let mut index = get_index(&env);
+
+        // fetch available to withdraw
+        let can_withdraw = 0;
+
+        // find send address
+        let recipient_address = match to {
+            Some(to_address) => to_address, // Use the provided `to` address
+            None => sender, // Otherwise use the sender address
+        };
+
+        // transfer token
+        let token_client = token::Client::new(&env, &env);
+        token_client.transfer(&recipient_address, &env.current_contract_address(), &can_withdraw);
+
+        // update balances
+        // index.
     }
 }

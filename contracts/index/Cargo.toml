@@ -1,15 +1,20 @@
 [package]
-name = "index"
-version.workspace = true
-edition = "2021"
-publish = false
+name = "normal-index"
+version = { workspace = true }
+authors = ["jmoneyblew <joshua@normalfinance.io>"]
+repository = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [lib]
 crate-type = ["cdylib"]
-doctest = false
+
+[features]
+testutils = ["soroban-sdk/testutils"]
 
 [dependencies]
 soroban-sdk = { workspace = true }
+normal = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
