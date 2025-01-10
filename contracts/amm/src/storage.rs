@@ -27,6 +27,21 @@ impl TryFromVal<Env, DataKey> for Val {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AMMParams {
+    pub admin: Address,
+    pub tick_spacing: u16,
+    pub initial_sqrt_price: u128,
+    pub fee_rate: u16,
+    pub protocol_fee_rate: u16,
+    pub swap_fee_bps: i64,
+    pub max_allowed_slippage_bps: i64,
+    pub default_slippage_bps: i64,
+    pub max_allowed_spread_bps: i64,
+    // pub token_init_info: TokenInitInfo,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Config {
     pub token_a: Address,
     pub token_b: Address,
