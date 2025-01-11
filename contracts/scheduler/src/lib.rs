@@ -1,7 +1,6 @@
 #![no_std]
 
 mod contract;
-mod errors;
 mod events;
 mod scheduler;
 mod storage;

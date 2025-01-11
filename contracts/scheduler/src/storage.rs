@@ -219,9 +219,10 @@ pub fn save_keeper_info(env: &Env, key: &Address, keeper_info: &KeeperInfo) {
 
 pub mod utils {
     use normal::ttl::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD };
+    use normal::error::ErrorCode;
     use soroban_sdk::{ log, panic_with_error };
 
-    use crate::{ errors::ErrorCode, token_contract };
+    use crate::{ token_contract };
 
     use super::*;
 

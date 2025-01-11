@@ -2,6 +2,7 @@ use normal::{
     ttl::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD },
     types::OrderDirection,
     validate_bps,
+    error::{ NormalResult, ErrorCode },
 };
 use soroban_sdk::{
     contractmeta,
@@ -16,7 +17,6 @@ use soroban_sdk::{
 };
 
 use crate::{
-    errors::ErrorCode,
     events::SchedulerEvents,
     scheduler::SchedulerTrait,
     storage::{
