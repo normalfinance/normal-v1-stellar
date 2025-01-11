@@ -1,4 +1,5 @@
-use soroban_sdk::{contracttype, Address};
+use normal::ttl::{ PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD };
+use soroban_sdk::{ contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec };
 
 pub(crate) const MAX_FEE_BASIS_POINTS: u32 = 1000; // Maximum fee: 10% (in basis points)
 
@@ -117,10 +118,13 @@ impl Index {
     }
 
     pub fn get_total_weight(&self) -> u8 {
-        self.assets.values().map(|asset| asset.weight).sum::<u8>()
+        self.assets
+            .values()
+            .map(|asset| asset.weight)
+            .sum::<u8>()
     }
 
-    pub fn update_asset_weight(&mut self, asset: Pubkey, new_weight: u8) -> NormalResult {
+    pub fn update_asset_weight(&mut self, asset: Asset, new_weight: u8) {
         if self.public {
             msg!("Publc index funds cannot be updated");
             return Ok(());
@@ -131,38 +135,29 @@ impl Index {
         } else {
             msg!("Failed to update asset weight");
         }
-
-        return Ok(());
     }
 }
 
 pub fn get_index(env: &Env) -> Index {
-    let index = env
-        .storage()
+    let index = env.storage().persistent().get(&INDEX).expect("Index: Index not set");
+    env.storage()
         .persistent()
-        .get(&INDEX)
-        .expect("Index: Index not set");
-    env.storage().persistent().extend_ttl(
-        &INDEX,
-        PERSISTENT_LIFETIME_THRESHOLD,
-        PERSISTENT_BUMP_AMOUNT,
-    );
+        .extend_ttl(&INDEX, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 
     index
 }
 
 pub fn save_index(env: &Env, index: Index) {
     env.storage().persistent().set(&INDEX, &index);
-    env.storage().persistent().extend_ttl(
-        &INDEX,
-        PERSISTENT_LIFETIME_THRESHOLD,
-        PERSISTENT_BUMP_AMOUNT,
-    );
+    env.storage()
+        .persistent()
+        .extend_ttl(&INDEX, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 }
 
 // ################################################################
 
-#[derive(Clone, Copy, PartialEq, Debug, Eq, contracttype)]
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Debug, Eq)]
 pub enum Operation {
     Mint,
     Redeem,

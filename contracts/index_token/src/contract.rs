@@ -1,13 +1,15 @@
-use crate::admin::{read_administrator, write_administrator};
-use crate::allowance::{read_allowance, spend_allowance, write_allowance};
-use crate::balance::{read_balance, receive_balance, spend_balance};
+use crate::admin::{ read_administrator, write_administrator };
+use crate::allowance::{ read_allowance, spend_allowance, write_allowance };
+use crate::balance::{
+    read_balance, read_index_contract, read_last_transfer, receive_balance, spend_balance, write_index_contract
+};
 use crate::errors::ErrorCode;
-use crate::metadata::{read_decimal, read_name, read_symbol, write_metadata};
+use crate::metadata::{ read_decimal, read_name, read_symbol, write_metadata };
 #[cfg(test)]
-use crate::storage_types::{AllowanceDataKey, AllowanceValue, DataKey};
-use crate::storage_types::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
-use soroban_sdk::token::{self, Interface as _};
-use soroban_sdk::{contract, contractimpl, Address, Env, String};
+use crate::storage_types::{ AllowanceDataKey, AllowanceValue, DataKey };
+use crate::storage_types::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD };
+use soroban_sdk::token::{ self, Interface as _ };
+use soroban_sdk::{ contract, contractimpl, contractmeta, panic_with_error, Address, Env, String };
 use soroban_token_sdk::metadata::TokenMetadata;
 use soroban_token_sdk::TokenUtils;
 
@@ -17,10 +19,7 @@ fn check_nonnegative_amount(amount: i128) {
     }
 }
 
-contractmeta!(
-    key = "Description",
-    val = "Token representing ownership in an crypto index fund"
-);
+contractmeta!(key = "Description", val = "Token representing ownership in an crypto index fund");
 
 #[contract]
 pub struct IndexToken;
@@ -33,24 +32,19 @@ impl IndexToken {
         decimal: u32,
         name: String,
         symbol: String,
-        index_contract: Address,
+        index_contract: Address
     ) {
         if decimal > 18 {
             panic!("Decimal must not be greater than 18");
         }
         write_administrator(&e, &admin);
-        write_metadata(
-            &e,
-            TokenMetadata {
-                decimal,
-                name,
-                symbol,
-            },
-        );
+        write_metadata(&e, TokenMetadata {
+            decimal,
+            name,
+            symbol,
+        });
 
-        e.storage()
-            .persistent()
-            .set("index_contract", index_contract);
+        write_index_contract(&e, &index_contract);
 
         // Initialize last transfer tracking
         e.storage()
@@ -63,9 +57,7 @@ impl IndexToken {
         let admin = read_administrator(&e);
         admin.require_auth();
 
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         receive_balance(&e, to.clone(), amount);
         TokenUtils::new(&e).events().mint(admin, to, amount);
@@ -75,9 +67,7 @@ impl IndexToken {
         let admin = read_administrator(&e);
         admin.require_auth();
 
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         write_administrator(&e, &new_admin);
         TokenUtils::new(&e).events().set_admin(admin, new_admin);
@@ -87,8 +77,11 @@ impl IndexToken {
         let index_contract: Address = e.storage().persistent().get("index_contract").unwrap();
 
         // Cross-contract call to get protocol and manager fees
-        let (protocol_fee, manager_fee, protocol_address): (i128, i128, Address) =
-            e.invoke_contract(&index_contract, &"get_fees".into(), ());
+        let (protocol_fee, manager_fee, protocol_address): (
+            i128,
+            i128,
+            Address,
+        ) = e.invoke_contract(&index_contract, &"get_fees".into(), ());
         // let _admin: Address = e.invoke_contract(&index_contract, &"get_admin".into(), ());
         (protocol_fee, manager_fee, protocol_address, index_contract)
     }
@@ -98,18 +91,23 @@ impl IndexToken {
         owner: Address,
         transfer_amount: i128,
         protocol_fee: i128,
-        manager_fee: i128,
+        manager_fee: i128
     ) -> (i128, i128) {
-        let mut last_transfer_map: Map<Address, (u64, i128)> =
-            e.storage().persistent().get("last_transfer").unwrap();
+        // let mut last_transfer_map: Map<Address, (u64, i128)> = e
+        //     .storage()
+        //     .persistent()
+        //     .get("last_transfer")
+        //     .unwrap();
 
-        let current_time = e.block().timestamp();
-        let (last_transfer_time, last_balance) =
-            last_transfer_map.get(owner).unwrap_or((current_time, 0));
+        let current_time = e.ledger().timestamp();
+        let (last_transfer_time, last_balance) = read_last_transfer(&e, owner);
+        // let (last_transfer_time, last_balance) = last_transfer_map
+        //     .get(owner)
+        //     .unwrap_or((current_time, 0));
 
         if last_balance == 0 {
             // No fee if there was no prior balance
-            return 0;
+            return (0, 0);
         }
 
         // Calculate weighted holding time
@@ -124,9 +122,9 @@ impl IndexToken {
         (protocol_fee_amount, manager_fee_amount)
     }
 
-    fn calculate_required_fees(&e: Env, from: Address, amount: i128) -> (i128, i128, i128) {
+    fn calculate_required_fees(env: Env, from: Address, amount: i128) -> (i128, i128, i128) {
         // Calculate fee and deduct it
-        let (protocol_fee, manager_fee, protocol_address, index_contract) = Self::get_fees(&e);
+        let (protocol_fee, manager_fee, protocol_address, index_contract) = Self::get_fees(&env);
 
         // Check if the sender or receiver is exempt from fees
         let fee_exempt = from == admin || from == protocol_address || from == index_contract;
@@ -134,34 +132,36 @@ impl IndexToken {
         let (protocol_fee_amount, manager_fee_amount, total_fees, net_amount) = if fee_exempt {
             (0, 0, 0, amount) // No fees applied, transfer the full amount
         } else {
-            let (protocol_fee_amount, manager_fee_amount) =
-                Self::calculate_fees(&e, from.clone(), amount, protocol_fee, manager_fee);
+            let (protocol_fee_amount, manager_fee_amount) = Self::calculate_fees(
+                &e,
+                from.clone(),
+                amount,
+                protocol_fee,
+                manager_fee
+            );
             let total_fees = protocol_fee_amount + manager_fee_amount;
 
             let net_amount = amount - total_fees;
 
             if net_amount <= 0 {
-                return Err(ErrorCode::TransferAmountTooSmallAfterFees);
+                panic_with_error!(&env, ErrorCode::TransferAmountTooSmallAfterFees);
             }
 
-            (
-                protocol_fee_amount,
-                manager_fee_amount,
-                total_fees,
-                net_amount,
-            )
+            (protocol_fee_amount, manager_fee_amount, total_fees, net_amount)
         };
     }
 
     fn update_last_transfer(e: &Env, owner: Address, new_balance: i128) {
-        let mut last_transfer_map: Map<Address, (u64, i128)> =
-            e.storage().persistent().get("last_transfer").unwrap();
+        // let mut last_transfer_map: Map<Address, (u64, i128)> = e
+        //     .storage()
+        //     .persistent()
+        //     .get("last_transfer")
+        //     .unwrap();
+        read_last_transfer(&e, owner);
 
-        let current_time = e.block().timestamp();
+        let current_time = e.ledger().timestamp();
         last_transfer_map.set(owner, (current_time, new_balance));
-        e.storage()
-            .persistent()
-            .set("last_transfer", last_transfer_map);
+        e.storage().persistent().set("last_transfer", last_transfer_map);
     }
 
     #[cfg(test)]
@@ -175,9 +175,7 @@ impl IndexToken {
 #[contractimpl]
 impl token::Interface for IndexToken {
     fn allowance(e: Env, from: Address, spender: Address) -> i128 {
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         read_allowance(&e, from, spender).amount
     }
 
@@ -186,20 +184,14 @@ impl token::Interface for IndexToken {
 
         check_nonnegative_amount(amount);
 
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         write_allowance(&e, from.clone(), spender.clone(), amount, expiration_ledger);
-        TokenUtils::new(&e)
-            .events()
-            .approve(from, spender, amount, expiration_ledger);
+        TokenUtils::new(&e).events().approve(from, spender, amount, expiration_ledger);
     }
 
     fn balance(e: Env, id: Address) -> i128 {
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         read_balance(&e, id)
     }
 
@@ -208,9 +200,7 @@ impl token::Interface for IndexToken {
 
         check_nonnegative_amount(amount);
 
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         // Calculate fee and deduct it
         let (protocol_fee_amount, manager_fee_amount, total_fees, net_amount) =
@@ -241,9 +231,7 @@ impl token::Interface for IndexToken {
                 .get(protocol_address.clone())
                 .unwrap_or(0);
             protocol_balance += protocol_fee_amount;
-            e.storage()
-                .persistent()
-                .set(protocol_address.clone(), protocol_balance);
+            e.storage().persistent().set(protocol_address.clone(), protocol_balance);
         }
 
         // Add manager fee to Index contract if applicable
@@ -254,32 +242,23 @@ impl token::Interface for IndexToken {
                 .get(index_contract.clone())
                 .unwrap_or(0);
             index_balance += manager_fee_amount;
-            e.storage()
-                .persistent()
-                .set(index_contract.clone(), index_balance);
+            e.storage().persistent().set(index_contract.clone(), index_balance);
 
             // Notify the Index contract about the manager fee
-            e.invoke_contract::<()>(
-                &index_contract,
-                &"handle_manager_fee".into(),
-                (manager_fee_amount, from.clone()),
-            );
+            e.invoke_contract::<()>(&index_contract, &"handle_manager_fee".into(), (
+                manager_fee_amount,
+                from.clone(),
+            ));
         }
 
-        TokenUtils::new(&e)
-            .events()
-            .transfer(from.clone(), to.clone(), net_amount);
+        TokenUtils::new(&e).events().transfer(from.clone(), to.clone(), net_amount);
 
         // Log fee events if applicable
         if protocol_fee_amount > 0 {
-            TokenUtils::new(&e)
-                .events()
-                .fee(from.clone(), admin, protocol_fee_amount);
+            TokenUtils::new(&e).events().fee(from.clone(), admin, protocol_fee_amount);
         }
         if manager_fee_amount > 0 {
-            TokenUtils::new(&e)
-                .events()
-                .fee(from.clone(), index_contract, manager_fee_amount);
+            TokenUtils::new(&e).events().fee(from.clone(), index_contract, manager_fee_amount);
         }
 
         // Update last transfer timestamps and amounts
@@ -288,11 +267,10 @@ impl token::Interface for IndexToken {
 
         // Notify Index contract about the fee
         // TODO: do we need this?
-        e.invoke_contract::<()>(
-            &index_contract,
-            &"handle_manager_fee".into(),
-            (manager_fee_amount, from.clone()),
-        );
+        e.invoke_contract::<()>(&index_contract, &"handle_manager_fee".into(), (
+            manager_fee_amount,
+            from.clone(),
+        ));
     }
 
     fn transfer_from(e: Env, spender: Address, from: Address, to: Address, amount: i128) {
@@ -300,9 +278,7 @@ impl token::Interface for IndexToken {
 
         check_nonnegative_amount(amount);
 
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         // Calculate fee and deduct it
         let (protocol_fee_amount, manager_fee_amount, total_fees, net_amount) =
@@ -320,14 +296,10 @@ impl token::Interface for IndexToken {
 
         // Log fee events if applicable
         if protocol_fee_amount > 0 {
-            TokenUtils::new(&e)
-                .events()
-                .fee(from.clone(), admin, protocol_fee_amount);
+            TokenUtils::new(&e).events().fee(from.clone(), admin, protocol_fee_amount);
         }
         if manager_fee_amount > 0 {
-            TokenUtils::new(&e)
-                .events()
-                .fee(from.clone(), index_contract, manager_fee_amount);
+            TokenUtils::new(&e).events().fee(from.clone(), index_contract, manager_fee_amount);
         }
 
         // Update last transfer timestamps and amounts
@@ -336,11 +308,10 @@ impl token::Interface for IndexToken {
 
         // Notify Index contract about the fee
         // TODO: do we need this?
-        e.invoke_contract::<()>(
-            &index_contract,
-            &"handle_manager_fee".into(),
-            (manager_fee_amount, from.clone()),
-        );
+        e.invoke_contract::<()>(&read_index_contract(&e), &"handle_manager_fee".into(), (
+            manager_fee_amount,
+            from.clone(),
+        ));
     }
 
     fn burn(e: Env, from: Address, amount: i128) {
@@ -348,9 +319,7 @@ impl token::Interface for IndexToken {
 
         check_nonnegative_amount(amount);
 
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         spend_balance(&e, from.clone(), amount);
         TokenUtils::new(&e).events().burn(from, amount);
@@ -361,9 +330,7 @@ impl token::Interface for IndexToken {
 
         check_nonnegative_amount(amount);
 
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         spend_allowance(&e, from.clone(), spender, amount);
         spend_balance(&e, from.clone(), amount);
@@ -382,7 +349,7 @@ impl token::Interface for IndexToken {
         read_symbol(&e)
     }
 
-    fn index_contract(e: Env) -> Address {
-        read_index_contract(&e)
-    }
+    // fn index_contract(e: Env) -> Address {
+    //     read_index_contract(&e)
+    // }
 }

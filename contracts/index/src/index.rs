@@ -1,4 +1,6 @@
-use soroban_sdk::{ contractclient, Address, Env, String };
+use soroban_sdk::{ contractclient, Address, Env, String, Vec };
+
+use crate::{contract::Index, storage::IndexAsset};
 
 #[contractclient(name = "IndexClient")]
 pub trait IndexTrait {
@@ -21,7 +23,7 @@ pub trait IndexTrait {
         fee_authority: Option<Address>,
         access_authority: Option<Address>,
         rebalance_authority: Option<Address>,
-        assets: Vec<IndexAssetInfo>,
+        assets: Vec<IndexAsset>,
         manager_fee_bps: i64,
         revenue_share_bps: i64,
         whitelist: Option<Vec<Address>>,

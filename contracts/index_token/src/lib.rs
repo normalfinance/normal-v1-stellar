@@ -4,6 +4,7 @@ mod admin;
 mod allowance;
 mod balance;
 mod contract;
+mod errors;
 mod metadata;
 mod storage_types;
 mod test;

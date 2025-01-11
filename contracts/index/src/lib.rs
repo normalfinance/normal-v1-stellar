@@ -3,6 +3,7 @@
 mod contract;
 mod errors;
 mod events;
+mod index;
 mod storage;
 mod utils;
 

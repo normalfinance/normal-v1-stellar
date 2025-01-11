@@ -1,15 +1,16 @@
-use soroban_sdk::{assert_with_error, contract, contractimpl, Address, Env};
+use soroban_sdk::{assert_with_error, contract, contractimpl, contractmeta, log, panic_with_error, symbol_short, Address, Env, Map, String, Vec};
 
 use crate::{
-    amm_contract, errors,
+    amm_contract, errors::{self, ErrorCode},
     events::IndexEvents,
     index::IndexTrait,
     index_factory_contract, index_token_contract,
-    storage::{get_admin, DataKey},
+    storage::{get_admin, get_index, save_index, DataKey, Index, IndexAsset, Operation, MAX_FEE_BASIS_POINTS},
     token_contract,
+    index_token_contract,
 };
 
-use normal::oracle::{get_oracle_price, oracle_validity};
+use normal::{oracle::{get_oracle_price, oracle_validity}, ttl::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD}, validate, validate_bps};
 
 contractmeta!(
     key = "Description",
@@ -41,7 +42,7 @@ impl IndexTrait for Index {
         fee_authority: Option<Address>,
         access_authority: Option<Address>,
         rebalance_authority: Option<Address>,
-        assets: Vec<IndexAssetInfo>,
+        assets: Vec<IndexAsset>,
         manager_fee_bps: i64,
         revenue_share_bps: i64,
         whitelist: Option<Vec<Address>>,
@@ -106,7 +107,7 @@ impl IndexTrait for Index {
 
         let initial_mint_amount = base_nav / initial_price;
 
-        let index_token_client = index_token_client::Client::new(&env, &index_token_address);
+        let index_token_client = index_token_contract::Client::new(&env, &index_token_address);
         env.invoke_contract(
             &index_token_client,
             &symbol_short!("mint"),
@@ -128,7 +129,7 @@ impl IndexTrait for Index {
     ) {
         if index.fee_authority != sender {
             log!(&env, "Index: Update fees: You are not authorized!");
-            panic_with_error!(&env, ContractError::NotAuthorized);
+            panic_with_error!(&env, ErrorCode::NotAuthorized);
         }
 
         let mut index = get_index(&env);
@@ -150,7 +151,7 @@ impl IndexTrait for Index {
         save_index(&env, index);
     }
 
-    fn update_paused_operations(e: Env, paused_operations: Vec<Operation>) {
+    fn update_paused_operations(env: Env, paused_operations: Vec<Operation>) {
         let mut index = get_index(&env);
 
         is_fund_admin(&env, index.admin);
@@ -171,7 +172,7 @@ impl IndexTrait for Index {
                 &env,
                 "Index: Update whitelist accounts: You are not authorized!"
             );
-            panic_with_error!(&env, ContractError::NotAuthorized);
+            panic_with_error!(&env, ErrorCode::NotAuthorized);
         }
 
         let mut whitelist = index.whitelist;
@@ -206,7 +207,7 @@ impl IndexTrait for Index {
                 &env,
                 "Index: Update blacklist accounts: You are not authorized!"
             );
-            panic_with_error!(&env, ContractError::NotAuthorized);
+            panic_with_error!(&env, ErrorCode::NotAuthorized);
         }
 
         let mut blacklist = index.blacklist;
@@ -290,7 +291,7 @@ impl IndexTrait for Index {
 
         if index.rebalance_authority != sender {
             log!(&env, "Index: Rebalance: You are not authorized!");
-            panic_with_error!(&env, ContractError::NotAuthorized);
+            panic_with_error!(&env, ErrorCode::NotAuthorized);
         }
 
         // TODO: weight change guardrails to avoid massive spikes in price
@@ -316,7 +317,7 @@ impl IndexTrait for Index {
 
         if index.fee_authority != sender {
             log!(&env, "Index: Collect fees: You are not authorized!");
-            panic_with_error!(&env, ContractError::NotAuthorized);
+            panic_with_error!(&env, ErrorCode::NotAuthorized);
         }
 
         // fetch available to withdraw
@@ -329,8 +330,8 @@ impl IndexTrait for Index {
         };
 
         // transfer token
-        let token_contractclient = token_contract::Client::new(&env, &x);
-        token_client.transfer(
+        let token_contract_client = token_contract::Client::new(&env, &x);
+        token_contract_client.transfer(
             &recipient_address,
             &env.current_contract_address(),
             &can_withdraw,
@@ -452,7 +453,7 @@ impl IndexTrait for Index {
             operations.push_back(swap);
         });
 
-        swap_and_update_component_balances(&env, operations);
+        swap_and_update_component_balances(&env, operations, index);
 
         // Transfer quote token back to user
         let recipient_address = match to {
@@ -480,7 +481,7 @@ impl IndexTrait for Index {
         };
 
         // transfer token
-        let token_client = token::Client::new(&env, &env);
+        let token_client = token_contract::Client::new(&env, &index.quote_asset);
         token_client.transfer(
             &recipient_address,
             &env.current_contract_address(),
@@ -572,7 +573,7 @@ fn get_index_price(&env: Env, index: Index) -> u128 {
 }
 
 fn calculate_current_nav(env: Env, component_balances: Map<Address, u128>) -> u128 {
-    let nav = 0;
+    let mut nav = 0;
 
     component_balances
         .iter()

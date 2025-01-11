@@ -5,4 +5,7 @@ use soroban_sdk::contracterror;
 #[repr(u32)]
 pub enum ErrorCode {
     InvalidFee = 0,
+    NotAuthorized = 1,
+    TooSoonToRebalance = 2,
+    InsufficientDeposit=3
 }
