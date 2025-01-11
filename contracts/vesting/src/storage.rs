@@ -1,5 +1,5 @@
 use curve::Curve;
-use phoenix::ttl::{
+use normal::ttl::{
     INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT,
     PERSISTENT_LIFETIME_THRESHOLD,
 };
