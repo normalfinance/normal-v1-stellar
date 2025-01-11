@@ -1,8 +1,18 @@
 #![no_std]
 
+mod amm;
 mod contract;
 mod errors;
+mod events;
+mod position;
 mod storage;
+mod reward;
+mod swap;
+mod tick_array;
+mod tick;
+mod utils;
+mod math;
+mod controller;
 
 pub mod token_contract {
     // The import will code generate:

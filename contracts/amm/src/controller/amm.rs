@@ -47,17 +47,14 @@ pub fn next_amm_reward_infos(
 // Calculates the next global liquidity for a amm depending on its position relative
 // to the lower and upper tick indexes and the liquidity_delta.
 pub fn next_amm_liquidity(
-	amm: &AMM,
-	tick_upper_index: i32,
-	tick_lower_index: i32,
-	liquidity_delta: i128
+    amm: &AMM,
+    tick_upper_index: i32,
+    tick_lower_index: i32,
+    liquidity_delta: i128
 ) -> Result<u128, ErrorCode> {
-	if
-		amm.tick_current_index < tick_upper_index &&
-		amm.tick_current_index >= tick_lower_index
-	{
-		math::amm::add_liquidity_delta(amm.liquidity, liquidity_delta)
-	} else {
-		Ok(amm.liquidity)
-	}
+    if amm.tick_current_index < tick_upper_index && amm.tick_current_index >= tick_lower_index {
+        math::amm::add_liquidity_delta(amm.liquidity, liquidity_delta)
+    } else {
+        Ok(amm.liquidity)
+    }
 }

@@ -1,25 +1,10 @@
-use soroban_sdk::{
-    contracttype,
-    log,
-    panic_with_error,
-    symbol_short,
-    xdr::ToXdr,
-    Address,
-    Bytes,
-    BytesN,
-    ConversionError,
-    Env,
-    Symbol,
-    TryFromVal,
-    Val,
-};
+use soroban_sdk::{ contracttype, Address, Env };
+
+use crate::{ errors::ErrorCode, tick::Tick };
 
 #[contracttype]
 #[derive(Default)]
 pub struct Position {
-    // pub market: Pubkey,
-    // pub position_mint: Pubkey,
-
     pub liquidity: u128,
     pub tick_lower_index: i32,
     pub tick_upper_index: i32,
@@ -54,13 +39,7 @@ impl Position {
         self.reward_infos = update.reward_infos;
     }
 
-    pub fn open_position(
-        &mut self,
-        // market: &Account<Market>,
-        // position_mint: Pubkey,
-        tick_lower_index: i32,
-        tick_upper_index: i32
-    ) -> Result<()> {
+    pub fn open_position(&mut self, tick_lower_index: i32, tick_upper_index: i32) {
         if
             !Tick::check_is_usable_tick(tick_lower_index, amm.tick_spacing) ||
             !Tick::check_is_usable_tick(tick_upper_index, amm.tick_spacing) ||
@@ -82,12 +61,8 @@ impl Position {
             }
         }
 
-        // self.market = market.key();
-        // self.position_mint = position_mint;
-
         self.tick_lower_index = tick_lower_index;
         self.tick_upper_index = tick_upper_index;
-        Ok(())
     }
 
     pub fn reset_fees_owed(&mut self) {
@@ -139,7 +114,6 @@ impl Positions {
         }
     }
 }
-
 
 #[contracttype]
 #[derive(Default, Debug, PartialEq)]

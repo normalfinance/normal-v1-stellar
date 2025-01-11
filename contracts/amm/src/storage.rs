@@ -117,7 +117,7 @@ impl Config {
     /// - `reward_last_updated_timestamp` - The timestamp when the rewards were last updated
     pub fn update_rewards(
         &mut self,
-        reward_infos: [AMMRewardInfo; NUM_REWARDS],
+        reward_infos: [RewardInfo; NUM_REWARDS],
         reward_last_updated_timestamp: u64,
     ) {
         self.reward_last_updated_timestamp = reward_last_updated_timestamp;
@@ -126,7 +126,7 @@ impl Config {
 
     pub fn update_rewards_and_liquidity(
         &mut self,
-        reward_infos: [AMMRewardInfo; NUM_REWARDS],
+        reward_infos: [RewardInfo; NUM_REWARDS],
         liquidity: u128,
         reward_last_updated_timestamp: u64,
     ) {
@@ -141,7 +141,7 @@ impl Config {
         tick_index: i32,
         sqrt_price: u128,
         fee_growth_global: u128,
-        reward_infos: [AMMRewardInfo; NUM_REWARDS],
+        reward_infos: [RewardInfo; NUM_REWARDS],
         protocol_fee: u64,
         is_token_fee_in_a: bool,
         reward_last_updated_timestamp: u64,

@@ -1,29 +1,13 @@
-use anchor_lang::prelude::*;
-use std::{ cell::{ Ref, RefMut }, collections::VecDeque };
 
-use crate::{
-	errors::ErrorCode,
-	state::{
-		amm::AMM,
-		synth_market::SynthMarket,
-		Tick,
-		TickArray,
-		TickArrayType,
-		TickUpdate,
-		ZeroedTickArray,
-		TICK_ARRAY_SIZE,
-	},
-	util::SwapTickSequence,
-};
 
 // In the case of an uninitialized TickArray, ZeroedTickArray is used to substitute TickArray behavior.
 // Since all Tick are not initialized, it can be substituted by returning Tick::default().
-pub(crate) enum ProxiedTickArray<'a> {
+pub(crate) enum ProxiedTickArray {
 	Initialized(RefMut<'a, TickArray>),
 	Uninitialized(ZeroedTickArray),
 }
 
-impl<'a> ProxiedTickArray<'a> {
+impl ProxiedTickArray {
 	pub fn new_initialized(refmut: RefMut<'a, TickArray>) -> Self {
 		ProxiedTickArray::Initialized(refmut)
 	}
@@ -107,13 +91,13 @@ enum TickArrayAccount<'info> {
 	},
 }
 
-pub struct SparseSwapTickSequenceBuilder<'info> {
+pub struct SparseSwapTickSequenceBuilder {
 	// AccountInfo ownership must be kept while using RefMut.
 	// This is why try_from and build are separated and SparseSwapTickSequenceBuilder struct is used.
-	tick_array_accounts: Vec<TickArrayAccount<'info>>,
+	tick_array_accounts: Vec<TickArrayAccount>,
 }
 
-impl<'info> SparseSwapTickSequenceBuilder<'info> {
+impl SparseSwapTickSequenceBuilder {
 	/// Create a new SparseSwapTickSequenceBuilder from the given tick array accounts.
 	///
 	/// static_tick_array_account_infos and supplemental_tick_array_account_infos will be merged,

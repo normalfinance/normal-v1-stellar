@@ -1,5 +1,7 @@
-use soroban_sdk::{ contracttype, Address };
-use crate::{ error::ContractError, storage::{ Config } };
+use soroban_sdk::contracttype;
+
+use crate::{position::PositionUpdate, tick::TickUpdate, tick_array::TickArray};
+
 
 #[contracttype]
 #[derive(Debug)]
@@ -17,8 +19,8 @@ pub struct ModifyLiquidityUpdate {
 pub fn calculate_modify_liquidity(
     config: &Config,
     position: &Position,
-    tick_array_lower: &AccountLoader<'info, TickArray>,
-    tick_array_upper: &AccountLoader<'info, TickArray>,
+    tick_array_lower: &TickArray, // &AccountLoader<'info, TickArray>,
+    tick_array_upper: &TickArray,
     liquidity_delta: i128,
     timestamp: u64
 ) -> Result<ModifyLiquidityUpdate> {
@@ -43,10 +45,10 @@ pub fn calculate_modify_liquidity(
 pub fn calculate_fee_and_reward_growths(
     config: &Config,
     position: &Position,
-    tick_array_lower: &AccountLoader<'info, TickArray>,
-    tick_array_upper: &AccountLoader<'info, TickArray>,
+    tick_array_lower: &TickArray, // &AccountLoader<'info, TickArray>,
+    tick_array_upper: &TickArray,
     timestamp: u64
-) -> Result<(LPUpdate, [AMMRewardInfo; NUM_REWARDS])> {
+) -> Result<(PositionUpdate, [AMMRewardInfo; NUM_REWARDS])> {
     let tick_array_lower = tick_array_lower.load()?;
     let tick_lower = tick_array_lower.get_tick(position.tick_lower_index, config.tick_spacing)?;
 
@@ -210,8 +212,8 @@ pub fn calculate_liquidity_token_deltas(
 pub fn sync_modify_liquidity_values(
     config: &mut Config,
     position: &mut Position,
-    tick_array_lower: &AccountLoader<'info, TickArray>,
-    tick_array_upper: &AccountLoader<'info, TickArray>,
+    tick_array_lower: &TickArray, // &AccountLoader<'info, TickArray>,
+    tick_array_upper: &TickArray, // &AccountLoader<'info, TickArray>,
     modify_liquidity_update: ModifyLiquidityUpdate,
     reward_last_updated_timestamp: u64
 ) -> Result<()> {

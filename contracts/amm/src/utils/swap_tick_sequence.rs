@@ -1,8 +1,5 @@
 use crate::errors::ErrorCode;
-use crate::state::*;
-use crate::util::ProxiedTickArray;
-use anchor_lang::prelude::*;
-use std::cell::RefMut;
+
 
 pub struct SwapTickSequence<'info> {
     arrays: Vec<ProxiedTickArray<'info>>,

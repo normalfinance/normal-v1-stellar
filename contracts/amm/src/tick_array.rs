@@ -1,3 +1,7 @@
+use soroban_sdk::contracttype;
+
+use crate::{errors::ErrorCode, tick::{Tick, TickUpdate, MAX_TICK_INDEX, MIN_TICK_INDEX, TICK_ARRAY_SIZE, TICK_ARRAY_SIZE_USIZE}};
+
 pub trait TickArrayType {
     fn start_tick_index(&self) -> i32;
 
