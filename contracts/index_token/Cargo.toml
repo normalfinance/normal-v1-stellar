@@ -1,18 +1,22 @@
 [package]
-name = "index-token"
+name = "normal-index-token"
 description = "Normal index token contract, extension of the Soroban standard token contract"
-version = "0.0.6"
-edition = "2021"
+authors = ["jblewnormal <joshua@normalfinance.io>"]
+version = { workspace = true }
+repository = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-soroban-sdk = { version = "22.0.1" }
-soroban-token-sdk = { version = "22.0.1" }
+soroban-sdk = { workspace = true }
+soroban-token-sdk = { workspace = true }
+normal = { workspace = true }
 
 [dev-dependencies]
-soroban-sdk = { version = "22.0.1", features = ["testutils"] }
+soroban-sdk = { workspace = true, features = ["testutils"] }
 
 [profile.release]
 opt-level = "z"

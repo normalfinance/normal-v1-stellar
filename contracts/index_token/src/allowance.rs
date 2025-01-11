@@ -1,10 +1,10 @@
-use crate::storage_types::{AllowanceDataKey, AllowanceValue, DataKey};
-use soroban_sdk::{Address, Env};
+use crate::storage_types::{ AllowanceDataKey, AllowanceValuenv, DataKey };
+use soroban_sdk::{ Address, Env };
 
-pub fn read_allowance(e: &Env, from: Address, spender: Address) -> AllowanceValue {
+pub fn read_allowance(env: &Env, from: Address, spender: Address) -> AllowanceValue {
     let key = DataKey::Allowance(AllowanceDataKey { from, spender });
-    if let Some(allowance) = e.storage().temporary().get::<_, AllowanceValue>(&key) {
-        if allowance.expiration_ledger < e.ledger().sequence() {
+    if let Some(allowance) = env.storage().temporary().get::<_, AllowanceValue>(&key) {
+        if allowance.expiration_ledger < env.ledger().sequence() {
             AllowanceValue {
                 amount: 0,
                 expiration_ledger: allowance.expiration_ledger,
@@ -21,45 +21,37 @@ pub fn read_allowance(e: &Env, from: Address, spender: Address) -> AllowanceValu
 }
 
 pub fn write_allowance(
-    e: &Env,
+    env: &Env,
     from: Address,
     spender: Address,
     amount: i128,
-    expiration_ledger: u32,
+    expiration_ledger: u32
 ) {
     let allowance = AllowanceValue {
         amount,
         expiration_ledger,
     };
 
-    if amount > 0 && expiration_ledger < e.ledger().sequence() {
-        panic!("expiration_ledger is less than ledger seq when amount > 0")
+    if amount > 0 && expiration_ledger < env.ledger().sequence() {
+        panic!("expiration_ledger is less than ledger seq when amount > 0");
     }
 
     let key = DataKey::Allowance(AllowanceDataKey { from, spender });
-    e.storage().temporary().set(&key.clone(), &allowance);
+    env.storage().temporary().set(&key.clone(), &allowance);
 
     if amount > 0 {
-        let live_for = expiration_ledger
-            .checked_sub(e.ledger().sequence())
-            .unwrap();
+        let live_for = expiration_ledger.checked_sub(env.ledger().sequence()).unwrap();
 
-        e.storage().temporary().extend_ttl(&key, live_for, live_for)
+        env.storage().temporary().extend_ttl(&key, live_for, live_for)
     }
 }
 
-pub fn spend_allowance(e: &Env, from: Address, spender: Address, amount: i128) {
-    let allowance = read_allowance(e, from.clone(), spender.clone());
+pub fn spend_allowance(env: &Env, from: Address, spender: Address, amount: i128) {
+    let allowance = read_allowance(env, from.clone(), spender.clone());
     if allowance.amount < amount {
         panic!("insufficient allowance");
     }
     if amount > 0 {
-        write_allowance(
-            e,
-            from,
-            spender,
-            allowance.amount - amount,
-            allowance.expiration_ledger,
-        );
+        write_allowance(env, from, spender, allowance.amount - amount, allowance.expiration_ledger);
     }
 }
