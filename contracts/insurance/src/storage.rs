@@ -1,6 +1,5 @@
-use soroban_sdk::{Address, Env};
-
-use crate::storage_types::{DataKey, Stake};
+use normal::ttl::{ PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD };
+use soroban_sdk::{ contracttype, symbol_short, Address, Env, Symbol };
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -10,7 +9,7 @@ pub struct State {
     pub shares_base: u128, // exponent for lp shares (for rebasing)
     pub last_revenue_settle_ts: i64,
     pub total_factor: u32, // percentage of interest for total insurance
-    pub user_factor: u32,  // percentage of interest for user staked insurance
+    pub user_factor: u32, // percentage of interest for user staked insurance
     pub paused_operations: u8,
 }
 
@@ -25,27 +24,19 @@ pub struct Config {
 const CONFIG: Symbol = symbol_short!("CONFIG");
 
 pub fn get_config(env: &Env) -> Config {
-    let config = env
-        .storage()
+    let config = env.storage().persistent().get(&CONFIG).expect("Stake: Config not set");
+    env.storage()
         .persistent()
-        .get(&CONFIG)
-        .expect("Stake: Config not set");
-    env.storage().persistent().extend_ttl(
-        &CONFIG,
-        PERSISTENT_LIFETIME_THRESHOLD,
-        PERSISTENT_BUMP_AMOUNT,
-    );
+        .extend_ttl(&CONFIG, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 
     config
 }
 
 pub fn save_config(env: &Env, config: Config) {
     env.storage().persistent().set(&CONFIG, &config);
-    env.storage().persistent().extend_ttl(
-        &CONFIG,
-        PERSISTENT_LIFETIME_THRESHOLD,
-        PERSISTENT_BUMP_AMOUNT,
-    );
+    env.storage()
+        .persistent()
+        .extend_ttl(&CONFIG, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 }
 
 // ################################################################
@@ -56,7 +47,7 @@ pub struct Stake {
     pub authority: Address,
     if_shares: u128,
     pub last_withdraw_request_shares: u128, // get zero as 0 when not in escrow
-    pub if_base: u128,                      // exponent for if_shares decimal places (for rebase)
+    pub if_base: u128, // exponent for if_shares decimal places (for rebase)
     pub last_valid_ts: i64,
     pub last_withdraw_request_value: u64,
     pub last_withdraw_request_ts: i64,
@@ -141,7 +132,7 @@ pub struct Stake {
     pub authority: Address,
     if_shares: u128,
     pub last_withdraw_request_shares: u128, // get zero as 0 when not in escrow
-    pub if_base: u128,                      // exponent for if_shares decimal places (for rebase)
+    pub if_base: u128, // exponent for if_shares decimal places (for rebase)
     pub last_valid_ts: i64,
     pub last_withdraw_request_value: u64,
     pub last_withdraw_request_ts: i64,
@@ -189,9 +180,7 @@ pub fn is_admin(e: &Env) {
 
 // Max Insurance
 pub fn set_max_insurance(e: &Env, max_insurance: u64) {
-    e.storage()
-        .instance()
-        .set(&DataKey::MaxInsurance, &max_insurance);
+    e.storage().instance().set(&DataKey::MaxInsurance, &max_insurance);
 }
 
 pub fn get_max_insurance(e: &Env) -> u64 {
@@ -201,24 +190,17 @@ pub fn get_max_insurance(e: &Env) -> u64 {
 // Unstaking period
 
 pub fn set_unstaking_period(e: &Env, unstaking_period: i64) {
-    e.storage()
-        .instance()
-        .set(&DataKey::UnstakingPeriod, &unstaking_period);
+    e.storage().instance().set(&DataKey::UnstakingPeriod, &unstaking_period);
 }
 
 pub fn get_unstaking_period(e: &Env) -> i64 {
-    e.storage()
-        .instance()
-        .get(&DataKey::UnstakingPeriod)
-        .unwrap()
+    e.storage().instance().get(&DataKey::UnstakingPeriod).unwrap()
 }
 
 // Paused operations
 
 pub fn set_paused_operations(e: &Env, paused_operations: Vec<Operation>) {
-    e.storage()
-        .instance()
-        .set(&DataKey::PausedOperations, &paused_operations);
+    e.storage().instance().set(&DataKey::PausedOperations, &paused_operations);
 }
 
 pub fn get_paused_operations(e: &Env) -> Vec<Operation> {
