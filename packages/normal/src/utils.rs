@@ -1,3 +1,4 @@
+use core::fmt;
 use soroban_decimal::Decimal;
 
 pub fn is_approx_ratio(a: Decimal, b: Decimal, tolerance: Decimal) -> bool {
@@ -18,5 +19,11 @@ pub fn convert_u128_to_i128(input: u128) -> i128 {
         panic!("Cannot convert u128 to i128");
     } else {
         input as i128
+    }
+}
+
+pub fn check_nonnegative_amount<T>(amount: T) where T: PartialOrd + Default + Copy + fmt::Debug {
+    if amount < T::default() {
+        panic!("negative amount is not allowed: {:?}", amount);
     }
 }
