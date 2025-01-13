@@ -1,6 +1,6 @@
 #![no_std]
 
-mod amm;
+mod pool;
 mod contract;
 mod errors;
 mod events;

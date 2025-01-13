@@ -1,5 +1,5 @@
 [package]
-name = "normal-amm"
+name = "normal-synth-pool"
 authors = ["jblewnormal <joshua@normalfinance.io>"]
 version = { workspace = true }
 repository = { workspace = true }
@@ -12,7 +12,10 @@ doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
-num-integer = { version = "0.1.45", default-features = false, features = ["i128"] }
+num-integer = { version = "0.1.45", default-features = false, features = [
+    "i128",
+] }
+normal = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

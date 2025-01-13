@@ -2,8 +2,8 @@ use soroban_sdk::{ contractclient, Address, BytesN, Env, String };
 
 use crate::{ position::PositionUpdate, storage::{ AMMParams, Config } };
 
-#[contractclient(name = "AMMClient")]
-pub trait AMMTrait {
+#[contractclient(name = "PoolClient")]
+pub trait PoolTrait {
     // Sets the token contract addresses for this pool
     // token_wasm_hash is the WASM hash of the deployed token contract for the pool share token
     #[allow(clippy::too_many_arguments)]

@@ -4,6 +4,7 @@ use soroban_sdk::{
     contractmeta,
     log,
     panic_with_error,
+    vec,
     Address,
     BytesN,
     Env,
@@ -11,22 +12,25 @@ use soroban_sdk::{
 };
 
 use crate::{
-    errors::ErrorCode,
-    events::AMMEvents,
+    events::SynthPoolEvents,
+    pool::PoolTrait,
     position::{ Position, PositionUpdate },
     storage::{
         get_config,
         save_config,
         save_default_slippage_bps,
         utils::{ self, get_admin_old, is_initialized, set_initialized },
+        SynthPoolParams,
     },
     token_contract,
+    utils::sparse_swap::SparseSwapTickSequenceBuilder,
 };
 use normal::{
     ttl::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD },
-    utils::{ convert_i128_to_u128, is_approx_ratio, AMMParams },
+    utils::{ convert_i128_to_u128, is_approx_ratio },
     validate_bps,
     validate_int_parameters,
+    error::ErrorCode,
 };
 
 contractmeta!(
@@ -35,15 +39,15 @@ contractmeta!(
 );
 
 #[contract]
-pub struct AMM;
+pub struct SynthPool;
 
 #[contractimpl]
-impl AMMTrait for AMM {
+impl PoolTrait for SynthPool {
     #[allow(clippy::too_many_arguments)]
     fn initialize(
         env: Env,
         token_wasm_hash: BytesN<32>,
-        params: AMMParams,
+        params: SynthPoolParams,
         share_token_decimals: u32,
         share_token_name: String,
         share_token_symbol: String,
@@ -52,7 +56,7 @@ impl AMMTrait for AMM {
     ) {
         if is_initialized(&e) {
             log!(&env, "Pool: Initialize: initializing contract twice is not allowed");
-            panic_with_error!(&env, ContractError::AlreadyInitialized);
+            panic_with_error!(&env, ErrorCode::AlreadyInitialized);
         }
 
         validate_bps!(
@@ -127,7 +131,7 @@ impl AMMTrait for AMM {
         utils::save_pool_balance_a(&env, 0);
         utils::save_pool_balance_b(&env, 0);
 
-        AMMEvents::initialize(&env, index_id, from, amount);
+        SynthPoolEvents::initialize(&env, index_id, from, amount);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -192,7 +196,7 @@ impl AMMTrait for AMM {
         admin.require_auth();
     }
 
-    pub fn initialize_reward(e: Env, token_reward: Address) {
+    fn initialize_reward(e: Env, token_reward: Address) {
         // Check not exceeding max rewards
         if index >= NUM_REWARDS {
             return Err(ErrorCode::InvalidRewardIndex.into());
@@ -205,15 +209,15 @@ impl AMMTrait for AMM {
         };
 
         increase_rewards_length(&e);
-        set_reward(&e, 0, reward);
+        set_reward(&env, 0, reward);
     }
 
-    pub fn set_reward_emissions(e: Env, reward_index: u8, emissions_per_second_x64: u128) {
-        let reward = get_reward_by_id(&e, id);
+    fn set_reward_emissions(e: Env, reward_index: u8, emissions_per_second_x64: u128) {
+        let reward = get_reward_by_id(&env, id);
 
         // ...
 
-        set_reward_emissions(&e, id, emissions_per_second_x64);
+        set_reward_emissions(&env, id, emissions_per_second_x64);
     }
 
     // ################################################################
@@ -230,7 +234,7 @@ impl AMMTrait for AMM {
         // Add a new position for the user
         Positions::add(&env, &user_address, new_position);
 
-        AMMEvents::CreatePosition();
+        SynthPoolEvents::CreatePosition();
     }
 
     fn modify_position(env: Env, sender: Address, position_ts: u64, update: PositionUpdate) {
@@ -246,7 +250,7 @@ impl AMMTrait for AMM {
         //     return Err(ErrorCode::ClosePositionNotEmpty.into());
         // }
 
-        AMMEvents::ClosePosition();
+        SynthPoolEvents::ClosePosition();
     }
 
     fn increase_liquidity(
@@ -281,7 +285,7 @@ impl AMMTrait for AMM {
 
         // mint token
 
-        AMMEvents::add_liquidity(&env, to, amount_a, amount_b);
+        SynthPoolEvents::add_liquidity(&env, to, amount_a, amount_b);
     }
 
     fn collect_fees(env: Env, to: Address, fee_amount: i128) -> (i128, i128) {
@@ -297,7 +301,7 @@ impl AMMTrait for AMM {
         transfer_a(&env, to.clone(), fee_owed_a);
         transfer_b(&env, to, fee_owed_b);
 
-        AMMEvents::collect_fees(&env, to, amount);
+        SynthPoolEvents::collect_fees(&env, to, amount);
 
         (fee_owed_a, fee_owed_b)
     }
@@ -334,7 +338,7 @@ impl AMMTrait for AMM {
         put_reserve_a(&env, balance_a - out_a);
         put_reserve_b(&env, balance_b - out_b);
 
-        AMMEvents::remove_liquidity(&env, to, out_a, out_b);
+        SynthPoolEvents::remove_liquidity(&env, to, out_a, out_b);
 
         (out_a, out_b)
     }
@@ -408,10 +412,10 @@ impl AMMTrait for AMM {
             inside_range
         );
 
-        AMMEvents::swap(&e, to, buy_a, out, in_max);
+        SynthPoolEvents::swap(&env, to, buy_a, out, in_max);
     }
 
-    pub fn collect_reward(e: Env, to: Address) {
+    fn collect_reward(env: Env, to: Address) {
         to.require_auth();
     }
 

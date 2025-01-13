@@ -1,8 +1,8 @@
 use soroban_sdk::{ Address, Env, String, Symbol };
 
-pub struct AMMEvents {}
+pub struct SynthPoolEvents {}
 
-impl AMMEvents {
+impl SynthPoolEvents {
     // AMM Events
 
     /// Emitted when an AMM is created
