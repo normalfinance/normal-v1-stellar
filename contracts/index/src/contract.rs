@@ -523,6 +523,31 @@ impl IndexTrait for Index {
 
         calculate_current_nav(&env, index);
     }
+
+    fn query_fees(env: Env) -> (i128, i128, Address, Address) {
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+
+        let index = get_index(&env);
+
+        (0, index.manager_fee_bps, '')
+    }
+
+    fn query_fee_exempt(env: Env, user: Address) -> bool {
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+
+        let index = get_index(&env);
+
+        let exempt = from == admin || from == protocol_address || from == index_contract_addr;
+
+        exempt
+    }
+
+
+   
 }
 
 fn convert_index_token_amount_to_quote_amount(

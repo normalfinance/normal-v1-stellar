@@ -1,6 +1,6 @@
 use soroban_sdk::{ contractclient, Address, Env, String, Vec };
 
-use crate::{contract::Index, storage::IndexAsset};
+use crate::{ contract::Index, storage::IndexAsset };
 
 #[contractclient(name = "IndexClient")]
 pub trait IndexTrait {
@@ -72,4 +72,8 @@ pub trait IndexTrait {
     fn query_price(env: Env) -> i128;
 
     fn query_nav(env: Env) -> i128;
+
+    fn query_fees(env: Env) -> (i128, i128, Address, Address);
+
+    fn query_fee_exempt(env: Env, user: Address) -> bool;
 }

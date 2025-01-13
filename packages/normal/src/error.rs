@@ -9,5 +9,5 @@ pub enum ErrorCode {
     AlreadyInitialized = 1,
     NotAuthorized = 3,
     AdminNotSet = 8,
-    TransferAmountTooSmallAfterFees,
+    TransferAmountTooSmallAfterFees = 9,
 }

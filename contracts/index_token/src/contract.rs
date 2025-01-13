@@ -3,7 +3,6 @@ use crate::allowance::{ read_allowance, spend_allowance, write_allowance };
 use crate::balance::{
     read_balance,
     read_index_contract,
-    read_last_transfer,
     receive_balance,
     spend_balance,
     write_index_contract,
@@ -12,9 +11,15 @@ use normal::error::ErrorCode;
 use crate::metadata::{ read_decimal, read_name, read_symbol, write_metadata };
 #[cfg(test)]
 use crate::storage_types::{ AllowanceDataKey, AllowanceValue, DataKey };
-use crate::storage_types::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD };
+use crate::storage_types::{
+    get_last_transfer_info,
+    save_last_transfer_info,
+    LastTransferInfo,
+    INSTANCE_BUMP_AMOUNT,
+    INSTANCE_LIFETIME_THRESHOLD,
+};
 use soroban_sdk::token::{ self, Interface as _ };
-use soroban_sdk::{ contract, contractimpl, contractmeta, panic_with_error, Address, Env, String };
+use soroban_sdk::{ contract, contractimpl, contractmeta, panic_with_error, Address, Env, String, Symbol, Vec };
 use soroban_token_sdk::metadata::TokenMetadata;
 use soroban_token_sdk::TokenUtils;
 
@@ -48,13 +53,7 @@ impl IndexToken {
             name,
             symbol,
         });
-
         write_index_contract(&env, &index_contract);
-
-        // Initialize last transfer tracking
-        env.storage()
-            .persistent()
-            .set("last_transfer", Map::<Address, (u64, i128)>::new(&env));
     }
 
     pub fn mint(env: Env, to: Address, amount: i128) {
@@ -78,17 +77,15 @@ impl IndexToken {
         TokenUtils::new(&env).events().set_admin(admin, new_admin);
     }
 
-    fn get_fees(env: &Env) -> (i128, i128, Address, Address) {
-        let index_contract: Address = env.storage().persistent().get("index_contract").unwrap();
+    pub fn get_fees(env: &Env) -> (i128, i128, Address) {
+        let index_contract_addr = read_index_contract(&env);
 
-        // Cross-contract call to get protocol and manager fees
-        let (protocol_fee, manager_fee, protocol_address): (
-            i128,
-            i128,
-            Address,
-        ) = env.invoke_contract(&index_contract, &"get_fees".into(), ());
-        // let _admin: Address = env.invoke_contract(&index_contract, &"get_admin".into(), ());
-        (protocol_fee, manager_fee, protocol_address, index_contract)
+        let (protocol_fee, manager_fee, protocol_address) = env.invoke_contract(
+            &index_contract_addr,
+            &Symbol::new(&env, "query_fees"),
+            Vec::new(&env)
+        );
+        (protocol_fee, manager_fee, protocol_address)
     }
 
     pub fn calculate_fees(
@@ -98,25 +95,15 @@ impl IndexToken {
         protocol_fee: i128,
         manager_fee: i128
     ) -> (i128, i128) {
-        // let mut last_transfer_map: Map<Address, (u64, i128)> = e
-        //     .storage()
-        //     .persistent()
-        //     .get("last_transfer")
-        //     .unwrap();
+        let last_transfer_info = get_last_transfer_info(&env, &owner);
 
-        let current_time = env.ledger().timestamp();
-        let (last_transfer_time, last_balance) = read_last_transfer(&env, owner);
-        // let (last_transfer_time, last_balance) = last_transfer_map
-        //     .get(owner)
-        //     .unwrap_or((current_time, 0));
-
-        if last_balance == 0 {
+        if last_transfer_info.last_balance == 0 {
             // No fee if there was no prior balance
             return (0, 0);
         }
 
         // Calculate weighted holding time
-        let time_held = current_time - last_transfer_time;
+        let time_held = env.ledger().timestamp() - last_transfer_info.last_transfer_ts;
 
         // Prorated fee calculation
         let protocol_fee_amount =
@@ -127,12 +114,17 @@ impl IndexToken {
         (protocol_fee_amount, manager_fee_amount)
     }
 
-    fn calculate_required_fees(env: Env, from: Address, amount: i128) -> (i128, i128, i128) {
+    pub fn calculate_required_fees(env: Env, from: Address, amount: i128) -> (i128, i128, i128, i128) {
         // Calculate fee and deduct it
-        let (protocol_fee, manager_fee, protocol_address, index_contract) = Self::get_fees(&env);
+        let (protocol_fee, manager_fee, protocol_address) = Self::get_fees(&env);
 
         // Check if the sender or receiver is exempt from fees
-        let fee_exempt = from == admin || from == protocol_address || from == index_contract;
+        let index_contract_addr = read_index_contract(&env);
+        let fee_exempt = env.invoke_contract(
+            &index_contract_addr,
+            &Symbol::new(&env, "query_fee_exempt"),
+            Vec::new(&env, &from)
+        );
 
         let (protocol_fee_amount, manager_fee_amount, total_fees, net_amount) = if fee_exempt {
             (0, 0, 0, amount) // No fees applied, transfer the full amount
@@ -156,19 +148,6 @@ impl IndexToken {
         };
     }
 
-    fn update_last_transfer(env: &Env, owner: Address, new_balance: i128) {
-        // let mut last_transfer_map: Map<Address, (u64, i128)> = e
-        //     .storage()
-        //     .persistent()
-        //     .get("last_transfer")
-        //     .unwrap();
-        read_last_transfer(&env, owner);
-
-        let current_time = env.ledger().timestamp();
-        last_transfer_map.set(owner, (current_time, new_balance));
-        env.storage().persistent().set("last_transfer", last_transfer_map);
-    }
-
     #[cfg(test)]
     pub fn get_allowance(env: Env, from: Address, spender: Address) -> Option<AllowanceValue> {
         let key = DataKey::Allowance(AllowanceDataKey { from, spender });
@@ -185,9 +164,8 @@ impl token::Interface for IndexToken {
     }
 
     fn approve(env: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
-        from.require_auth();
-
         check_nonnegative_amount(amount);
+        from.require_auth();
 
         env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
@@ -201,15 +179,14 @@ impl token::Interface for IndexToken {
     }
 
     fn transfer(env: Env, from: Address, to: Address, amount: i128) {
-        from.require_auth();
-
         check_nonnegative_amount(amount);
+        from.require_auth();
 
         env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         // Calculate fee and deduct it
         let (protocol_fee_amount, manager_fee_amount, total_fees, net_amount) =
-            Self::calculate_required_fees(&env, from, amount);
+            Self::calculate_required_fees(env, from, amount);
 
         let admin = read_administrator(&env);
 
@@ -218,14 +195,16 @@ impl token::Interface for IndexToken {
         // receive_balance(&env, admin.clone(), fee);
 
         // Deduct from sender
-        let mut from_balance: i128 = env.storage().persistent().get(from.clone()).unwrap_or(0);
+        // let mut from_balance: i128 = env.storage().persistent().get(from.clone()).unwrap_or(0);
+        let from_balance = read_balance(&env, from);
         if from_balance < amount {
             panic!("Insufficient balance");
         }
         from_balance -= amount;
 
         // Add to recipient
-        let mut to_balance: i128 = env.storage().persistent().get(to.clone()).unwrap_or(0);
+        // let mut to_balance: i128 = env.storage().persistent().get(to.clone()).unwrap_or(0);
+        let tp_balance = read_balance(&env, to);
         to_balance += net_amount;
 
         // Add protocol fee to protocol address if applicable
@@ -308,8 +287,15 @@ impl token::Interface for IndexToken {
         }
 
         // Update last transfer timestamps and amounts
-        Self::update_last_transfer(&env, from.clone(), from_balance);
-        Self::update_last_transfer(&env, to.clone(), to_balance);
+        let x = LastTransferInfo {
+            last_transfer_ts: env.ledger().timestamp(),
+            last_balance: from_balance,
+        };
+        save_last_transfer_info(&env, &from, &x);
+        // save_last_transfer_info(&env, &to, LastTransferInfo {
+        //     last_transfer_ts: env.ledger().timestamp(),
+        //     last_balance: to_balance,
+        // });
 
         // Notify Index contract about the fee
         // TODO: do we need this?
@@ -353,8 +339,4 @@ impl token::Interface for IndexToken {
     fn symbol(env: Env) -> String {
         read_symbol(&env)
     }
-
-    // fn index_contract(env: Env) -> Address {
-    //     read_index_contract(&env)
-    // }
 }
