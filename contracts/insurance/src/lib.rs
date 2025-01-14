@@ -1,11 +1,13 @@
 #![no_std]
 
+// Traits
 mod buffer;
+mod insurance_fund;
+
 mod contract;
 mod events;
-mod insurance_fund;
+mod controller;
 mod storage;
-mod stake;
 
 #[cfg(test)]
 mod tests;

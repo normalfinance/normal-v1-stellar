@@ -1,8 +1,16 @@
 use soroban_sdk::{ contract, contractimpl, contractmeta, log, panic_with_error, Address, Env };
 
-use crate::{ events::InsuranceEvents, insurance_fund::InsuranceFundTrait };
+use crate::{
+    controller,
+    events::InsuranceEvents,
+    insurance_fund::InsuranceFundTrait,
+    storage::Operation,
+};
 
-use normal::{error::{ ErrorCode, NormalResult }, ttl::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD}};
+use normal::{
+    constants::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD },
+    error::{ ErrorCode, NormalResult },
+};
 
 contractmeta!(key = "Description", val = "Staking vault used to cover protocol debt");
 
@@ -44,7 +52,7 @@ impl InsuranceFundTrait for Insurance {
         InsuranceEvents::insurance_fund_initialization(&e, index_id, from, amount);
     }
 
-    fn stake(env: Env, sender: Address, amount: i128) {
+    fn stake(env: Env, sender: Address, amount: u64) {
         sender.require_auth();
 
         if amount <= 0 {
@@ -52,7 +60,7 @@ impl InsuranceFundTrait for Insurance {
         }
 
         validate!(
-            !insurance_fund.is_operation_paused(InsuranceFundOperation::Add),
+            !insurance_fund.is_operation_paused(Operation::Stake),
             ErrorCode::InsuranceFundOperationPaused,
             "if staking add disabled"
         )?;
@@ -90,39 +98,41 @@ impl InsuranceFundTrait for Insurance {
             amount,
             &mint
         )?;
+
+        controller::stake::add_stake(&env, insurance_fund, amount, insurance_balance, stake)
     }
 
-    fn unstake(env: Env, sender: Address, amount: i128) -> i128 {
+    fn unstake(env: Env, sender: Address, amount: u64) {
         sender.require_auth();
 
         if is_operation_paused(&env, &Operation::Unstake) {
             return Err(ErrorCode::OperationPaused);
         }
 
-        // First transfer the pool shares that need to be redeemed
-        let share_token_client = token::Client::new(&e, &get_token_share(&e));
-        share_token_client.transfer(&to, &e.current_contract_address(), &share_amount);
+        controller::stake::remove_stake(&env, insurance_vault_amount, stake, insurance_fund, now)
+    }
 
-        let balance_a = get_balance_a(&e);
-        let balance_shares = get_balance_shares(&e);
+    fn transfer_stake(env: Env, sender: Address, to: Address, shares: u128) {
+        sender.require_auth();
 
-        let total_shares = get_total_shares(&e);
+        if is_operation_paused(&env, &Operation::Transfer) {
+            return Err(ErrorCode::OperationPaused);
+        }
 
-        // Now calculate the withdraw amounts
-        let out_a = (balance_a * balance_shares) / total_shares;
+        let now = env.ledger().timestamp();
 
-        burn_shares(&e, balance_shares);
-        transfer_a(&e, to.clone(), out_a);
-        put_reserve_a(&e, balance_a - out_a);
+        let if_stake = get_stakes(&env);
+        let insurnace_fund = get_insurance_fund(&env);
 
-        // InsuranceEvents::unstake(
-        //     &e,
-        //     to,
-        //     '',
-        //     amount,
-        // );
-
-        out_a;
+        controller::stake::transfer_protocol_stake(
+            &env,
+            insurance_vault_amount, // TODO: get balance
+            shares,
+            &mut if_stake,
+            &mut insurance_fund,
+            now,
+            signer_pubkey
+        )
     }
 
     fn withdraw_rewards(env: Env, sender: Address) {

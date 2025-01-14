@@ -1,9 +1,14 @@
-use normal::ttl::{ PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD };
+use normal::{
+    constants::{ PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD },
+    error::NormalResult,
+    safe_decrement,
+    safe_increment,
+};
 use soroban_sdk::{ contracttype, symbol_short, Address, Env, Symbol };
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct State {
+pub struct InsuranceFund {
     pub total_shares: u128,
     pub user_shares: u128,
     pub shares_base: u128, // exponent for lp shares (for rebasing)
@@ -52,7 +57,6 @@ pub struct Stake {
     pub last_withdraw_request_value: u64,
     pub last_withdraw_request_ts: i64,
     pub cost_basis: i64,
-    pub padding: [u8; 14],
 }
 
 impl Stake {
@@ -69,20 +73,20 @@ impl Stake {
         }
     }
 
-    // fn validate_base(&self, spot_market: &SpotMarket) -> NormalResult {
-    // 	validate!(
-    // 		self.if_base == spot_market.insurance_fund.shares_base,
-    // 		ErrorCode::InvalidIFRebase,
-    // 		"if stake bases mismatch. user base: {} market base {}",
-    // 		self.if_base,
-    // 		spot_market.insurance_fund.shares_base
-    // 	)?;
+    fn validate_base(&self, insurance_fund: &InsuranceFund) -> NormalResult {
+        validate!(
+            self.if_base == insurance_fund.shares_base,
+            ErrorCode::InvalidIFRebase,
+            "if stake bases mismatch. user base: {} market base {}",
+            self.if_base,
+            insurance_fund.shares_base
+        )?;
 
-    // 	Ok(())
-    // }
+        Ok(())
+    }
 
-    pub fn checked_if_shares(&self, spot_market: &SpotMarket) -> NormalResult<u128> {
-        self.validate_base(spot_market)?;
+    pub fn checked_if_shares(&self, insurance_fund: &InsuranceFund) -> NormalResult<u128> {
+        self.validate_base(insurance_fund)?;
         Ok(self.if_shares)
     }
 
@@ -90,20 +94,32 @@ impl Stake {
         self.if_shares
     }
 
-    pub fn increase_if_shares(&mut self, delta: u128, spot_market: &SpotMarket) -> NormalResult {
-        self.validate_base(spot_market)?;
+    pub fn increase_if_shares(
+        &mut self,
+        delta: u128,
+        insurance_fund: &InsuranceFund
+    ) -> NormalResult {
+        self.validate_base(insurance_fund)?;
         safe_increment!(self.if_shares, delta);
         Ok(())
     }
 
-    pub fn decrease_if_shares(&mut self, delta: u128, spot_market: &SpotMarket) -> NormalResult {
-        self.validate_base(spot_market)?;
+    pub fn decrease_if_shares(
+        &mut self,
+        delta: u128,
+        insurance_fund: &InsuranceFund
+    ) -> NormalResult {
+        self.validate_base(insurance_fund)?;
         safe_decrement!(self.if_shares, delta);
         Ok(())
     }
 
-    pub fn update_if_shares(&mut self, new_shares: u128, spot_market: &SpotMarket) -> NormalResult {
-        self.validate_base(spot_market)?;
+    pub fn update_if_shares(
+        &mut self,
+        new_shares: u128,
+        insurance_fund: &InsuranceFund
+    ) -> NormalResult {
+        self.validate_base(insurance_fund)?;
         self.if_shares = new_shares;
 
         Ok(())
@@ -120,10 +136,12 @@ pub enum DataKey {
     Stake(Address),
 }
 
+#[contracttype]
 #[derive(Clone, Copy, PartialEq, Debug, Eq, contracttype)]
 pub enum Operation {
     Stake,
     Unstake,
+    Transfer,
 }
 
 #[derive(Clone)]
@@ -138,6 +156,65 @@ pub struct Stake {
     pub last_withdraw_request_ts: i64,
     pub cost_basis: i64,
 }
+
+// ################################################################
+
+#[contracttype]
+#[derive(Default, Eq, PartialEq, Debug)]
+#[repr(C)]
+pub struct ProtocolIfSharesTransferConfig {
+    pub whitelisted_signers: [Pubkey; 4],
+    pub max_transfer_per_epoch: u128,
+    pub current_epoch_transfer: u128,
+    pub next_epoch_ts: i64,
+    pub padding: [u128; 8],
+}
+
+impl ProtocolIfSharesTransferConfig {
+    pub fn validate_signer(&self, signer: &Pubkey) -> DriftResult {
+        validate!(
+            self.whitelisted_signers.contains(signer) && *signer != Pubkey::default(),
+            ErrorCode::DefaultError,
+            "signer {} not whitelisted",
+            signer
+        )?;
+
+        Ok(())
+    }
+
+    pub fn update_epoch(&mut self, now: i64) -> DriftResult {
+        if now > self.next_epoch_ts {
+            let n_epoch_durations = now
+                .safe_sub(self.next_epoch_ts)?
+                .safe_div(EPOCH_DURATION)?
+                .safe_add(1)?;
+
+            self.next_epoch_ts = self.next_epoch_ts.safe_add(
+                EPOCH_DURATION.safe_mul(n_epoch_durations)?
+            )?;
+
+            self.current_epoch_transfer = 0;
+        }
+
+        Ok(())
+    }
+
+    pub fn validate_transfer(&self, requested_transfer: u128) -> DriftResult {
+        let max_transfer = self.max_transfer_per_epoch.saturating_sub(self.current_epoch_transfer);
+
+        validate!(
+            requested_transfer < max_transfer,
+            ErrorCode::DefaultError,
+            "requested transfer {} exceeds max transfer {}",
+            requested_transfer,
+            max_transfer
+        )?;
+
+        Ok(())
+    }
+}
+
+// ################################################################
 
 // Governor
 

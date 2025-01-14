@@ -1,8 +1,8 @@
 use soroban_sdk::{Address, Env, String, Symbol};
 
-pub struct InsuranceEvents {}
+pub struct InsuranceFundEvents {}
 
-impl InsuranceEvents {
+impl InsuranceFundEvents {
     // Insurance Fund Events
 
     /// Emitted when a proposal is created
@@ -52,4 +52,26 @@ impl InsuranceEvents {
         let topics = (Symbol::new(&e, "unstake"), user);
         e.events().publish(topics, (asset, amount));
     }
+
+    /// Emitted when a user removes part/all of their stake in the Insurance Fund
+    ///
+    /// - topics - `["unstake", user: u32]`
+    /// - data - `[asset: Address, amount: i128]`
+    pub fn admin_unstake(e: &Env, user: Address, asset: Address, amount: i128) {
+        let topics = (Symbol::new(&e, "unstake"), user);
+        e.events().publish(topics, (asset, amount));
+    }
+
+
+    /// Emitted when a user removes part/all of their stake in the Insurance Fund
+    ///
+    /// - topics - `["unstake", user: u32]`
+    /// - data - `[asset: Address, amount: i128]`
+    pub fn transfer_stake(e: &Env, user: Address, asset: Address, amount: i128) {
+        let topics = (Symbol::new(&e, "unstake"), user);
+        e.events().publish(topics, (asset, amount));
+    }
 }
+
+
+pub struct BufferEvents {}
