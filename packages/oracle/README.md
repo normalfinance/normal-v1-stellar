@@ -1,4 +1,0 @@
-# Oracle
-
-## Main functionality
-

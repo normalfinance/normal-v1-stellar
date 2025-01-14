@@ -21,9 +21,3 @@ pub fn convert_u128_to_i128(input: u128) -> i128 {
         input as i128
     }
 }
-
-pub fn check_nonnegative_amount<T>(amount: T) where T: PartialOrd + Default + Copy + fmt::Debug {
-    if amount < T::default() {
-        panic!("negative amount is not allowed: {:?}", amount);
-    }
-}
