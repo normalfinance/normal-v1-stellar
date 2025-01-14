@@ -1,6 +1,20 @@
-use soroban_sdk::{ contracttype, log };
+use normal::error::ErrorCode;
+use crate::{ controller, math };
+use soroban_sdk::{ log, Env, Vec };
 
-use crate::{ errors::ErrorCode, tick::{ Tick, TickUpdate } };
+use crate::{
+    math::{
+        MAX_SQRT_PRICE_X64,
+        MIN_SQRT_PRICE_X64,
+        NO_EXPLICIT_SQRT_PRICE_LIMIT,
+        PROTOCOL_FEE_RATE_MUL_VALUE,
+        Q64_RESOLUTION,
+    },
+    reward::RewardInfo,
+    tick::{ Tick, TickUpdate },
+    utils::swap_tick_sequence::SwapTickSequence,
+};
+use crate::{ controller, math };
 
 #[contracttype]
 #[derive(Debug)]
@@ -11,11 +25,12 @@ pub struct PostSwapUpdate {
     pub next_tick_index: i32,
     pub next_sqrt_price: u128,
     pub next_fee_growth_global: u128,
-    pub next_reward_infos: [RewardInfo; NUM_REWARDS],
+    pub next_reward_infos: Vec<RewardInfo>,
     pub next_protocol_fee: u64,
 }
 
 pub fn swap(
+    env: &Env,
     swap_tick_sequence: &mut SwapTickSequence,
     amount: u64,
     sqrt_price_limit: u128,
@@ -51,7 +66,7 @@ pub fn swap(
     let tick_spacing = amm.tick_spacing;
     let fee_rate = amm.fee_rate;
     let protocol_fee_rate = amm.protocol_fee_rate;
-    let next_reward_infos = next_amm_reward_infos(amm, timestamp)?;
+    let next_reward_infos = controller::amm::next_amm_reward_infos(amm, timestamp)?;
 
     let mut amount_remaining: u64 = amount;
     let mut amount_calculated: u64 = 0;
@@ -81,7 +96,7 @@ pub fn swap(
             a_to_b
         );
 
-        let swap_computation = math::amm::compute_swap(
+        let swap_computation = math::swap_math::compute_swap(
             amount_remaining,
             fee_rate,
             curr_liquidity,
@@ -224,7 +239,7 @@ pub fn swap(
 
 fn calculate_fees(
     fee_amount: u64,
-    protocol_fee_rate: u16,
+    protocol_fee_rate: u32,
     curr_liquidity: u128,
     curr_protocol_fee: u64,
     curr_fee_growth_global_input: u128
@@ -246,7 +261,7 @@ fn calculate_fees(
     (next_protocol_fee, next_fee_growth_global_input)
 }
 
-fn calculate_protocol_fee(global_fee: u64, protocol_fee_rate: u16) -> u64 {
+fn calculate_protocol_fee(global_fee: u64, protocol_fee_rate: u32) -> u64 {
     (((global_fee as u128) * (protocol_fee_rate as u128)) / PROTOCOL_FEE_RATE_MUL_VALUE)
         .try_into()
         .unwrap()

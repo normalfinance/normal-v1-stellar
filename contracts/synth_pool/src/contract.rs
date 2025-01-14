@@ -9,12 +9,15 @@ use soroban_sdk::{
     BytesN,
     Env,
     String,
+    Vec,
 };
 
 use crate::{
+    controller,
     events::SynthPoolEvents,
-    pool::PoolTrait,
+    pool::SynthPoolTrait,
     position::{ Position, PositionUpdate },
+    reward::RewardInfo,
     storage::{
         get_config,
         save_config,
@@ -22,16 +25,24 @@ use crate::{
         utils::{ self, get_admin_old, is_initialized, set_initialized },
         SynthPoolParams,
     },
+    tick_array::TickArray,
     token_contract,
-    utils::sparse_swap::SparseSwapTickSequenceBuilder,
+    utils::{ sparse_swap::SparseSwapTickSequenceBuilder, swap_utils::update_and_swap_amm },
 };
 use normal::{
+    error::ErrorCode,
+    oracle::get_oracle_price,
     ttl::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD },
     utils::{ convert_i128_to_u128, is_approx_ratio },
     validate_bps,
     validate_int_parameters,
-    error::ErrorCode,
 };
+
+fn check_nonnegative_amount(amount: i128) {
+    if amount < 0 {
+        panic!("negative amount is not allowed: {}", amount)
+    }
+}
 
 contractmeta!(
     key = "Description",
@@ -42,7 +53,7 @@ contractmeta!(
 pub struct SynthPool;
 
 #[contractimpl]
-impl PoolTrait for SynthPool {
+impl SynthPoolTrait for SynthPool {
     #[allow(clippy::too_many_arguments)]
     fn initialize(
         env: Env,
@@ -73,16 +84,9 @@ impl PoolTrait for SynthPool {
             panic!("token_a must be less than token_b");
         }
 
-        // if !(MIN_SQRT_PRICE_X64..=MAX_SQRT_PRICE_X64).contains(&sqrt_price) {
-        //     return Err(ErrorCode::SqrtPriceOutOfBounds.into());
-        // }
-
-        // if fee_rate > MAX_FEE_RATE {
-        //     return Err(ErrorCode::FeeRateMaxExceeded.into());
-        // }
-        // if protocol_fee_rate > MAX_PROTOCOL_FEE_RATE {
-        //     return Err(ErrorCode::ProtocolFeeRateMaxExceeded.into());
-        // }
+        if !(MIN_SQRT_PRICE_X64..=MAX_SQRT_PRICE_X64).contains(&params.sqrt_price) {
+            return Err(ErrorCode::SqrtPriceOutOfBounds.into());
+        }
 
         // deploy and initialize token contract
         let share_token_address = utils::deploy_token_contract(
@@ -90,7 +94,7 @@ impl PoolTrait for SynthPool {
             token_wasm_hash.clone(),
             &params.token_a,
             &params.token_b,
-            e.current_contract_address(),
+            env.current_contract_address(),
             share_token_decimals,
             share_token_name,
             share_token_symbol
@@ -101,12 +105,12 @@ impl PoolTrait for SynthPool {
             token_b: params.token_b.clone(),
             share_token: share_token_address,
 
-            tick_arrays: [],
+            tick_arrays: Vec::new(&env),
             sqrt_price: initial_sqrt_price,
             liquidity: 0,
             tick_spacing,
 
-            positions: [],
+            positions: Vec::new(&env),
 
             fee_rate,
             protocol_fee_rate,
@@ -120,7 +124,7 @@ impl PoolTrait for SynthPool {
             max_allowed_variance_bps,
 
             reward_last_updated_timestamp: 0,
-            reward_infos: [RewardInfo::new(state.reward_emissions_super_authority); MAX_REWARDS],
+            reward_infos: Vec::new(&env),
         };
 
         save_config(&env, config);
@@ -225,14 +229,23 @@ impl PoolTrait for SynthPool {
     // ################################################################
 
     fn create_position(env: Env, tick_lower_index: i32, tick_upper_index: i32) {
-        let new_position = Position {
-            asset: "BTC".to_string(),
-            amount: 100,
-            entry_price: 50000,
-        };
+        position.open_position(market, position_mint.key(), tick_lower_index, tick_upper_index)?;
 
-        // Add a new position for the user
-        Positions::add(&env, &user_address, new_position);
+        mint_position_token(
+            market,
+            position_mint,
+            &ctx.accounts.position_token_account,
+            &ctx.accounts.token_program
+        )?;
+
+        // let new_position = Position {
+        //     asset: "BTC".to_string(),
+        //     amount: 100,
+        //     entry_price: 50000,
+        // };
+
+        // // Add a new position for the user
+        // Positions::add(&env, &user_address, new_position);
 
         SynthPoolEvents::CreatePosition();
     }
@@ -246,9 +259,22 @@ impl PoolTrait for SynthPool {
     }
 
     fn close_position(env: Env, position_timestamp: u64) {
-        // if !Position::is_position_empty(&ctx.accounts.position) {
-        //     return Err(ErrorCode::ClosePositionNotEmpty.into());
-        // }
+        verify_position_authority(
+            &ctx.accounts.position_token_account,
+            &ctx.accounts.position_authority
+        )?;
+
+        if !Position::is_position_empty(&ctx.accounts.position) {
+            return Err(ErrorCode::ClosePositionNotEmpty.into());
+        }
+
+        burn_and_close_user_position_token(
+            &ctx.accounts.position_authority,
+            &ctx.accounts.receiver,
+            &ctx.accounts.position_mint,
+            &ctx.accounts.position_token_account,
+            &ctx.accounts.token_program
+        );
 
         SynthPoolEvents::ClosePosition();
     }
@@ -350,30 +376,30 @@ impl PoolTrait for SynthPool {
         other_amount_threshold: u64,
         sqrt_price_limit: u128,
         amount_specified_is_input: bool,
-        a_to_b: bool // Zero for one
+        a_to_b: bool, // Zero for one,
+        // other
+        tick_array_0: TickArray,
+        tick_array_1: TickArray,
+        tick_array_2: TickArray
     ) {
-        // validate amount above 0?
-
         sender.require_auth();
+        check_nonnegative_amount(amount);
 
         env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-        // do swap
+        let timestamp = env.ledger().timestamp();
+        let config = get_config(env);
 
         let builder = SparseSwapTickSequenceBuilder::try_from(
+            env,
             a_to_b,
-            vec![
-                ctx.accounts.tick_array_0.to_account_info(),
-                ctx.accounts.tick_array_1.to_account_info(),
-                ctx.accounts.tick_array_2.to_account_info()
-            ],
+            vec![tick_array_0, tick_array_1, tick_array_2],
             None
         )?;
         let mut swap_tick_sequence = builder.build()?;
 
-        // ---
-
-        let swap_update = do_swap(
+        let swap_update = controller::swap::swap(
+            &env,
             &mut swap_tick_sequence,
             amount,
             sqrt_price_limit,
@@ -381,8 +407,6 @@ impl PoolTrait for SynthPool {
             a_to_b,
             timestamp
         )?;
-
-        // ---
 
         if amount_specified_is_input {
             if
@@ -398,18 +422,16 @@ impl PoolTrait for SynthPool {
             return Err(ErrorCode::AmountInAboveMaximum.into());
         }
 
+        // TODO: check price range and update oracle price by pulling/pushing collateral from Synth Market
+
         update_and_swap_amm(
-            amm,
-            &ctx.accounts.token_authority,
-            &ctx.accounts.token_owner_account_synthetic,
-            &ctx.accounts.token_owner_account_quote,
-            &ctx.accounts.token_vault_synthetic,
-            &ctx.accounts.token_vault_quote,
-            &ctx.accounts.token_program,
+            &env,
+            sender,
+            config.token_a,
+            config.token_b,
             swap_update,
-            synthetic_to_quote,
-            timestamp,
-            inside_range
+            a_to_b,
+            timestamp
         );
 
         SynthPoolEvents::swap(&env, to, buy_a, out, in_max);

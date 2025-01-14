@@ -1,4 +1,5 @@
-use soroban_sdk::contracttype;
+use normal::error::ErrorCode;
+use soroban_sdk::{contracttype, Vec};
 
 use crate::{ errors::ErrorCode, tick_array::TickArrayType };
 
@@ -25,7 +26,7 @@ pub struct Tick {
     pub fee_growth_outside_b: u128, // 16
 
     // Array of Q64.64
-    pub reward_growths_outside: [u128; MAX_REWARDS], // 48 = 16 * 3
+    pub reward_growths_outside: Vec<u128>, // 48 = 16 * 3
 }
 
 impl Tick {
@@ -124,7 +125,7 @@ pub struct TickUpdate {
     pub liquidity_gross: u128,
     pub fee_growth_outside_a: u128,
     pub fee_growth_outside_b: u128,
-    pub reward_growths_outside: [u128; MAX_REWARDS],
+    pub reward_growths_outside: Vec<u128>,
 }
 
 impl TickUpdate {
@@ -164,9 +165,9 @@ impl TickArrayType for ZeroedTickArray {
         &self,
         tick_index: i32,
         tick_spacing: u16,
-        synthetic_to_quote: bool
+        a_to_b: bool
     ) -> Result<Option<i32>> {
-        if !self.in_search_range(tick_index, tick_spacing, !synthetic_to_quote) {
+        if !self.in_search_range(tick_index, tick_spacing, !a_to_b) {
             return Err(ErrorCode::InvalidTickArraySequence.into());
         }
 

@@ -1,4 +1,6 @@
-use crate::{ errors::ErrorCode, tick::{ Tick, TickUpdate } };
+use normal::error::ErrorCode;
+
+use crate::{ errors::ErrorCode, math, reward::RewardInfo, tick::{ Tick, TickUpdate } };
 
 pub fn next_tick_cross_update(
     tick: &Tick,
@@ -41,7 +43,10 @@ pub fn next_tick_modify_liquidity_update(
         return Ok(TickUpdate::from(tick));
     }
 
-    let liquidity_gross = add_liquidity_delta(tick.liquidity_gross, liquidity_delta)?;
+    let liquidity_gross = math::liquidity_math::add_liquidity_delta(
+        tick.liquidity_gross,
+        liquidity_delta
+    )?;
 
     // Update to an uninitialized tick if remaining liquidity is being removed
     if liquidity_gross == 0 {
@@ -56,7 +61,7 @@ pub fn next_tick_modify_liquidity_update(
             (
                 fee_growth_global_synthetic,
                 fee_growth_global_quote,
-                AMMRewardInfo::to_reward_growths(reward_infos),
+                RewardInfo::to_reward_growths(reward_infos),
             )
         } else {
             (0, 0, [0; NUM_REWARDS])
@@ -132,7 +137,7 @@ pub fn next_reward_growths_inside(
     tick_lower_index: i32,
     tick_upper: &Tick,
     tick_upper_index: i32,
-    reward_infos: &[AMMRewardInfo; NUM_REWARDS]
+    reward_infos: &[RewardInfo; NUM_REWARDS]
 ) -> [u128; NUM_REWARDS] {
     let mut reward_growths_inside = [0; NUM_REWARDS];
 

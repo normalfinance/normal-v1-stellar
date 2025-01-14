@@ -1,6 +1,26 @@
-use soroban_sdk::{ contracttype, Address, Env };
+use normal::error::ErrorCode;
+use normal::constants::MAX_REWARDS;
+use soroban_sdk::{ contracttype, Address, Env, Vec };
 
-use crate::{ errors::ErrorCode, tick::Tick };
+use crate::{
+    contract::SynthPool,
+    errors::ErrorCode,
+    math::FULL_RANGE_ONLY_TICK_SPACING_THRESHOLD,
+    reward::PositionRewardInfo,
+    storage::Config,
+    tick::Tick,
+};
+
+#[contracttype]
+#[derive(Default, Debug, PartialEq)]
+pub struct PositionUpdate {
+    pub liquidity: u128,
+    pub fee_growth_checkpoint_a: u128,
+    pub fee_owed_a: u64,
+    pub fee_growth_checkpoint_b: u128,
+    pub fee_owed_b: u64,
+    pub reward_infos: Vec<PositionRewardInfo>,
+}
 
 #[contracttype]
 #[derive(Default)]
@@ -17,7 +37,7 @@ pub struct Position {
     pub fee_growth_checkpoint_b: u128,
     pub fee_owed_b: u64,
 
-    pub reward_infos: [PositionRewardInfo; MAX_REWARDS], // 72
+    pub reward_infos: Vec<PositionRewardInfo>,
 }
 
 impl Position {
@@ -39,19 +59,24 @@ impl Position {
         self.reward_infos = update.reward_infos;
     }
 
-    pub fn open_position(&mut self, tick_lower_index: i32, tick_upper_index: i32) {
+    pub fn open_position(
+        &mut self,
+        pool: &Config,
+        tick_lower_index: i32,
+        tick_upper_index: i32
+    ) -> Result<()> {
         if
-            !Tick::check_is_usable_tick(tick_lower_index, amm.tick_spacing) ||
-            !Tick::check_is_usable_tick(tick_upper_index, amm.tick_spacing) ||
+            !Tick::check_is_usable_tick(tick_lower_index, pool.tick_spacing) ||
+            !Tick::check_is_usable_tick(tick_upper_index, pool.tick_spacing) ||
             tick_lower_index >= tick_upper_index
         {
             return Err(ErrorCode::InvalidTickIndex.into());
         }
 
         // On tick spacing >= 2^15, should only be able to open full range positions
-        if amm.tick_spacing >= FULL_RANGE_ONLY_TICK_SPACING_THRESHOLD {
+        if pool.tick_spacing >= FULL_RANGE_ONLY_TICK_SPACING_THRESHOLD {
             let (full_range_lower_index, full_range_upper_index) = Tick::full_range_indexes(
-                amm.tick_spacing
+                pool.tick_spacing
             );
             if
                 tick_lower_index != full_range_lower_index ||
@@ -63,6 +88,8 @@ impl Position {
 
         self.tick_lower_index = tick_lower_index;
         self.tick_upper_index = tick_upper_index;
+
+        Ok(())
     }
 
     pub fn reset_fees_owed(&mut self) {
@@ -75,53 +102,36 @@ impl Position {
     }
 }
 
-pub struct Positions;
-
-impl Positions {
-    // Key for storing positions in contract storage
-    fn key(address: &Address) -> String {
-        format!("positions:{}", address.to_string())
-    }
-
-    // Get positions for an address
-    pub fn get(env: &Env, address: &Address) -> Vec<Position> {
-        env.storage().get::<Vec<Position>>(&Self::key(address)).unwrap_or(Vec::new(env)) // Return an empty Vec if no data exists
-    }
-
-    // Get a specific position by index for an address
-    pub fn get_by_index(env: &Env, address: &Address, index: usize) -> Option<Position> {
-        let positions = Self::get(env, address); // Fetch current positions
-        if index < positions.len() {
-            Some(positions.get(index).unwrap()) // Return the position if the index is valid
-        } else {
-            None // Return None if the index is out of bounds
-        }
-    }
-
-    // Add a position for an address
-    pub fn add(env: &Env, address: &Address, position: Position) {
-        let mut positions = Self::get(env, address); // Fetch current positions
-        positions.push_back(position); // Add the new position
-        env.storage().set(&Self::key(address), &positions); // Save back to storage
-    }
-
-    // Remove a position for an address (example: by index)
-    pub fn remove(env: &Env, address: &Address, index: usize) {
-        let mut positions = Self::get(env, address); // Fetch current positions
-        if index < positions.len() {
-            positions.remove(index); // Remove the position at the given index
-            env.storage().set(&Self::key(address), &positions); // Save back to storage
-        }
-    }
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PositionInfo {
+    /// Vec of positions sorted by position timestamp
+    pub positions: Vec<Position>,
 }
 
-#[contracttype]
-#[derive(Default, Debug, PartialEq)]
-pub struct PositionUpdate {
-    pub liquidity: u128,
-    pub fee_growth_checkpoint_a: u128,
-    pub fee_owed_a: u64,
-    pub fee_growth_checkpoint_b: u128,
-    pub fee_owed_b: u64,
-    pub reward_infos: [PositionRewardInfo; MAX_REWARDS],
+pub fn get_positions(env: &Env, key: &Address) -> PositionInfo {
+    let position_info = match env.storage().persistent().get::<_, PositionInfo>(key) {
+        Some(info) => info,
+        None =>
+            PositionInfo {
+                positions: Vec::new(env),
+            },
+    };
+    env.storage()
+        .persistent()
+        .has(&key)
+        .then(|| {
+            env.storage()
+                .persistent()
+                .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        });
+
+    position_info
+}
+
+pub fn save_positions(env: &Env, key: &Address, position_info: &PositionInfo) {
+    env.storage().persistent().set(key, position_info);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 }

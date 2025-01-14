@@ -1,4 +1,4 @@
-use soroban_sdk::{ Address, Env, String, Symbol };
+use soroban_sdk::{Address, Env, String, Symbol};
 
 pub struct SynthPoolEvents {}
 
@@ -11,18 +11,19 @@ impl SynthPoolEvents {
     /// to create the proposal.
     ///
     /// - topics - `["init", token_a: Address, token_b: Address, tick_spacing: u16]`
-    /// - data - `[initial_sqrt_price: u128, fee_rate: u16, protocol_fee_rate: u16]`
+    /// - data - `[initial_sqrt_price: u128, fee_rate: u32, protocol_fee_rate: u32]`
     pub fn init(
         e: &Env,
         token_a: Address,
         token_b: Address,
         tick_spacing: u16,
         initial_sqrt_price: u128,
-        fee_rate: u16,
-        protocol_fee_rate: u16
+        fee_rate: u32,
+        protocol_fee_rate: u32,
     ) {
         let topics = (Symbol::new(&e, "init"), token_a, token_b, tick_spacing);
-        e.events().publish(topics, (initial_sqrt_price, fee_rate, protocol_fee_rate));
+        e.events()
+            .publish(topics, (initial_sqrt_price, fee_rate, protocol_fee_rate));
     }
 
     /// Emitted when a user swaps with the AMM

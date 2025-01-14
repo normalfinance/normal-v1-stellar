@@ -1,17 +1,17 @@
 use soroban_sdk::{ contractclient, Address, BytesN, Env, String };
 
-use crate::{ position::PositionUpdate, storage::{ AMMParams, Config } };
+use crate::{ position::PositionUpdate, storage::{ Config, SynthPoolParams } };
 
-#[contractclient(name = "PoolClient")]
-pub trait PoolTrait {
+#[contractclient(name = "SynthPoolClient")]
+pub trait SynthPoolTrait {
     // Sets the token contract addresses for this pool
     // token_wasm_hash is the WASM hash of the deployed token contract for the pool share token
     #[allow(clippy::too_many_arguments)]
     fn initialize(
         env: Env,
         token_wasm_hash: BytesN<32>,
-        params: AMMParams,
-        protocol_fee_rate: u16,
+        params: SynthPoolParams,
+        protocol_fee_rate: u32,
         share_token_decimals: u32,
         share_token_name: String,
         share_token_symbol: String
@@ -84,7 +84,9 @@ pub trait PoolTrait {
     fn collect_fees(env: Env, sender: Address, to: Address, position_timestamp: u64);
     fn collect_reward(env: Env, sender: Address, to: Address, reward_timestamp: u64);
 
-    // Queries
+    // ################################################################
+    //                             QUERIES
+    // ################################################################
 
     // Returns the configuration structure containing the addresses
     fn query_config(env: Env) -> Config;

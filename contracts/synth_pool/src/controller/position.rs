@@ -1,11 +1,17 @@
-use crate::position::{ Position, PositionUpdate };
+use normal::error::ErrorCode;
+use soroban_sdk::Vec;
+
+use crate::{
+    math::{ bit_math::checked_mul_shift_right, liquidity_math::add_liquidity_delta },
+    position::{ Position, PositionUpdate },
+};
 
 pub fn next_position_modify_liquidity_update(
     position: &Position,
     liquidity_delta: i128,
     fee_growth_inside_synthetic: u128,
     fee_growth_inside_quote: u128,
-    reward_growths_inside: &[u128; NUM_REWARDS]
+    reward_growths_inside: &Vec<u128>
 ) -> Result<PositionUpdate, ErrorCode> {
     let mut update = PositionUpdate::default();
 

@@ -1,6 +1,11 @@
 use soroban_sdk::contracttype;
 
-use crate::{errors::ErrorCode, tick::{Tick, TickUpdate, MAX_TICK_INDEX, MIN_TICK_INDEX, TICK_ARRAY_SIZE, TICK_ARRAY_SIZE_USIZE}};
+use crate::{
+    errors::ErrorCode,
+    tick::{
+        Tick, TickUpdate, MAX_TICK_INDEX, MIN_TICK_INDEX, TICK_ARRAY_SIZE, TICK_ARRAY_SIZE_USIZE,
+    },
+};
 
 pub trait TickArrayType {
     fn start_tick_index(&self) -> i32;
@@ -9,7 +14,7 @@ pub trait TickArrayType {
         &self,
         tick_index: i32,
         tick_spacing: u16,
-        synthetic_to_quote: bool
+        a_to_b: bool,
     ) -> Result<Option<i32>>;
 
     fn get_tick(&self, tick_index: i32, tick_spacing: u16) -> Result<&Tick>;
@@ -18,7 +23,7 @@ pub trait TickArrayType {
         &mut self,
         tick_index: i32,
         tick_spacing: u16,
-        update: &TickUpdate
+        update: &TickUpdate,
     ) -> Result<()>;
 
     /// Checks that this array holds the next tick index for the current tick index, given the pool's tick spacing & search direction.
@@ -26,9 +31,9 @@ pub trait TickArrayType {
     /// unshifted checks on [start, start + TICK_ARRAY_SIZE * tick_spacing)
     /// shifted checks on [start - tick_spacing, start + (TICK_ARRAY_SIZE - 1) * tick_spacing) (adjusting range by -tick_spacing)
     ///
-    /// shifted == !synthetic_to_quote
+    /// shifted == !a_to_b
     ///
-    /// For synthetic_to_quote swaps, price moves left. All searchable ticks in this tick-array's range will end up in this tick's usable ticks.
+    /// For a_to_b swaps, price moves left. All searchable ticks in this tick-array's range will end up in this tick's usable ticks.
     /// The search range is therefore the range of the tick-array.
     ///
     /// For b_to_a swaps, this tick-array's left-most ticks can be the 'next' usable tick-index of the previous tick-array.
@@ -60,7 +65,11 @@ pub trait TickArrayType {
             return Err(ErrorCode::InvalidTickSpacing.into());
         }
 
-        Ok(get_offset(tick_index, self.start_tick_index(), tick_spacing))
+        Ok(get_offset(
+            tick_index,
+            self.start_tick_index(),
+            tick_spacing,
+        ))
     }
 }
 
@@ -70,7 +79,11 @@ fn get_offset(tick_index: i32, start_tick_index: i32, tick_spacing: u16) -> isiz
     let rhs = tick_spacing as i32;
     let d = lhs / rhs;
     let r = lhs % rhs;
-    let o = if (r > 0 && rhs < 0) || (r < 0 && rhs > 0) { d - 1 } else { d };
+    let o = if (r > 0 && rhs < 0) || (r < 0 && rhs > 0) {
+        d - 1
+    } else {
+        d
+    };
     o as isize
 }
 
@@ -100,7 +113,7 @@ impl TickArrayType for TickArray {
     /// # Parameters
     /// - `tick_index` - A i32 integer representing the tick index to start searching for
     /// - `tick_spacing` - A u8 integer of the tick spacing for this amm
-    /// - `synthetic_to_quote` - If the trade is from synthetic_to_quote, the search will move to the left and the starting search tick is inclusive.
+    /// - `a_to_b` - If the trade is from a_to_b, the search will move to the left and the starting search tick is inclusive.
     ///              If the trade is from b_to_a, the search will move to the right and the starting search tick is not inclusive.
     ///
     /// # Returns
@@ -112,9 +125,9 @@ impl TickArrayType for TickArray {
         &self,
         tick_index: i32,
         tick_spacing: u16,
-        synthetic_to_quote: bool
+        a_to_b: bool,
     ) -> Result<Option<i32>> {
-        if !self.in_search_range(tick_index, tick_spacing, !synthetic_to_quote) {
+        if !self.in_search_range(tick_index, tick_spacing, !a_to_b) {
             return Err(ErrorCode::InvalidTickArraySequence.into());
         }
 
@@ -125,19 +138,25 @@ impl TickArrayType for TickArray {
             }
         };
 
-        // For synthetic_to_quote searches, the search moves to the left. The next possible init-tick can be the 1st tick in the current offset
+        // For a_to_b searches, the search moves to the left. The next possible init-tick can be the 1st tick in the current offset
         // For b_to_a searches, the search moves to the right. The next possible init-tick cannot be within the current offset
-        if !synthetic_to_quote {
+        if !a_to_b {
             curr_offset += 1;
         }
 
         while (0..TICK_ARRAY_SIZE).contains(&curr_offset) {
             let curr_tick = self.ticks[curr_offset as usize];
             if curr_tick.initialized {
-                return Ok(Some(curr_offset * (tick_spacing as i32) + self.start_tick_index));
+                return Ok(Some(
+                    curr_offset * (tick_spacing as i32) + self.start_tick_index,
+                ));
             }
 
-            curr_offset = if synthetic_to_quote { curr_offset - 1 } else { curr_offset + 1 };
+            curr_offset = if a_to_b {
+                curr_offset - 1
+            } else {
+                curr_offset + 1
+            };
         }
 
         Ok(None)
@@ -153,9 +172,8 @@ impl TickArrayType for TickArray {
     /// - `&Tick`: A reference to the desired Tick object
     /// - `TickNotFound`: - The provided tick-index is not an initializable tick index in this amm w/ this tick-spacing.
     fn get_tick(&self, tick_index: i32, tick_spacing: u16) -> Result<&Tick> {
-        if
-            !self.check_in_array_bounds(tick_index, tick_spacing) ||
-            !Tick::check_is_usable_tick(tick_index, tick_spacing)
+        if !self.check_in_array_bounds(tick_index, tick_spacing)
+            || !Tick::check_is_usable_tick(tick_index, tick_spacing)
         {
             return Err(ErrorCode::TickNotFound.into());
         }
@@ -179,11 +197,10 @@ impl TickArrayType for TickArray {
         &mut self,
         tick_index: i32,
         tick_spacing: u16,
-        update: &TickUpdate
+        update: &TickUpdate,
     ) -> Result<()> {
-        if
-            !self.check_in_array_bounds(tick_index, tick_spacing) ||
-            !Tick::check_is_usable_tick(tick_index, tick_spacing)
+        if !self.check_in_array_bounds(tick_index, tick_spacing)
+            || !Tick::check_is_usable_tick(tick_index, tick_spacing)
         {
             return Err(ErrorCode::TickNotFound.into());
         }
@@ -191,10 +208,7 @@ impl TickArrayType for TickArray {
         if offset < 0 {
             return Err(ErrorCode::TickNotFound.into());
         }
-        self.ticks
-            .get_mut(offset as usize)
-            .unwrap()
-            .update(update);
+        self.ticks.get_mut(offset as usize).unwrap().update(update);
         Ok(())
     }
 }
