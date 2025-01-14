@@ -1,7 +1,10 @@
-use super::setup::{ deploy_index_factory_contract };
-use crate::{ contract::{ IndexFactory, IndexFactoryClient }, tests::setup::{} };
+use super::setup::deploy_index_factory_contract;
+use crate::contract::{IndexFactory, IndexFactoryClient};
 
-use soroban_sdk::{ testutils::{ arbitrary::std, Address as _ }, vec, Address, Env, String };
+use soroban_sdk::{
+    testutils::{arbitrary::std, Address as _},
+    vec, Address, Env, String,
+};
 
 #[test]
 fn factory_successfully_inits_itself() {

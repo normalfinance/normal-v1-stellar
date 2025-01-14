@@ -1,18 +1,21 @@
-default: build
+default: all
 
-all: test
+all: lint build test
 
-test: build
+test: build # because of token dependency
 	cargo test
 
 build:
+	$(MAKE) -C ../token build || break;
 	cargo build --target wasm32-unknown-unknown --release
+
+lint: fmt clippy
 
 fmt:
 	cargo fmt --all
 
 clippy: build
-	cargo clippy --tests -- -D warnings
+	cargo clippy --all-targets -- -D warnings -A clippy::too_many_arguments
 
 clean:
 	cargo clean

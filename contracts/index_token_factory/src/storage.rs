@@ -1,22 +1,10 @@
 use normal::ttl::{
-    INSTANCE_BUMP_AMOUNT,
-    INSTANCE_LIFETIME_THRESHOLD,
-    PERSISTENT_BUMP_AMOUNT,
+    INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT,
     PERSISTENT_LIFETIME_THRESHOLD,
 };
 use soroban_sdk::{
-    contracttype,
-    log,
-    panic_with_error,
-    symbol_short,
-    Address,
-    BytesN,
-    ConversionError,
-    Env,
-    Symbol,
-    TryFromVal,
-    Val,
-    Vec,
+    contracttype, log, panic_with_error, symbol_short, Address, BytesN, ConversionError, Env,
+    Symbol, TryFromVal, Val, Vec,
 };
 
 pub const ADMIN: Symbol = symbol_short!("ADMIN");
@@ -54,8 +42,9 @@ pub enum Operation {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
     pub admin: Address,
-    pub index_wasm_hash: BytesN<32>,
     pub index_token_wasm_hash: BytesN<32>,
+    /// Tokens allowed to mint index tokens
+    pub quote_token_whitelist: Vec<Address>,
     pub paused_operations: Vec<Operation>,
     pub max_manager_fee_bps: i64,
     pub protocol_fee_bps: i64,
@@ -78,17 +67,25 @@ pub struct IndexInfo {
 
 pub fn save_config(env: &Env, config: Config) {
     env.storage().persistent().set(&DataKey::Config, &config);
-    env.storage()
-        .persistent()
-        .extend_ttl(&DataKey::Config, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &DataKey::Config,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn get_config(env: &Env) -> Config {
-    let config = env.storage().persistent().get(&DataKey::Config).expect("Config not set");
-
-    env.storage()
+    let config = env
+        .storage()
         .persistent()
-        .extend_ttl(&DataKey::Config, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        .get(&DataKey::Config)
+        .expect("Config not set");
+
+    env.storage().persistent().extend_ttl(
+        &DataKey::Config,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 
     config
 }
@@ -96,20 +93,20 @@ pub fn get_config(env: &Env) -> Config {
 pub fn _save_admin(env: &Env, admin_addr: Address) {
     env.storage().instance().set(&ADMIN, &admin_addr);
 
-    env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 }
 
 pub fn _get_admin(env: &Env) -> Address {
-    let admin_addr = env
-        .storage()
-        .instance()
-        .get(&ADMIN)
-        .unwrap_or_else(|| {
-            log!(env, "Factory: Admin not set");
-            panic_with_error!(&env, ErrorCode::AdminNotSet)
-        });
+    let admin_addr = env.storage().instance().get(&ADMIN).unwrap_or_else(|| {
+        log!(env, "Factory: Admin not set");
+        panic_with_error!(&env, ErrorCode::AdminNotSet)
+    });
 
-    env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
     admin_addr
 }
@@ -121,18 +118,24 @@ pub fn get_index_vec(env: &Env) -> Vec<Address> {
         .get(&DataKey::IndexVec)
         .expect("Index Factory: get_index_vec: Liquidity Pool vector not found");
 
-    env.storage()
-        .persistent()
-        .extend_ttl(&DataKey::IndexVec, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &DataKey::IndexVec,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 
     index_vec
 }
 
 pub fn save_index_vec(env: &Env, index_info: Vec<Address>) {
-    env.storage().persistent().set(&DataKey::IndexVec, &index_info);
     env.storage()
         .persistent()
-        .extend_ttl(&DataKey::IndexVec, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        .set(&DataKey::IndexVec, &index_info);
+    env.storage().persistent().extend_ttl(
+        &DataKey::IndexVec,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 // pub fn save_lp_vec_with_tuple_as_key(
@@ -159,13 +162,18 @@ pub fn save_index_vec(env: &Env, index_info: Vec<Address>) {
 // }
 
 pub fn is_initialized(e: &Env) -> bool {
-    e.storage().persistent().get(&DataKey::Initialized).unwrap_or(false)
+    e.storage()
+        .persistent()
+        .get(&DataKey::Initialized)
+        .unwrap_or(false)
 }
 
 pub fn set_initialized(e: &Env) {
     e.storage().persistent().set(&DataKey::Initialized, &true);
 
-    e.storage()
-        .persistent()
-        .extend_ttl(&DataKey::Initialized, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    e.storage().persistent().extend_ttl(
+        &DataKey::Initialized,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }

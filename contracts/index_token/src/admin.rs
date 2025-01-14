@@ -1,6 +1,6 @@
 use soroban_sdk::{Address, Env};
 
-use crate::storage_types::DataKey;
+use crate::storage::DataKey;
 
 pub fn read_administrator(env: &Env) -> Address {
     let key = DataKey::Admin;

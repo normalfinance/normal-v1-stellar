@@ -1,5 +1,5 @@
-use soroban_sdk::{ Env, String };
-use soroban_token_sdk::{ metadata::TokenMetadata, TokenUtils };
+use soroban_sdk::{Env, String};
+use soroban_token_sdk::{metadata::TokenMetadata, TokenUtils};
 
 pub fn read_decimal(env: &Env) -> u32 {
     let util = TokenUtils::new(env);

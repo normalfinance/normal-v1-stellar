@@ -1,14 +1,16 @@
 [package]
 name = "normal-index-token"
-description = "Normal index token contract, extension of the Soroban standard token contract"
-authors = ["jblewnormal <joshua@normalfinance.io>"]
 version = { workspace = true }
+authors = ["jmoneyblew <joshua@normalfinance.io>"]
 repository = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 
 [lib]
 crate-type = ["cdylib"]
+
+[features]
+testutils = ["soroban-sdk/testutils"]
 
 [dependencies]
 soroban-sdk = { workspace = true }
@@ -17,17 +19,3 @@ normal = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
-
-[profile.release]
-opt-level = "z"
-overflow-checks = true
-debug = 0
-strip = "symbols"
-debug-assertions = false
-panic = "abort"
-codegen-units = 1
-lto = true
-
-[profile.release-with-logs]
-inherits = "release"
-debug-assertions = true

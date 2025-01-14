@@ -1,6 +1,6 @@
-use soroban_sdk::{ testutils::Address as _, Address, Env };
+use soroban_sdk::{testutils::Address as _, Address, Env};
 
-use self::setup::{ deploy_index_factory_contract, install_index_token_wasm, install_index_wasm };
+use self::setup::{deploy_index_factory_contract, install_index_token_wasm, install_index_wasm};
 
 mod config;
 mod setup;
@@ -22,6 +22,22 @@ fn test_deploy_factory_twice_should_fail() {
 
     let factory = deploy_index_factory_contract(&env, admin.clone(), oracle.clone());
 
-    factory.initialize(&admin, &index_wasm_hash, &index_token_wasm_hash, &[], 500, 300, &oracle);
-    factory.initialize(&admin, &index_wasm_hash, &index_token_wasm_hash, &[], 500, 300, &oracle);
+    factory.initialize(
+        &admin,
+        &index_wasm_hash,
+        &index_token_wasm_hash,
+        &[],
+        500,
+        300,
+        &oracle,
+    );
+    factory.initialize(
+        &admin,
+        &index_wasm_hash,
+        &index_token_wasm_hash,
+        &[],
+        500,
+        300,
+        &oracle,
+    );
 }

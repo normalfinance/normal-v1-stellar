@@ -8,6 +8,10 @@ use soroban_sdk::{
     Address, Env, FromVal, IntoVal, String, Symbol,
 };
 
+mod config;
+mod queries;
+mod setup;
+
 fn create_token<'a>(e: &Env, admin: &Address) -> IndexTokenClient<'a> {
     let token_contract = e.register(
         IndexToken,
