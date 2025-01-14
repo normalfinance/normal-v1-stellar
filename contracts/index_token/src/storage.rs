@@ -1,19 +1,11 @@
 use normal::{
+    constants::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
     oracle::OracleSource,
-    ttl::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
     types::IndexAsset,
 };
 use soroban_sdk::{contracttype, Address, Env, Map, Vec};
-pub(crate) const MAX_FEE_BASIS_POINTS: u32 = 1000; // Maximum fee: 10% (in basis points)
 
 // ################################################################
-
-pub(crate) const DAY_IN_LEDGERS: u32 = 17280;
-pub(crate) const INSTANCE_BUMP_AMOUNT: u32 = 7 * DAY_IN_LEDGERS;
-pub(crate) const INSTANCE_LIFETIME_THRESHOLD: u32 = INSTANCE_BUMP_AMOUNT - DAY_IN_LEDGERS;
-
-pub(crate) const BALANCE_BUMP_AMOUNT: u32 = 30 * DAY_IN_LEDGERS;
-pub(crate) const BALANCE_LIFETIME_THRESHOLD: u32 = BALANCE_BUMP_AMOUNT - DAY_IN_LEDGERS;
 
 #[derive(Clone)]
 #[contracttype]
@@ -79,7 +71,7 @@ pub struct Index {
     /// The price assigned to the index at inception (e.g. $100)
     pub initial_price: i32,
     ///
-    pub component_balances: Map<Address, u128>, // Token address > balance
+    pub component_balances: Map<Address, i128>, // Token address > balance
     /// The ts when the component balances were last updated
     pub component_balance_update_ts: u64,
     ///
@@ -109,26 +101,6 @@ impl Index {
     pub fn time_since_last_rebalance(&self, now: u64) -> u64 {
         now - self.rebalance_ts
     }
-
-    // pub fn get_total_weight(&self) -> u8 {
-    //     self.assets
-    //         .values()
-    //         .map(|asset| asset.weight)
-    //         .sum::<u8>()
-    // }
-
-    // pub fn update_asset_weight(&mut self, asset: Asset, new_weight: u8) {
-    //     if self.public {
-    //         log!("Publc index funds cannot be updated");
-    //         return Ok(());
-    //     }
-
-    //     if let Some(asset) = self.assets.get_mut(asset) {
-    //         asset.weight = new_weight;
-    //     } else {
-    //         log!("Failed to update asset weight");
-    //     }
-    // }
 }
 
 pub fn get_index(env: &Env) -> Index {
@@ -225,6 +197,8 @@ pub struct TransferWithFees {
     pub net_amount: i128,
 }
 
+// ################################################################
+
 pub fn is_initialized(e: &Env) -> bool {
     e.storage()
         .persistent()
@@ -240,4 +214,14 @@ pub fn set_initialized(e: &Env) {
         PERSISTENT_LIFETIME_THRESHOLD,
         PERSISTENT_BUMP_AMOUNT,
     );
+}
+
+pub fn read_administrator(env: &Env) -> Address {
+    let key = DataKey::Admin;
+    env.storage().instance().get(&key).unwrap()
+}
+
+pub fn write_administrator(env: &Env, id: &Address) {
+    let key = DataKey::Admin;
+    env.storage().instance().set(&key, id);
 }

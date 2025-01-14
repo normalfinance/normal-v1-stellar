@@ -1,10 +1,9 @@
-use crate::admin::{read_administrator, write_administrator};
 use crate::allowance::{read_allowance, spend_allowance, write_allowance};
 use crate::balance::{read_balance, receive_balance, spend_balance};
 use crate::metadata::{read_decimal, read_name, read_symbol, write_metadata};
 use crate::storage::{
-    get_last_transfer, is_initialized, read_factory, set_initialized, write_factory, Swap,
-    TransferWithFees,
+    get_last_transfer, is_initialized, read_administrator, read_factory, set_initialized,
+    write_administrator, write_factory, Swap, TransferWithFees,
 };
 
 use normal::error::ErrorCode;
