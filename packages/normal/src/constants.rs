@@ -10,6 +10,21 @@
 // pub(crate) const MAX_PERP_POSITIONS: u8 = 8;
 // pub(crate) const MAX_OPEN_ORDERS: u8 = 32;
 
+// Synth Pool
+pub(crate) const MAX_REWARDS: u32 = 3;
+
+// TTL - Constants for storage bump amounts
+pub(crate) const DAY_IN_LEDGERS: u32 = 17280;
+pub(crate) const INSTANCE_BUMP_AMOUNT: u32 = 7 * DAY_IN_LEDGERS;
+pub(crate) const INSTANCE_LIFETIME_THRESHOLD: u32 = INSTANCE_BUMP_AMOUNT - DAY_IN_LEDGERS;
+
+pub(crate) const BALANCE_BUMP_AMOUNT: u32 = 30 * DAY_IN_LEDGERS;
+pub(crate) const BALANCE_LIFETIME_THRESHOLD: u32 = BALANCE_BUMP_AMOUNT - DAY_IN_LEDGERS;
+
+// FEES
+pub(crate) const MAX_INDEX_MANAGER_FEE_BPS: u32 = 1000; // Maximum fee: 10% (in basis points)
+pub(crate) const SECONDS_IN_A_YEAR: u32 = 365 * 24 * 60 * 60 * 100;
+
 // PRECISIONS
 pub(crate) const AMM_RESERVE_PRECISION: u128 = 1_000_000_000; //expo = -9;
 pub(crate) const AMM_RESERVE_PRECISION_I128: i128 = AMM_RESERVE_PRECISION as i128;
@@ -79,12 +94,12 @@ pub(crate) const PEG_BPS_UPDATE_SCALE: u128 = PERCENTAGE_PRECISION; // expo = -6
 // PRECISION CONVERSIONS
 pub(crate) const PRICE_TO_PEG_PRECISION_RATIO: u128 = PRICE_PRECISION / PEG_PRECISION; // expo: 1 (Delete if we keep peg/price as 1e6)
 pub(crate) const AMM_TO_QUOTE_PRECISION_RATIO: u128 = AMM_RESERVE_PRECISION / QUOTE_PRECISION; // expo: 3
-pub(crate) const AMM_TO_QUOTE_PRECISION_RATIO_I128: i128 = (AMM_RESERVE_PRECISION /
-    QUOTE_PRECISION) as i128; // expo: 3
+pub(crate) const AMM_TO_QUOTE_PRECISION_RATIO_I128: i128 =
+    (AMM_RESERVE_PRECISION / QUOTE_PRECISION) as i128; // expo: 3
 pub(crate) const AMM_TIMES_PEG_TO_QUOTE_PRECISION_RATIO: u128 =
     (AMM_RESERVE_PRECISION * PEG_PRECISION) / QUOTE_PRECISION; // expo: 9
-// pub(crate) const QUOTE_TO_BASE_AMT_FUNDING_PRECISION: i128 =
-//     (AMM_RESERVE_PRECISION_I128 * FUNDING_RATE_PRECISION_I128) / QUOTE_PRECISION_I128; // expo: 12
+                                                               // pub(crate) const QUOTE_TO_BASE_AMT_FUNDING_PRECISION: i128 =
+                                                               //     (AMM_RESERVE_PRECISION_I128 * FUNDING_RATE_PRECISION_I128) / QUOTE_PRECISION_I128; // expo: 12
 pub(crate) const PRICE_TO_QUOTE_PRECISION_RATIO: u128 = PRICE_PRECISION / QUOTE_PRECISION; // expo: 1
 pub(crate) const PRICE_TIMES_AMM_TO_QUOTE_PRECISION_RATIO: u128 =
     PRICE_PRECISION * AMM_TO_QUOTE_PRECISION_RATIO; // expo 9

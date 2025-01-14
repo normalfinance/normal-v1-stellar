@@ -29,7 +29,7 @@ use normal::math::oracle::{is_oracle_valid_for_action, oracle_validity, NormalAc
 use normal::oracle::get_oracle_price;
 
 use normal::{
-    ttl::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD},
+    constants::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD, SECONDS_IN_A_YEAR},
     validate, validate_bps,
 };
 
@@ -56,8 +56,6 @@ fn is_admin(env: &Env, sender: Address) {
         panic_with_error!(&env, ErrorCode::NotAuthorized);
     }
 }
-
-pub(crate) const SECONDS_IN_A_YEAR: u32 = 365 * 24 * 60 * 60 * 100;
 
 contractmeta!(
     key = "Description",
