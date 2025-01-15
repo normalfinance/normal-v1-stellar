@@ -4,7 +4,19 @@ use normal::{
     safe_decrement,
     safe_increment,
 };
-use soroban_sdk::{ contracttype, symbol_short, Address, Env, Symbol };
+use soroban_sdk::{ contracttype, symbol_short, Address, Env, Symbol, Vec };
+
+// ################################################################
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub enum DataKey {
+    Config,
+    InsuranceFund,
+    Initialized,
+}
+
+// ################################################################
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -12,39 +24,89 @@ pub struct InsuranceFund {
     pub total_shares: u128,
     pub user_shares: u128,
     pub shares_base: u128, // exponent for lp shares (for rebasing)
-    pub last_revenue_settle_ts: i64,
+    pub last_revenue_settle_ts: u64,
     pub total_factor: u32, // percentage of interest for total insurance
     pub user_factor: u32, // percentage of interest for user staked insurance
-    pub paused_operations: u8,
+}
+
+impl InsuranceFund {
+    pub fn is_operation_paused(&self, operation: &Operation) -> bool {
+        self.paused_operations.contains(operation)
+    }
+}
+
+pub fn save_config(env: &Env, config: Config) {
+    env.storage().persistent().set(&DataKey::Config, &config);
+    env.storage()
+        .persistent()
+        .extend_ttl(&DataKey::Config, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+}
+
+pub fn get_insurance_fund(env: &Env) -> InsuranceFund {
+    let insurance_fund = env
+        .storage()
+        .persistent()
+        .get(&DataKey::InsuranceFund)
+        .expect("Config not set");
+
+    env.storage()
+        .persistent()
+        .extend_ttl(&DataKey::InsuranceFund, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+
+    insurance_fund
+}
+
+// ################################################################
+
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Debug, Eq, contracttype)]
+pub enum Operation {
+    Add,
+    RequestRemove,
+    Remove,
 }
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Config {
+    pub admin: Address,
+    pub governor: Address,
+    pub share_token: Address,
+    pub stake_asset: Address,
     pub unstaking_period: i64,
     pub revenue_settle_period: i64,
     pub max_insurance: u64,
-    pub paused_operations: u8,
+    pub paused_operations: Vec<Operation>,
 }
-const CONFIG: Symbol = symbol_short!("CONFIG");
 
-pub fn get_config(env: &Env) -> Config {
-    let config = env.storage().persistent().get(&CONFIG).expect("Stake: Config not set");
+pub fn save_config(env: &Env, config: Config) {
+    env.storage().persistent().set(&DataKey::Config, &config);
     env.storage()
         .persistent()
-        .extend_ttl(&CONFIG, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        .extend_ttl(&DataKey::Config, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+}
+
+pub fn get_config(env: &Env) -> Config {
+    let config = env.storage().persistent().get(&DataKey::Config).expect("Config not set");
+
+    env.storage()
+        .persistent()
+        .extend_ttl(&DataKey::Config, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 
     config
 }
 
-pub fn save_config(env: &Env, config: Config) {
-    env.storage().persistent().set(&CONFIG, &config);
-    env.storage()
-        .persistent()
-        .extend_ttl(&CONFIG, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
-}
-
 // ################################################################
+
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum StakeAction {
+    #[default]
+    Stake,
+    UnstakeRequest,
+    UnstakeCancelRequest,
+    Unstake,
+}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
@@ -53,15 +115,15 @@ pub struct Stake {
     if_shares: u128,
     pub last_withdraw_request_shares: u128, // get zero as 0 when not in escrow
     pub if_base: u128, // exponent for if_shares decimal places (for rebase)
-    pub last_valid_ts: i64,
+    pub last_valid_ts: u64,
     pub last_withdraw_request_value: u64,
-    pub last_withdraw_request_ts: i64,
+    pub last_withdraw_request_ts: u64,
     pub cost_basis: i64,
 }
 
 impl Stake {
-    pub fn new(authority: Address, now: i64) -> Self {
-        InsuranceFundStake {
+    pub fn new(authority: Address, now: u64) -> Self {
+        Stake {
             authority,
             last_withdraw_request_shares: 0,
             last_withdraw_request_value: 0,
@@ -126,167 +188,103 @@ impl Stake {
     }
 }
 
-// ################################################################
+pub fn get_stake(env: &Env, key: &Address) -> Stake {
+    let stake_info = match env.storage().persistent().get::<_, Stake>(key) {
+        Some(stake) => stake,
+        None => Stake::new(key, env.ledger().timestamp()),
+    };
+    env.storage()
+        .persistent()
+        .has(&key)
+        .then(|| {
+            env.storage()
+                .persistent()
+                .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        });
 
-#[contracttype]
-#[derive(Clone, Debug)]
-pub enum DataKey {
-    Admin,
-
-    Stake(Address),
+    stake_info
 }
 
-#[contracttype]
-#[derive(Clone, Copy, PartialEq, Debug, Eq, contracttype)]
-pub enum Operation {
-    Stake,
-    Unstake,
-    Transfer,
-}
-
-#[derive(Clone)]
-#[contracttype]
-pub struct Stake {
-    pub authority: Address,
-    if_shares: u128,
-    pub last_withdraw_request_shares: u128, // get zero as 0 when not in escrow
-    pub if_base: u128, // exponent for if_shares decimal places (for rebase)
-    pub last_valid_ts: i64,
-    pub last_withdraw_request_value: u64,
-    pub last_withdraw_request_ts: i64,
-    pub cost_basis: i64,
-}
-
-// ################################################################
-
-#[contracttype]
-#[derive(Default, Eq, PartialEq, Debug)]
-#[repr(C)]
-pub struct ProtocolIfSharesTransferConfig {
-    pub whitelisted_signers: [Pubkey; 4],
-    pub max_transfer_per_epoch: u128,
-    pub current_epoch_transfer: u128,
-    pub next_epoch_ts: i64,
-    pub padding: [u128; 8],
-}
-
-impl ProtocolIfSharesTransferConfig {
-    pub fn validate_signer(&self, signer: &Pubkey) -> DriftResult {
-        validate!(
-            self.whitelisted_signers.contains(signer) && *signer != Pubkey::default(),
-            ErrorCode::DefaultError,
-            "signer {} not whitelisted",
-            signer
-        )?;
-
-        Ok(())
-    }
-
-    pub fn update_epoch(&mut self, now: i64) -> DriftResult {
-        if now > self.next_epoch_ts {
-            let n_epoch_durations = now
-                .safe_sub(self.next_epoch_ts)?
-                .safe_div(EPOCH_DURATION)?
-                .safe_add(1)?;
-
-            self.next_epoch_ts = self.next_epoch_ts.safe_add(
-                EPOCH_DURATION.safe_mul(n_epoch_durations)?
-            )?;
-
-            self.current_epoch_transfer = 0;
-        }
-
-        Ok(())
-    }
-
-    pub fn validate_transfer(&self, requested_transfer: u128) -> DriftResult {
-        let max_transfer = self.max_transfer_per_epoch.saturating_sub(self.current_epoch_transfer);
-
-        validate!(
-            requested_transfer < max_transfer,
-            ErrorCode::DefaultError,
-            "requested transfer {} exceeds max transfer {}",
-            requested_transfer,
-            max_transfer
-        )?;
-
-        Ok(())
-    }
+pub fn save_stake(env: &Env, key: &Address, stake_info: &Stake) {
+    env.storage().persistent().set(key, stake_info);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 }
 
 // ################################################################
 
 // Governor
 
-pub fn is_governor(e: &Env) {
-    if e.invoker() != get_governor(e) {
-        return Err(ErrorCode::OnlyGovernor);
-    }
-    // TODO: do we need to auth the governor?
-    // governor.require_auth();
-}
-
-pub fn set_governor(e: &Env, governor: Address) {
-    e.storage().instance().set(&DataKey::Governor, &governor);
-}
-
-pub fn get_governor(e: &Env) -> Address {
-    e.storage().instance().get(&DataKey::Governor).unwrap()
-}
-
-// Admin
-
-pub fn set_admin(e: &Env, admin: Address) {
-    e.storage().instance().set(&DataKey::Admin, &admin);
-}
-
-pub fn get_admin(e: &Env) -> Address {
-    e.storage().instance().get(&DataKey::Admin).unwrap()
-}
-
-pub fn is_admin(e: &Env) {
-    let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
-    admin.require_auth();
-}
-
-// Stake
-
-// pub fn get_stake_by_address(e: &Env, authority: Address) -> Option<Stake> {
-//     e.storage().instance().get(&DataKey::Stake(authority))
+// pub fn is_governor(e: &Env) {
+//     if e.invoker() != get_governor(e) {
+//         return Err(ErrorCode::OnlyGovernor);
+//     }
+//     // TODO: do we need to auth the governor?
+//     // governor.require_auth();
 // }
 
-// Max Insurance
-pub fn set_max_insurance(e: &Env, max_insurance: u64) {
-    e.storage().instance().set(&DataKey::MaxInsurance, &max_insurance);
-}
+pub mod utils {
+    use soroban_sdk::Bytes;
 
-pub fn get_max_insurance(e: &Env) -> u64 {
-    e.storage().instance().get(&DataKey::MaxInsurance).unwrap()
-}
+    use crate::token_contract;
 
-// Unstaking period
+    use super::*;
 
-pub fn set_unstaking_period(e: &Env, unstaking_period: i64) {
-    e.storage().instance().set(&DataKey::UnstakingPeriod, &unstaking_period);
-}
+    pub fn is_initialized(env: &Env) -> bool {
+        env.storage().persistent().get(&DataKey::Initialized).unwrap_or(false)
+    }
 
-pub fn get_unstaking_period(e: &Env) -> i64 {
-    e.storage().instance().get(&DataKey::UnstakingPeriod).unwrap()
-}
+    pub fn set_initialized(env: &Env) {
+        env.storage().persistent().set(&DataKey::Initialized, &true);
 
-// Paused operations
+        env.storage()
+            .persistent()
+            .extend_ttl(
+                &DataKey::Initialized,
+                PERSISTENT_LIFETIME_THRESHOLD,
+                PERSISTENT_BUMP_AMOUNT
+            );
+    }
 
-pub fn set_paused_operations(e: &Env, paused_operations: Vec<Operation>) {
-    e.storage().instance().set(&DataKey::PausedOperations, &paused_operations);
-}
+    pub fn is_admin(env: &Env) {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+    }
 
-pub fn get_paused_operations(e: &Env) -> Vec<Operation> {
-    e.storage()
-        .get::<Vec<PausedOperation>>(&DataKey::PausedOperations)
-        .unwrap_or_else(|| Vec::new(env));
-}
+    #[allow(clippy::too_many_arguments)]
+    pub fn deploy_token_contract(
+        env: &Env,
+        token_wasm_hash: BytesN<32>,
+        governor: &Address,
+        admin: Address,
+        decimals: u32,
+        name: String,
+        symbol: String
+    ) -> Address {
+        let mut salt = Bytes::new(env);
+        salt.append(&governor.clone().to_xdr(env));
+        let salt = env.crypto().sha256(&salt);
+        env.deployer()
+            .with_current_contract(salt)
+            .deploy_v2(token_wasm_hash, (admin, decimals, name, symbol))
+    }
 
-pub fn is_operation_paused(e: &Env, operation: &Operation) -> bool {
-    let paused_operations = get_paused_operations(e);
-    paused_operations.contains(operation)
+    pub fn mint_shares(env: &Env, share_token: &Address, to: &Address, amount: i128) {
+        let total = get_total_shares(env);
+
+        token_contract::Client::new(env, share_token).mint(to, &amount);
+
+        save_total_shares(env, total + amount);
+    }
+
+    pub fn burn_shares(e: &Env, share_token: &Address, amount: i128) {
+        let total = get_total_shares(env);
+
+        token_contract::Client
+            ::new(env, share_token)
+            .burn(&env.current_contract_address(), &amount);
+
+        save_total_shares(e, total - amount);
+    }
 }

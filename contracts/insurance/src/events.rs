@@ -1,4 +1,6 @@
-use soroban_sdk::{Address, Env, String, Symbol};
+use soroban_sdk::{ Address, Env, String, Symbol };
+
+use crate::storage::StakeAction;
 
 pub struct InsuranceFundEvents {}
 
@@ -10,68 +12,52 @@ impl InsuranceFundEvents {
     /// Note: The size limit for an event is 8kB. Title and calldata must be within the limit
     /// to create the proposal.
     ///
-    /// - topics - `["insurance_fund_initialization", proposal_id: u32, proposer: Address]`
+    /// - topics - `["initialization", proposal_id: u32, proposer: Address]`
     /// - data - `[title: String, desc: String, action: ProposalAction, vote_start: u32, vote_end: u32]`
-    pub fn insurance_fund_initialization(
-        e: &Env,
-        proposal_id: u32,
-        proposer: Address,
-        title: String,
-        desc: String,
-        action: ProposalAction,
-        vote_start: u32,
-        vote_end: u32,
+    pub fn initialization(
+        env: &Env,
+        ts: u64,
+        admin: Address,
+        governor: Address,
+        share_token_address: Address
     ) {
-        let topics = (
-            Symbol::new(&e, "insurance_fund_initialization"),
-            proposal_id,
-            proposer,
-        );
-        e.events()
-            .publish(topics, (title, desc, action, vote_start, vote_end));
+        let topics = (Symbol::new(&env, "initialization"), admin, governor);
+        env.events().publish(topics, (ts, share_token_address));
     }
 
-    // TODO: claim?
+    // Insurance Stake Events
 
-    // Insurance Staker Events
-
-    /// Emitted when a user stakes into the Insurance Fund
+    /// Emitted when a user updates their stake in the Insurance Fund
     ///
-    /// - topics - `["stake", user: u32]`
-    /// - data - `[asset: Address, amount: i128]`
-    pub fn stake(e: &Env, user: Address, asset: Address, amount: i128) {
-        let topics = (Symbol::new(&e, "stake"), user);
-        e.events().publish(topics, (asset, amount));
-    }
-
-    /// Emitted when a user removes part/all of their stake in the Insurance Fund
-    ///
-    /// - topics - `["unstake", user: u32]`
-    /// - data - `[asset: Address, amount: i128]`
-    pub fn unstake(e: &Env, user: Address, asset: Address, amount: i128) {
-        let topics = (Symbol::new(&e, "unstake"), user);
-        e.events().publish(topics, (asset, amount));
-    }
-
-    /// Emitted when a user removes part/all of their stake in the Insurance Fund
-    ///
-    /// - topics - `["unstake", user: u32]`
-    /// - data - `[asset: Address, amount: i128]`
-    pub fn admin_unstake(e: &Env, user: Address, asset: Address, amount: i128) {
-        let topics = (Symbol::new(&e, "unstake"), user);
-        e.events().publish(topics, (asset, amount));
-    }
-
-
-    /// Emitted when a user removes part/all of their stake in the Insurance Fund
-    ///
-    /// - topics - `["unstake", user: u32]`
-    /// - data - `[asset: Address, amount: i128]`
-    pub fn transfer_stake(e: &Env, user: Address, asset: Address, amount: i128) {
-        let topics = (Symbol::new(&e, "unstake"), user);
-        e.events().publish(topics, (asset, amount));
+    /// - topics - `["stake_record", user: Address]`
+    /// - data - `[ts: u64, user: Address, action: StakeAction, amount: i128, insurance_vault_amount_before: u64, if_shares_before: u128, user_if_shares_before: u128, total_if_shares_before: u128, if_shares_after: u128, total_if_shares_after: u128, user_if_shares_after: u128]`
+    pub fn stake_record(
+        env: &Env,
+        ts: u64,
+        user: Address,
+        action: StakeAction,
+        amount: i128,
+        insurance_vault_amount_before: u64,
+        if_shares_before: u128,
+        user_if_shares_before: u128,
+        total_if_shares_before: u128,
+        if_shares_after: u128,
+        total_if_shares_after: u128,
+        user_if_shares_after: u128
+    ) {
+        let topics = (Symbol::new(&env, "stake_record"), user);
+        env.events().publish(topics, (
+            ts,
+            amount,
+            insurance_vault_amount_before,
+            if_shares_before,
+            user_if_shares_before,
+            total_if_shares_before,
+            if_shares_after,
+            total_if_shares_after,
+            user_if_shares_after,
+        ));
     }
 }
-
 
 pub struct BufferEvents {}

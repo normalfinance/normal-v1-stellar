@@ -1,29 +1,42 @@
-use soroban_sdk::{ Address, Env };
+use soroban_sdk::{ Address, BytesN, Env, String };
+
+use crate::storage::{ Config, InsuranceFund, Stake };
 
 pub trait InsuranceFundTrait {
+    // ################################################################
+    //                             ADMIN
+    // ################################################################
+
     fn initialize(
         env: Env,
         admin: Address,
-        max_insurance: u64,
-        unstaking_period: i64,
-        paused_operations: u32
+        governor: Address,
+        stake_asset: Address,
+        token_wasm_hash: BytesN<32>,
+        share_token_decimals: u32,
+        share_token_name: String,
+        share_token_symbol: String
     );
 
-    fn stake(env: Env, sender: Address, amount: u64);
+    // ################################################################
+    //                             USER
+    // ################################################################
 
-    fn unstake(env: Env, sender: Address, amount: u64, stake_timestamp: u64);
+    fn add_stake(env: Env, sender: Address, amount: u64);
 
-    fn transfer_stake(env: Env, sender: Address, to: Address, shares: u128);
+    fn request_remove_stake(env: Env, sender: Address, amount: u64);
 
-    fn withdraw_rewards(env: Env, sender: Address);
+    fn cancel_request_remove_stake(env: Env, sender: Address);
 
-    // QUERIES
+    fn remove_stake(env: Env, sender: Address);
 
-    fn query_config(env: Env) -> ConfigResponse;
+    // ################################################################
+    //                             QUERIES
+    // ################################################################
 
-    fn query_admin(env: Env) -> Address;
+    fn query_config(env: Env) -> Config;
 
-    fn query_staked(env: Env, address: Address) -> StakedResponse;
+    fn query_insurance_fund(env: Env) -> InsuranceFund;
 
-    fn query_total_staked(env: Env) -> i128;
+    fn query_stake(env: Env, address: Address) -> Stake;
 }

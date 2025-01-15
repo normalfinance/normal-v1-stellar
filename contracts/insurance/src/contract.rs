@@ -1,16 +1,42 @@
-use soroban_sdk::{ contract, contractimpl, contractmeta, log, panic_with_error, Address, Env };
+use soroban_sdk::{
+    contract,
+    contractimpl,
+    contractmeta,
+    log,
+    panic_with_error,
+    Address,
+    BytesN,
+    Env,
+    String,
+    Vec,
+};
 
 use crate::{
     controller,
-    events::InsuranceEvents,
-    insurance_fund::InsuranceFundTrait,
-    storage::Operation,
+    events::{ InsuranceEvents, InsuranceFundEvents },
+    insurance_fund::{ self, InsuranceFundTrait },
+    math,
+    storage::{ get_config, get_insurance_fund, get_stake, utils, Config, Operation },
+    token_contract,
 };
 
 use normal::{
-    constants::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD },
+    constants::{
+        INSTANCE_BUMP_AMOUNT,
+        INSTANCE_LIFETIME_THRESHOLD,
+        THIRTEEN_DAY,
+        ONE_MILLION_QUOTE,
+    },
     error::{ ErrorCode, NormalResult },
+    utils,
+    validate,
 };
+
+fn check_nonnegative_amount(amount: i128) {
+    if amount < 0 {
+        panic!("negative amount is not allowed: {}", amount)
+    }
+}
 
 contractmeta!(key = "Description", val = "Staking vault used to cover protocol debt");
 
@@ -20,53 +46,77 @@ pub struct Insurance;
 #[contractimpl]
 /// Implementation of the Insurance Fund trait to allow for ...
 impl InsuranceFundTrait for Insurance {
+    // ################################################################
+    //                             ADMIN
+    // ################################################################
+
     #[allow(clippy::too_many_arguments)]
     fn initialize(
         env: Env,
         admin: Address,
-        share_token: Address,
         governor: Address,
-        admin: Address,
-        max_insurance: u64,
-        unstaking_period: i64,
-        paused_operations: u32,
-        min_reward: i128
+        stake_asset: Address,
+        token_wasm_hash: BytesN<32>,
+        share_token_decimals: u32,
+        share_token_name: String,
+        share_token_symbol: String
     ) {
-        if is_initialized(&env) {
+        if utils::is_initialized(&env) {
             log!(&env, "Insurance Fund: Initialize: initializing contract twice is not allowed");
             panic_with_error!(&env, ErrorCode::AlreadyInitialized);
         }
 
-        set_initialized(&env);
+        utils::set_initialized(&env);
+
+        // deploy and initialize token contract
+        let share_token_address = utils::deploy_token_contract(
+            &env,
+            token_wasm_hash.clone(),
+            &governor,
+            env.current_contract_address(),
+            share_token_decimals,
+            share_token_name,
+            share_token_symbol
+        );
 
         let config = Config {
-            lp_token,
-            min_bond,
-            min_reward,
-            manager,
-            owner,
-            max_complexity,
+            admin,
+            governor,
+            stake_asset,
+            share_token: share_token_address,
+            unstaking_period: THIRTEEN_DAY,
+            revenue_settle_period: THIRTEEN_DAY,
+            max_insurance: ONE_MILLION_QUOTE,
+            paused_operations: Vec::new(&env),
         };
         save_config(&env, config);
 
-        InsuranceEvents::insurance_fund_initialization(&e, index_id, from, amount);
+        InsuranceFundEvents::initialization(
+            &env,
+            env.ledger().timestamp(),
+            admin,
+            governor,
+            share_token_address
+        );
     }
 
-    fn stake(env: Env, sender: Address, amount: u64) {
-        sender.require_auth();
+    // ################################################################
+    //                             USER
+    // ################################################################
 
-        if amount <= 0 {
-            return Err(ErrorCode::InsufficientDeposit);
-        }
+    fn add_stake(env: Env, sender: Address, amount: u64) {
+        sender.require_auth();
+        check_nonnegative_amount(amount);
+
+        let now = env.ledger().timestamp();
+        let config = get_config(&env);
+        let insurance_fund = get_insurance_fund(&env);
 
         validate!(
-            !insurance_fund.is_operation_paused(Operation::Stake),
+            !insurance_fund.is_operation_paused(&Operation::Add),
             ErrorCode::InsuranceFundOperationPaused,
             "if staking add disabled"
         )?;
-        // if is_operation_paused(&env, &Operation::Stake) {
-        //     return Err(ErrorCode::OperationPaused);
-        // }
 
         // TODO: Ensure amount will not put Insurance Fund over max_insurance
         // validate!(
@@ -75,83 +125,139 @@ impl InsuranceFundTrait for Insurance {
         // 	"if staking add disabled"
         // )?;
 
+        let stake = get_stake(&env, &sender);
+
         validate!(
-            insurance_fund_stake.last_withdraw_request_shares == 0 &&
-                insurance_fund_stake.last_withdraw_request_value == 0,
+            stake.last_withdraw_request_shares == 0 && stake.last_withdraw_request_value == 0,
             ErrorCode::IFWithdrawRequestInProgress,
             "withdraw request in progress"
         )?;
 
-        utils::add_stake(
+        controller::stake::add_stake(
+            &env,
+            &mut insurance_fund,
             amount,
-            ctx.accounts.insurance_fund_vault.amount,
-            insurance_fund_stake,
-            insurance_fund,
-            clock.unix_timestamp
-        )?;
+            insurance_balance,
+            &mut stake,
+            now
+        );
 
-        controller::token::receive(
-            &ctx.accounts.token_program,
-            &ctx.accounts.user_token_account,
-            &ctx.accounts.insurance_fund_vault,
-            &ctx.accounts.authority,
-            amount,
-            &mint
-        )?;
-
-        controller::stake::add_stake(&env, insurance_fund, amount, insurance_balance, stake)
+        token_contract::Client
+            ::new(&env, &config.stake_asset)
+            .transfer(&sender, &env.current_contract_address(), &amount);
     }
 
-    fn unstake(env: Env, sender: Address, amount: u64) {
+    fn request_remove_stake(env: Env, sender: Address, amount: u64) {
         sender.require_auth();
-
-        if is_operation_paused(&env, &Operation::Unstake) {
-            return Err(ErrorCode::OperationPaused);
-        }
-
-        controller::stake::remove_stake(&env, insurance_vault_amount, stake, insurance_fund, now)
-    }
-
-    fn transfer_stake(env: Env, sender: Address, to: Address, shares: u128) {
-        sender.require_auth();
-
-        if is_operation_paused(&env, &Operation::Transfer) {
-            return Err(ErrorCode::OperationPaused);
-        }
 
         let now = env.ledger().timestamp();
+        let insurance_fund = get_insurance_fund(&env);
 
-        let if_stake = get_stakes(&env);
-        let insurnace_fund = get_insurance_fund(&env);
+        validate!(
+            !insurance_fund.is_operation_paused(&Operation::RequestRemove),
+            ErrorCode::InsuranceFundOperationPaused,
+            "if staking request remove disabled"
+        )?;
 
-        controller::stake::transfer_protocol_stake(
+        let stake = get_stake(&env, &sender);
+
+        validate!(
+            stake.last_withdraw_request_shares == 0,
+            ErrorCode::IFWithdrawRequestInProgress,
+            "Withdraw request is already in progress"
+        )?;
+
+        let n_shares = math::insurance::vault_amount_to_if_shares(
             &env,
-            insurance_vault_amount, // TODO: get balance
-            shares,
-            &mut if_stake,
+            amount,
+            insurance_fund.total_shares,
+            ctx.accounts.insurance_fund_vault.amount
+        )?;
+
+        validate!(n_shares > 0, ErrorCode::IFWithdrawRequestTooSmall, "Requested lp_shares = 0")?;
+
+        let user_if_shares = stake.checked_if_shares(insurance_fund_stake)?;
+        validate!(user_if_shares >= n_shares, ErrorCode::InsufficientIFShares, "")?;
+
+        controller::stake::request_remove_stake(
+            &env,
+            n_shares,
+            insurance_vault_amount,
+            &mut stake,
             &mut insurance_fund,
-            now,
-            signer_pubkey
+            now
         )
     }
 
-    fn withdraw_rewards(env: Env, sender: Address) {
+    fn cancel_request_remove_stake(env: Env, sender: Address) {
+        sender.require_auth();
+
+        let now = env.ledger().timestamp();
+        let insurance_fund = get_insurance_fund(&env);
+
+        let stake = get_stake(&env, &sender);
+        validate!(
+            stake.last_withdraw_request_shares != 0,
+            ErrorCode::NoIFWithdrawRequestInProgress,
+            "No withdraw request in progress"
+        )?;
+
+        controller::stake::cancel_request_remove_stake(
+            &env,
+            insurance_vault_amount,
+            &mut stake,
+            &mut insurance_fund,
+            now
+        )
+    }
+
+    fn remove_stake(env: Env, sender: Address) {
+        sender.require_auth();
+
+        let now = env.ledger().timestamp();
+        let config = get_config(&env);
+        let insurance_fund = get_insurance_fund(&env);
+
+        validate!(
+            !insurance_fund.is_operation_paused(&Operation::Remove),
+            ErrorCode::InsuranceFundOperationPaused,
+            "if staking remove disabled"
+        )?;
+
+        let stake = get_stake(&env, &sender);
+
+        let amount = controller::stake::remove_stake(
+            &env,
+            insurance_vault_amount,
+            &mut stake,
+            &mut insurance_fund,
+            now
+        );
+
+        token_contract::Client
+            ::new(&env, &config.stake_asset)
+            .transfer(&env.current_contract_address(), &sender, &amount);
+    }
+
+    // ################################################################
+    //                             QUERIES
+    // ################################################################
+
+    fn query_config(env: Env) -> Config {
         env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-        env.events().publish(("withdraw_rewards", "user"), &sender);
+        get_config(&env)
+    }
 
-        let mut stakes = get_stakes(&env, &sender);
+    fn query_insurance_fund(env: Env) -> InsuranceFund {
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-        for asset in get_distributions(&env) {
-            let pending_reward = calculate_pending_rewards(&env, &asset, &stakes);
-            env.events().publish(("withdraw_rewards", "reward_token"), &asset);
+        get_insurance_fund(&env)
+    }
 
-            token_contract::Client
-                ::new(&env, &asset)
-                .transfer(&env.current_contract_address(), &sender, &pending_reward);
-        }
-        stakes.last_reward_time = env.ledger().timestamp();
-        save_stakes(&env, &sender, &stakes);
+    fn query_stake(env: Env, address: Address) -> Stake {
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        get_stake(&env, &address);
     }
 }
 
