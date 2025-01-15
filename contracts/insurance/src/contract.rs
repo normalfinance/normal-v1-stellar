@@ -16,7 +16,7 @@ use crate::{
     events::{ InsuranceEvents, InsuranceFundEvents },
     insurance_fund::{ self, InsuranceFundTrait },
     math,
-    storage::{ get_config, get_insurance_fund, get_stake, utils, Config, Operation },
+    storage::{ get_config, get_insurance_fund, get_stake, utils, Config, Operation, Stake },
     token_contract,
 };
 
