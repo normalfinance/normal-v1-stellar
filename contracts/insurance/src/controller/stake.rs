@@ -3,7 +3,12 @@ use soroban_sdk::{ log, Address, Env };
 
 use crate::{
     events::InsuranceFundEvents,
-    math::insurance::{ calculate_if_shares_lost, vault_amount_to_if_shares },
+    math::insurance::{
+        calculate_if_shares_lost,
+        calculate_rebase_info,
+        if_shares_to_vault_amount,
+        vault_amount_to_if_shares,
+    },
     storage::{ InsuranceFund, Stake, StakeAction },
 };
 
@@ -78,6 +83,7 @@ pub fn apply_rebase_to_insurance_fund(
         insurance_fund_vault_balance.cast::<u128>(env)? < insurance_fund.total_shares
     {
         let (expo_diff, rebase_divisor) = calculate_rebase_info(
+            env,
             insurance_fund.total_shares,
             insurance_fund_vault_balance
         )?;
@@ -85,7 +91,7 @@ pub fn apply_rebase_to_insurance_fund(
         insurance_fund.total_shares = insurance_fund.total_shares.safe_div(rebase_divisor, env)?;
         insurance_fund.user_shares = insurance_fund.user_shares.safe_div(rebase_divisor, env)?;
         insurance_fund.shares_base = insurance_fund.shares_base.safe_add(
-            expo_diff.cast::<u128>()?,
+            expo_diff.cast::<u128>(env)?,
             env
         )?;
 
@@ -173,6 +179,7 @@ pub fn request_remove_stake(
     )?;
 
     stake.last_withdraw_request_value = if_shares_to_vault_amount(
+        env,
         stake.last_withdraw_request_shares,
         insurance_fund.total_shares,
         insurance_vault_amount
@@ -303,6 +310,7 @@ pub fn remove_stake(
     validate!(if_shares_before >= n_shares, ErrorCode::InsufficientIFShares, "")?;
 
     let amount = if_shares_to_vault_amount(
+        env,
         n_shares,
         insurance_fund.total_shares,
         insurance_vault_amount
@@ -319,7 +327,7 @@ pub fn remove_stake(
 
     stake.decrease_if_shares(n_shares, insurance_fund)?;
 
-    stake.cost_basis = stake.cost_basis.safe_sub(withdraw_amount.cast()?, env)?;
+    stake.cost_basis = stake.cost_basis.safe_sub(withdraw_amount.cast(env)?, env)?;
 
     insurance_fund.total_shares = insurance_fund.total_shares.safe_sub(n_shares, env)?;
 
