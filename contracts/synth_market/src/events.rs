@@ -1,4 +1,4 @@
-use soroban_sdk::{ Address, Env, String, Symbol };
+use soroban_sdk::{Address, Env, String, Symbol};
 
 pub struct SynthMarketEvents {}
 
@@ -12,12 +12,14 @@ impl SynthMarketEvents {
     ///
     /// - topics - `["market_initialization", proposal_id: u32, proposer: Address]`
     /// - data - `[title: String, desc: String, action: ProposalAction, vote_start: u32, vote_end: u32]`
-    pub fn initialization(
-        e: &Env,
-       
-    ) {
-        let topics = (Symbol::new(&e, "market_initialization"), proposal_id, proposer);
-        e.events().publish(topics, (title, desc, action, vote_start, vote_end));
+    pub fn initialization(e: &Env) {
+        let topics = (
+            Symbol::new(&e, "market_initialization"),
+            proposal_id,
+            proposer,
+        );
+        e.events()
+            .publish(topics, (title, desc, action, vote_start, vote_end));
     }
 
     /// Emitted when a proposal is canceled
@@ -49,10 +51,11 @@ impl SynthMarketEvents {
         market: SynthMarket,
         depositor: Address,
         collateral_type: Address,
-        amount: u64
+        amount: u64,
     ) {
         let topics = (Symbol::new(&e, "collateral_deposit"), market_id);
-        e.events().publish(topics, (depositor, collateral_type, amount));
+        e.events()
+            .publish(topics, (depositor, collateral_type, amount));
     }
 
     /// Emitted when collateral is lent to generate yield (either by the user or protocol)
@@ -66,10 +69,13 @@ impl SynthMarketEvents {
         loan_contract: Address,
         collateral_type: Address,
         amount: u64,
-        executor: String
+        executor: String,
     ) {
         let topics = (Symbol::new(&e, "collateral_loan"), market_id);
-        e.events().publish(topics, (user, loan_contract, collateral_type, amount, executor));
+        e.events().publish(
+            topics,
+            (user, loan_contract, collateral_type, amount, executor),
+        );
     }
 
     /// Emitted when collateral is returned from loan (either by the user or protocol)
@@ -83,10 +89,13 @@ impl SynthMarketEvents {
         loan_contract: Address,
         collateral_type: Address,
         amount: u64,
-        executor: String
+        executor: String,
     ) {
         let topics = (Symbol::new(&e, "collateral_loan_recall"), market_id);
-        e.events().publish(topics, (user, loan_contract, collateral_type, amount, executor));
+        e.events().publish(
+            topics,
+            (user, loan_contract, collateral_type, amount, executor),
+        );
     }
 
     /// Emitted when a user transfers collateral to another user
@@ -99,10 +108,11 @@ impl SynthMarketEvents {
         from: Address,
         to: Address,
         collateral_type: Address,
-        amount: u64
+        amount: u64,
     ) {
         let topics = (Symbol::new(&e, "collateral_transfer"), market_id);
-        e.events().publish(topics, (from, to, collateral_type, amount));
+        e.events()
+            .publish(topics, (from, to, collateral_type, amount));
     }
 
     /// Emitted when a user withdraws collateral from a market
@@ -114,10 +124,11 @@ impl SynthMarketEvents {
         market: SynthMarket,
         withdrawer: Address,
         collateral_type: Address,
-        amount: u64
+        amount: u64,
     ) {
         let topics = (Symbol::new(&e, "collateral_withdrawal"), market_id);
-        e.events().publish(topics, (withdrawer, collateral_type, amount));
+        e.events()
+            .publish(topics, (withdrawer, collateral_type, amount));
     }
 
     // Keeper Events
@@ -125,7 +136,7 @@ impl SynthMarketEvents {
     /// Emitted when a position is liquidated
     ///
     /// - topics - `["liquidation", market_id: u32]`
-    /// - data - `[user: Address, liquidator: Address, margin_requirement: u128, total_collateral: i128, margin_freed: u64, liquidation_id: u16]`
+    /// - data - `[user: Address, liquidator: Address, margin_requirement: u128, total_collateral: i128, margin_freed: u64, liquidation_id: u32]`
     pub fn liquidation(
         e: &Env,
         market: SynthMarket,
@@ -134,17 +145,20 @@ impl SynthMarketEvents {
         margin_requirement: u128,
         total_collateral: i128,
         margin_freed: u64,
-        liquidation_id: u16
+        liquidation_id: u32,
     ) {
         let topics = (Symbol::new(&e, "liquidation"), market_id);
-        e.events().publish(topics, (
-            user,
-            liquidator,
-            margin_requirement,
-            total_collateral,
-            margin_freed,
-            liquidation_id,
-        ));
+        e.events().publish(
+            topics,
+            (
+                user,
+                liquidator,
+                margin_requirement,
+                total_collateral,
+                margin_freed,
+                liquidation_id,
+            ),
+        );
     }
 
     /// Emitted when a position is bankrupt
@@ -156,7 +170,7 @@ impl SynthMarketEvents {
         market: SynthMarket,
         depositor: Address,
         collateral_type: Address,
-        amount: u64
+        amount: u64,
     ) {
         let topics = (Symbol::new(&e, "bankruptcy"), market_id);
         e.events().publish(topics, ());

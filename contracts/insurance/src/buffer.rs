@@ -1,15 +1,31 @@
-use soroban_sdk::{Address, Env};
+use soroban_sdk::{ Address, Env };
 
 pub trait BufferTrait {
-    fn initialize(env: Env);
+    // ################################################################
+    //                             ADMIN
+    // ################################################################
 
-    fn update_max_balance(env: Env);
+    fn update_buffer_max_balance(env: Env, sender: Address, max_balance: i128);
 
-    fn deposit(env: Env, amount: i128);
+    fn deposit_into_buffer(env: Env, amount: i128);
 
-    fn buy_back_and_burn(env: Env, sender: Address, amount: i128);
+    fn execute_buffer_buyback(env: Env, sender: Address, amount: i128);
 
-    fn mint_and_sell(env: Env, sender: Address, amount: i128);
+    fn execute_buffer_auction(env: Env, sender: Address, amount: i128);
 
-    // QUERIES
+    // ################################################################
+    //                             USER
+    // ################################################################
+
+    fn bid_buffer_auction(env: Env, user: Address, auction_ts: u64, bid_amount: i128);
+
+    // ################################################################
+    //                             QUERIES
+    // ################################################################
+
+    fn query_buffer(env: Env);
+
+    fn query_buffer_auctions(env: Env);
+
+    fn query_buffe_balance(env: Env);
 }

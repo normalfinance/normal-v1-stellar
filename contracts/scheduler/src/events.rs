@@ -1,4 +1,4 @@
-use soroban_sdk::{ Address, Env, Symbol };
+use soroban_sdk::{Address, Env, Symbol};
 
 use crate::storage::{Asset, Schedule};
 
@@ -26,10 +26,11 @@ impl SchedulerEvents {
         schedule_id: u32,
         creator: Address,
         amm_id: Address,
-        params: Schedule
+        params: Schedule,
     ) {
         let topics = (Symbol::new(&e, "new_schedule"), schedule_id, creator);
-        e.events().publish(topics, (title, desc, action, vote_start, vote_end));
+        e.events()
+            .publish(topics, (title, desc, action, vote_start, vote_end));
     }
 
     /// Emitted when a user makes a deposit

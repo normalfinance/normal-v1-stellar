@@ -4,7 +4,7 @@ mod contract;
 mod controller;
 mod errors;
 mod events;
-mod math;
+pub mod math;
 mod pool;
 mod position;
 mod reward;

@@ -1,7 +1,10 @@
 use normal::error::ErrorCode;
-use soroban_sdk::{ vec, Env, Vec };
+use soroban_sdk::{vec, Env, Vec};
 
-use crate::{ tick::{ Tick, TickUpdate, ZeroedTickArray }, tick_array::TickArray };
+use crate::{
+    tick::{Tick, TickUpdate, ZeroedTickArray},
+    tick_array::TickArray,
+};
 
 use super::swap_tick_sequence::SwapTickSequence;
 
@@ -30,9 +33,10 @@ impl ProxiedTickArray {
         &self,
         tick_index: i32,
         tick_spacing: u16,
-        a_to_b: bool
+        a_to_b: bool,
     ) -> Result<Option<i32>> {
-        self.as_ref().get_next_init_tick_index(tick_index, tick_spacing, a_to_b)
+        self.as_ref()
+            .get_next_init_tick_index(tick_index, tick_spacing, a_to_b)
     }
 
     pub fn get_tick(&self, tick_index: i32, tick_spacing: u16) -> Result<&Tick> {
@@ -43,7 +47,7 @@ impl ProxiedTickArray {
         &mut self,
         tick_index: i32,
         tick_spacing: u16,
-        update: &TickUpdate
+        update: &TickUpdate,
     ) -> Result<()> {
         self.as_mut().update_tick(tick_index, tick_spacing, update)
     }
@@ -124,7 +128,7 @@ impl SparseSwapTickSequenceBuilder {
         env: Env,
         a_to_b: bool,
         static_tick_array_account_infos: Vec<TickArrayAccount>,
-        supplemental_tick_array_account_infos: Option<Vec<TickArrayAccount>>
+        supplemental_tick_array_account_infos: Option<Vec<TickArrayAccount>>,
     ) -> Result<Self> {
         let mut tick_array_account_infos = static_tick_array_account_infos;
         if let Some(supplemental_tick_array_account_infos) = supplemental_tick_array_account_infos {
@@ -141,7 +145,11 @@ impl SparseSwapTickSequenceBuilder {
             let state = peek_tick_array(account_info)?;
 
             match &state {
-                TickArrayAccount::Initialized { tick_array_market, start_tick_index, .. } => {
+                TickArrayAccount::Initialized {
+                    tick_array_market,
+                    start_tick_index,
+                    ..
+                } => {
                     // has_one constraint equivalent check
                     if *tick_array_market != market.key() {
                         return Err(ErrorCode::DifferentAMMTickArrayAccount.into());
@@ -155,7 +163,10 @@ impl SparseSwapTickSequenceBuilder {
                     // So we can safely use these accounts.
                     initialized.push((*start_tick_index, state));
                 }
-                TickArrayAccount::Uninitialized { pubkey: account_address, .. } => {
+                TickArrayAccount::Uninitialized {
+                    pubkey: account_address,
+                    ..
+                } => {
                     // TickArray accounts in uninitialized have been verified as:
                     //   - Owned by System program
                     //   - Data size is zero
@@ -219,28 +230,27 @@ impl SparseSwapTickSequenceBuilder {
                     let data = account_info.try_borrow_mut_data()?;
                     let tick_array_refmut = RefMut::map(data, |data| {
                         bytemuck::from_bytes_mut(
-                            &mut data.deref_mut()[8..std::mem::size_of::<TickArray>() + 8]
+                            &mut data.deref_mut()[8..std::mem::size_of::<TickArray>() + 8],
                         )
                     });
-                    proxied_tick_arrays.push_back(
-                        ProxiedTickArray::new_initialized(tick_array_refmut)
-                    );
+                    proxied_tick_arrays
+                        .push_back(ProxiedTickArray::new_initialized(tick_array_refmut));
                 }
-                TickArrayAccount::Uninitialized { start_tick_index, .. } => {
-                    proxied_tick_arrays.push_back(
-                        ProxiedTickArray::new_uninitialized(start_tick_index.unwrap())
-                    );
+                TickArrayAccount::Uninitialized {
+                    start_tick_index, ..
+                } => {
+                    proxied_tick_arrays.push_back(ProxiedTickArray::new_uninitialized(
+                        start_tick_index.unwrap(),
+                    ));
                 }
             }
         }
 
-        Ok(
-            SwapTickSequence::<'a>::new_with_proxy(
-                proxied_tick_arrays.pop_front().unwrap(),
-                proxied_tick_arrays.pop_front(),
-                proxied_tick_arrays.pop_front()
-            )
-        )
+        Ok(SwapTickSequence::<'a>::new_with_proxy(
+            proxied_tick_arrays.pop_front().unwrap(),
+            proxied_tick_arrays.pop_front(),
+            proxied_tick_arrays.pop_front(),
+        ))
     }
 }
 
@@ -270,10 +280,8 @@ fn peek_tick_array(account_info: TickArrayAccount) -> Result<TickArrayAccount<'_
     // owner program check
     if account_info.owner != &TickArray::owner() {
         return Err(
-            Error::from(anchor_lang::error::ErrorCode::AccountOwnedByWrongProgram).with_pubkeys((
-                *account_info.owner,
-                TickArray::owner(),
-            ))
+            Error::from(anchor_lang::error::ErrorCode::AccountOwnedByWrongProgram)
+                .with_pubkeys((*account_info.owner, TickArray::owner())),
         );
     }
 
@@ -347,7 +355,12 @@ fn floor_division(dividend: i32, divisor: i32) -> i32 {
 
 fn derive_tick_array_pda(market: &Account<Market>, start_tick_index: i32) -> Pubkey {
     Pubkey::find_program_address(
-        &[b"tick_array", market.key().as_ref(), start_tick_index.to_string().as_bytes()],
-        &TickArray::owner()
-    ).0
+        &[
+            b"tick_array",
+            market.key().as_ref(),
+            start_tick_index.to_string().as_bytes(),
+        ],
+        &TickArray::owner(),
+    )
+    .0
 }

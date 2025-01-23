@@ -1,11 +1,13 @@
-use core::{ cmp::max, fmt };
+use core::{cmp::max, fmt};
 
-use soroban_sdk::{ contracttype, log, Env, String };
+use soroban_sdk::{contracttype, log, Env, String};
 
+use crate::math::casting::Cast;
+use crate::math::safe_math::SafeMath;
 use crate::{
     constants::BID_ASK_SPREAD_PRECISION,
-    error::ErrorCode,
-    oracle::{ OracleGuardRails, OraclePriceData, ValidityGuardRails },
+    error::{ErrorCode, NormalResult},
+    oracle::{OracleGuardRails, OraclePriceData, ValidityGuardRails},
 };
 
 // use crate::
@@ -66,74 +68,74 @@ pub enum NormalAction {
 
 pub fn is_oracle_valid_for_action(
     oracle_validity: OracleValidity,
-    action: Option<NormalAction>
-) -> bool {
+    action: Option<NormalAction>,
+) -> NormalResult<bool> {
     let is_ok = match action {
-        Some(action) =>
-            match action {
-                NormalAction::OracleOrderPrice => {
-                    matches!(
-                        oracle_validity,
-                        OracleValidity::Valid |
-                            OracleValidity::StaleForAMM |
-                            OracleValidity::InsufficientDataPoints
-                    )
-                }
-                // TODO: revisit
-                NormalAction::IndexPricing =>
-                    matches!(
-                        oracle_validity,
-                        OracleValidity::Valid |
-                            OracleValidity::StaleForAMM |
-                            OracleValidity::InsufficientDataPoints
-                    ),
-                NormalAction::MarginCalc =>
-                    !matches!(
-                        oracle_validity,
-                        OracleValidity::NonPositive |
-                            OracleValidity::TooVolatile |
-                            OracleValidity::TooUncertain |
-                            OracleValidity::StaleForMargin
-                    ),
-
-                NormalAction::Liquidate =>
-                    !matches!(
-                        oracle_validity,
-                        OracleValidity::NonPositive | OracleValidity::TooVolatile
-                    ),
-                NormalAction::UpdateTwap => !matches!(oracle_validity, OracleValidity::NonPositive),
-                NormalAction::UpdateAMMCurve =>
-                    !matches!(oracle_validity, OracleValidity::NonPositive),
+        Some(action) => match action {
+            NormalAction::OracleOrderPrice => {
+                matches!(
+                    oracle_validity,
+                    OracleValidity::Valid
+                        | OracleValidity::StaleForAMM
+                        | OracleValidity::InsufficientDataPoints
+                )
             }
-        None => { matches!(oracle_validity, OracleValidity::Valid) }
+            // TODO: revisit
+            NormalAction::IndexPricing => matches!(
+                oracle_validity,
+                OracleValidity::Valid
+                    | OracleValidity::StaleForAMM
+                    | OracleValidity::InsufficientDataPoints
+            ),
+            NormalAction::MarginCalc => !matches!(
+                oracle_validity,
+                OracleValidity::NonPositive
+                    | OracleValidity::TooVolatile
+                    | OracleValidity::TooUncertain
+                    | OracleValidity::StaleForMargin
+            ),
+
+            NormalAction::Liquidate => !matches!(
+                oracle_validity,
+                OracleValidity::NonPositive | OracleValidity::TooVolatile
+            ),
+            NormalAction::UpdateTwap => !matches!(oracle_validity, OracleValidity::NonPositive),
+            NormalAction::UpdateAMMCurve => !matches!(oracle_validity, OracleValidity::NonPositive),
+        },
+        None => {
+            matches!(oracle_validity, OracleValidity::Valid)
+        }
     };
 
-    is_ok
+    Ok(is_ok)
 }
 
 pub fn block_operation(
+    env: Env,
+    market_name: String,
     oracle_price_data: &OraclePriceData,
     guard_rails: &OracleGuardRails,
     reserve_price: u64,
-    now: u64
-) -> bool {
-    // NormalResult<bool>
-    let OracleStatus {
-        oracle_validity,
-        mark_too_divergent: is_oracle_mark_too_divergent,
-        oracle_res_price_spread_pct: _,
-        ..
-    } = get_oracle_status(oracle_price_data, guard_rails, reserve_price)?;
-    let is_oracle_valid = is_oracle_valid_for_action(
-        oracle_validity,
-        Some(NormalAction::UpdateFunding)
-    )?;
+    now: u64,
+) -> NormalResult<bool> {
+    // let OracleStatus {
+    //     oracle_validity,
+    //     mark_too_divergent: is_oracle_mark_too_divergent,
+    //     oracle_res_price_spread_pct: _,
+    //     ..
+    // } = get_oracle_status(env, market_name, oracle_price_data, guard_rails, reserve_price)?;
 
-    // let slots_since_amm_update = slot.saturating_sub(market.amm.last_update_slot);
+    // let is_oracle_valid = is_oracle_valid_for_action(
+    //     oracle_validity,
+    //     Some(NormalAction::IndexPricing)
+    // )?;
 
-    // TODO: when else should we block
-    let block = !is_oracle_valid || is_oracle_mark_too_divergent;
-    block
+    // // let slots_since_amm_update = slot.saturating_sub(market.amm.last_update_slot);
+
+    // // TODO: when else should we block
+    // let block = !is_oracle_valid || is_oracle_mark_too_divergent;
+    let block = false;
+    Ok(block)
 }
 
 #[contracttype]
@@ -146,32 +148,44 @@ pub struct OracleStatus {
 }
 
 pub fn get_oracle_status(
+    env: Env,
+    market_name: String,
+    // pool: &SynthPool,
     oracle_price_data: &OraclePriceData,
     guard_rails: &OracleGuardRails,
-    reserve_price: u64
-) -> OracleStatus {
-    let oracle_validity = oracle_validity(
-        market.amm.historical_oracle_data.last_oracle_price_twap,
-        oracle_price_data,
-        &guard_rails.validity,
-        SynthMarket::get_max_confidence_interval_multiplier(),
-        false
-    )?;
-    let oracle_res_price_spread_pct = amm::calculate_oracle_twap_5min_price_spread_pct(
-        &market.amm,
-        reserve_price
-    )?;
-    let is_oracle_mark_too_divergent = is_oracle_mark_too_divergent(
-        oracle_res_price_spread_pct,
-        &guard_rails.price_divergence
-    );
+    reserve_price: u64,
+) -> NormalResult<OracleStatus> {
+    // let oracle_validity = oracle_validity(
+    //     env,
+    //     market_name,
+    //     market.amm.historical_oracle_data.last_oracle_price_twap,
+    //     oracle_price_data,
+    //     &guard_rails.validity,
+    //     SynthMarket::get_max_confidence_interval_multiplier(),
+    //     false
+    // )?;
 
-    OracleStatus {
+    // let oracle_res_price_spread_pct = math::amm::calculate_oracle_twap_5min_price_spread_pct(
+    //     &market.amm,
+    //     reserve_price
+    // )?;
+    // let is_oracle_mark_too_divergent = is_oracle_mark_too_divergent(
+    //     oracle_res_price_spread_pct,
+    //     &guard_rails.price_divergence
+    // );
+
+    // Ok(OracleStatus {
+    //     price_data: *oracle_price_data,
+    //     oracle_res_price_spread_pct,
+    //     mark_too_divergent: is_oracle_mark_too_divergent,
+    //     oracle_validity,
+    // })
+    Ok(OracleStatus {
         price_data: *oracle_price_data,
-        oracle_res_price_spread_pct,
-        mark_too_divergent: is_oracle_mark_too_divergent,
-        oracle_validity,
-    }
+        oracle_res_price_spread_pct: 1,
+        mark_too_divergent: false,
+        oracle_validity: OracleValidity::Valid,
+    })
 }
 
 pub fn oracle_validity(
@@ -181,8 +195,8 @@ pub fn oracle_validity(
     oracle_price_data: &OraclePriceData,
     valid_oracle_guard_rails: &ValidityGuardRails,
     max_confidence_interval_multiplier: u64,
-    log_validity: bool
-) -> OracleValidity {
+    log_validity: bool,
+) -> NormalResult<OracleValidity> {
     let OraclePriceData {
         price: oracle_price,
         confidence: oracle_conf,
@@ -195,24 +209,21 @@ pub fn oracle_validity(
 
     let is_oracle_price_too_volatile = oracle_price
         .max(last_oracle_twap)
-        .safe_div(last_oracle_twap.min(oracle_price).max(1))?
+        .safe_div(last_oracle_twap.min(oracle_price).max(1), &env)?
         .gt(&valid_oracle_guard_rails.too_volatile_ratio);
 
     let conf_pct_of_price = max(1, oracle_conf)
-        .safe_mul(BID_ASK_SPREAD_PRECISION)?
-        .safe_div(oracle_price.cast()?)?;
+        .safe_mul(BID_ASK_SPREAD_PRECISION, &env)?
+        .safe_div(oracle_price.cast(&env)?, &env)?;
 
     // TooUncertain
-    let is_conf_too_large = conf_pct_of_price.gt(
-        &valid_oracle_guard_rails.confidence_interval_max_size.safe_mul(
-            max_confidence_interval_multiplier
-        )?
-    );
+    let is_conf_too_large = conf_pct_of_price.gt(&valid_oracle_guard_rails
+        .confidence_interval_max_size
+        .safe_mul(max_confidence_interval_multiplier, &env)?);
 
     let is_stale_for_amm = oracle_delay.gt(&valid_oracle_guard_rails.slots_before_stale_for_amm);
-    let is_stale_for_margin = oracle_delay.gt(
-        &valid_oracle_guard_rails.slots_before_stale_for_margin
-    );
+    let is_stale_for_margin =
+        oracle_delay.gt(&valid_oracle_guard_rails.slots_before_stale_for_margin);
 
     let oracle_validity = if is_oracle_price_nonpositive {
         OracleValidity::NonPositive
@@ -232,11 +243,19 @@ pub fn oracle_validity(
 
     if log_validity {
         if !has_sufficient_data_points {
-            log!(&env, "Invalid {} {} Oracle: Insufficient Data Points", market_name);
+            log!(
+                &env,
+                "Invalid {} {} Oracle: Insufficient Data Points",
+                market_name
+            );
         }
 
         if is_oracle_price_nonpositive {
-            log!(&env, "Invalid {} {} Oracle: Non-positive (oracle_price <=0)", market_name);
+            log!(
+                &env,
+                "Invalid {} {} Oracle: Non-positive (oracle_price <=0)",
+                market_name
+            );
         }
 
         if is_oracle_price_too_volatile {
@@ -268,5 +287,5 @@ pub fn oracle_validity(
         }
     }
 
-    oracle_validity
+    Ok(oracle_validity)
 }

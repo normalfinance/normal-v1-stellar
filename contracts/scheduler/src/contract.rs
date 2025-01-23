@@ -1,35 +1,19 @@
 use normal::{
-    ttl::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD },
+    constants::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD},
+    error::{ErrorCode, NormalResult},
     types::OrderDirection,
     validate_bps,
-    error::{ NormalResult, ErrorCode },
 };
 use soroban_sdk::{
-    contractmeta,
-    contract,
-    contractimpl,
-    log,
-    panic_with_error,
-    Address,
-    Env,
-    Vec,
-    Symbol,
+    contract, contractimpl, contractmeta, log, panic_with_error, Address, Env, Symbol, Vec,
 };
 
 use crate::{
     events::SchedulerEvents,
     scheduler::SchedulerTrait,
     storage::{
-        get_config,
-        is_initialized,
-        save_config,
-        save_schedules,
-        set_initialized,
-        Asset,
-        Config,
-        DataKey,
-        Schedule,
-        ScheduleType,
+        get_config, is_initialized, save_config, save_schedules, set_initialized, Asset, Config,
+        DataKey, Schedule, ScheduleType,
     },
     token_contract,
 };
@@ -52,10 +36,13 @@ impl SchedulerTrait for Scheduler {
         index_factory_address: Address,
         keeper_accounts: Vec<Address>,
         protocol_fee_bps: i64,
-        keeper_fee_bps: i64
+        keeper_fee_bps: i64,
     ) {
         if is_initialized(&env) {
-            log!(&env, "Scheduler: Initialize: initializing contract twice is not allowed");
+            log!(
+                &env,
+                "Scheduler: Initialize: initializing contract twice is not allowed"
+            );
             panic_with_error!(&env, ErrorCode::AlreadyInitialized);
         }
 
@@ -69,14 +56,17 @@ impl SchedulerTrait for Scheduler {
 
         set_initialized(&env);
 
-        save_config(&env, Config {
-            admin: admin.clone(),
-            synth_market_factory_address,
-            index_factory_address,
-            keeper_accounts,
-            protocol_fee_bps,
-            keeper_fee_bps,
-        });
+        save_config(
+            &env,
+            Config {
+                admin: admin.clone(),
+                synth_market_factory_address,
+                index_factory_address,
+                keeper_accounts,
+                protocol_fee_bps,
+                keeper_fee_bps,
+            },
+        );
 
         SchedulerEvents::initialize(&env, admin);
     }
@@ -88,11 +78,13 @@ impl SchedulerTrait for Scheduler {
         synth_market_factory_address: Option<Address>,
         index_factory_address: Option<Address>,
         protocol_fee_bps: Option<u64>,
-        keeper_fee_bps: Option<u64>
+        keeper_fee_bps: Option<u64>,
     ) {
         let admin: Address = utils::get_admin_old(&env);
         admin.require_auth();
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         // TODO: do we need manual admin check here?
 
@@ -123,15 +115,20 @@ impl SchedulerTrait for Scheduler {
         env: Env,
         sender: Address,
         to_add: Vec<Address>,
-        to_remove: Vec<Address>
+        to_remove: Vec<Address>,
     ) {
         sender.require_auth();
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let config = get_config(&env);
 
         if config.admin != sender {
-            log!(&env, "Scheduler: Update keeper accounts: You are not authorized!");
+            log!(
+                &env,
+                "Scheduler: Update keeper accounts: You are not authorized!"
+            );
             panic_with_error!(&env, ErrorCode::NotAuthorized);
         }
 
@@ -149,10 +146,13 @@ impl SchedulerTrait for Scheduler {
             }
         });
 
-        save_config(&env, Config {
-            keeper_accounts,
-            ..config
-        })
+        save_config(
+            &env,
+            Config {
+                keeper_accounts,
+                ..config
+            },
+        )
     }
 
     fn collect_protocol_fees(env: Env, sender: Address, to: Address) {
@@ -161,7 +161,10 @@ impl SchedulerTrait for Scheduler {
         let config = get_config(&env);
 
         if config.admin != sender {
-            log!(&env, "Scheduler: Collect protocol fees: You are not authorized!");
+            log!(
+                &env,
+                "Scheduler: Collect protocol fees: You are not authorized!"
+            );
             panic_with_error!(&env, ErrorCode::NotAuthorized);
         }
 
@@ -170,7 +173,7 @@ impl SchedulerTrait for Scheduler {
             _,
             &env.current_contract_address(),
             &to,
-            &config.fees_to_collect
+            &config.fees_to_collect,
         );
 
         config.fees_to_collect = 0;
@@ -250,8 +253,8 @@ impl SchedulerTrait for Scheduler {
         direction: OrderDirection,
         active: bool,
         interval_seconds: u64,
-        min_price: Option<u16>,
-        max_price: Option<u16>
+        min_price: Option<u32>,
+        max_price: Option<u32>,
     ) {
         user.require_auth();
 
@@ -287,9 +290,9 @@ impl SchedulerTrait for Scheduler {
         direction: Option<OrderDirection>,
         active: Option<bool>,
         interval_seconds: Option<u64>,
-        total_orders: Option<u16>,
-        min_price: Option<u16>,
-        max_price: Option<u16>
+        total_orders: Option<u32>,
+        min_price: Option<u32>,
+        max_price: Option<u32>,
     ) {
         user.require_auth();
         // env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
@@ -325,7 +328,7 @@ impl SchedulerTrait for Scheduler {
         }
         schedule.last_updated_ts = env.ledger().timestamp();
 
-        save_schedules(&env, schedule);
+        save_schedules(&env, &user, schedule);
     }
 
     fn delete_schedule(env: Env, user: Address, schedule_timestamp: u64) {
@@ -337,7 +340,7 @@ impl SchedulerTrait for Scheduler {
             return Err(ErrorCode::InvalidScheduleOwner);
         }
 
-        // TODO: delete schedule...
+        remove_schedule(&env, &mut stakes.stakes, stake_amount, schedule_timestamp);
 
         SchedulerEvents::delete_schedule(&env, user, schedule_timestamp);
     }
@@ -358,9 +361,8 @@ impl SchedulerTrait for Scheduler {
         }
 
         // TODO: how do we error if no schedule is found
-        let mut schedule = get_schedule_by_timestamp(&env, &user, &schedule_timestamp).ok_or(
-            "Schedule not found"
-        )?;
+        let mut schedule = get_schedule_by_timestamp(&env, &user, &schedule_timestamp)
+            .ok_or("Schedule not found")?;
 
         // TODO: Validate the schedule needs to be executed
 
@@ -389,8 +391,8 @@ impl SchedulerTrait for Scheduler {
                         other_amount_threshold,
                         sqrt_price_limit,
                         amount_specified_is_input,
-                        a_to_b
-                    ]
+                        a_to_b,
+                    ],
                 );
                 assert!(
                     amm_response.ask_amount.is_some(),
@@ -401,7 +403,7 @@ impl SchedulerTrait for Scheduler {
                 let index_response: MintResponse = env.invoke_contract(
                     &schedule.target_contract_address,
                     &Symbol::new(&env, "mint"),
-                    vec![&env, user.into_val(&env), amount]
+                    vec![&env, user.into_val(&env), amount],
                 );
                 assert!(
                     index_response.mint_amount.is_some(),
@@ -433,7 +435,7 @@ impl SchedulerTrait for Scheduler {
 
         let recipient_address = match to {
             Some(to_address) => to_address, // Use the provided `to` address
-            None => keeper, // Otherwise use the keeper address
+            None => keeper,                 // Otherwise use the keeper address
         };
 
         for asset in keeper_info.fees_owed {
@@ -442,7 +444,7 @@ impl SchedulerTrait for Scheduler {
                 &asset.address,
                 &env.current_contract_address(),
                 &recipient_address,
-                &asset.amount
+                &asset.amount,
             );
             asset.amount = 0; // TODO: is this the correct way to zero this?
         }
@@ -456,12 +458,16 @@ impl SchedulerTrait for Scheduler {
     // Queries
 
     fn query_schedules(env: Env) -> Vec<Address> {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         // get_lp_vec(&env)
     }
 
     fn query_pool_details(env: Env, pool_address: Address) -> LiquidityPoolInfo {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         // let pool_response: LiquidityPoolInfo = env.invoke_contract(
         //     &pool_address,
         //     &Symbol::new(&env, "query_pool_info_for_factory"),
@@ -471,13 +477,29 @@ impl SchedulerTrait for Scheduler {
     }
 }
 
+// Function to remove a schedule from the vector
+fn remove_schedule(env: &Env, schedules: &mut Vec<Schedule>, stake: i128, schedule_timestamp: u64) {
+    // Find the index of the stake that matches the given stake and schedule_timestamp
+    if let Some(index) = schedules
+        .iter()
+        .position(|s| s.stake == stake && s.schedule_timestamp == schedule_timestamp)
+    {
+        // Remove the stake at the found index
+        schedules.remove(index as u32);
+    } else {
+        // Schedule not found, return an error
+        log!(&env, "Schedule: Remove schedule: Schedule not found");
+        panic_with_error!(&env, ContractError::StakeNotFound);
+    }
+}
+
 fn validate_target_info(env: Env, schedule_type: &ScheduleType, target_contract_address: Address) {
     match schedule_type {
         ScheduleType::Asset => {
             let amm_response: SimulateSwapResponse = env.invoke_contract(
                 &target_contract_address,
                 &Symbol::new(&env, "simulate_swap"),
-                Vec::new(&env) // TODO: update args OR use health_ping call instead
+                Vec::new(&env), // TODO: update args OR use health_ping call instead
             );
             assert!(
                 amm_response.ask_amount.is_some(),
@@ -488,7 +510,7 @@ fn validate_target_info(env: Env, schedule_type: &ScheduleType, target_contract_
             let index_response: SimulateMintResponse = env.invoke_contract(
                 &target_contract_address,
                 &Symbol::new(&env, "simulate_mint"),
-                Vec::new(&env) // TODO: update args OR use health_ping call instead
+                Vec::new(&env), // TODO: update args OR use health_ping call instead
             );
             assert!(
                 index_response.mint_amount.is_some(),

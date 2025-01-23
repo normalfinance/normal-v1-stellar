@@ -4,6 +4,7 @@ use soroban_sdk::{
     contractmeta,
     log,
     panic_with_error,
+    vec,
     Address,
     BytesN,
     Env,
@@ -13,10 +14,22 @@ use soroban_sdk::{
 
 use crate::{
     controller,
-    events::{ InsuranceEvents, InsuranceFundEvents },
+    events::{ BufferEvents, InsuranceFundEvents },
     insurance_fund::{ self, InsuranceFundTrait },
+    interfaces::aqua::LiquidityPoolInterfaceTrait,
     math,
-    storage::{ get_config, get_insurance_fund, get_stake, utils, Config, Operation, Stake },
+    pool_contract,
+    storage::{
+        get_config,
+        get_insurance_fund,
+        get_stake,
+        utils,
+        Auction,
+        AuctionLocation,
+        Config,
+        Operation,
+        Stake,
+    },
     token_contract,
 };
 
@@ -55,11 +68,13 @@ impl InsuranceFundTrait for Insurance {
         env: Env,
         admin: Address,
         governor: Address,
+        gov_token: Address,
         stake_asset: Address,
         token_wasm_hash: BytesN<32>,
         share_token_decimals: u32,
         share_token_name: String,
-        share_token_symbol: String
+        share_token_symbol: String,
+        max_buffer_balance: i128
     ) {
         if utils::is_initialized(&env) {
             log!(&env, "Insurance Fund: Initialize: initializing contract twice is not allowed");
@@ -104,7 +119,7 @@ impl InsuranceFundTrait for Insurance {
     //                             USER
     // ################################################################
 
-    fn add_stake(env: Env, sender: Address, amount: u64) {
+    fn add_if_stake(env: Env, sender: Address, amount: u64) {
         sender.require_auth();
         check_nonnegative_amount(amount);
 
@@ -147,7 +162,7 @@ impl InsuranceFundTrait for Insurance {
             .transfer(&sender, &env.current_contract_address(), &amount);
     }
 
-    fn request_remove_stake(env: Env, sender: Address, amount: u64) {
+    fn request_remove_if_stake(env: Env, sender: Address, amount: u64) {
         sender.require_auth();
 
         let now = env.ledger().timestamp();
@@ -189,7 +204,7 @@ impl InsuranceFundTrait for Insurance {
         )
     }
 
-    fn cancel_request_remove_stake(env: Env, sender: Address) {
+    fn cancel_request_remove_if_stake(env: Env, sender: Address) {
         sender.require_auth();
 
         let now = env.ledger().timestamp();
@@ -211,7 +226,7 @@ impl InsuranceFundTrait for Insurance {
         )
     }
 
-    fn remove_stake(env: Env, sender: Address) {
+    fn remove_if_stake(env: Env, sender: Address) {
         sender.require_auth();
 
         let now = env.ledger().timestamp();
@@ -249,13 +264,13 @@ impl InsuranceFundTrait for Insurance {
         get_config(&env)
     }
 
-    fn query_insurance_fund(env: Env) -> InsuranceFund {
+    fn query_if(env: Env) -> InsuranceFund {
         env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         get_insurance_fund(&env)
     }
 
-    fn query_stake(env: Env, address: Address) -> Stake {
+    fn query_if_stake(env: Env, address: Address) -> Stake {
         env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         get_stake(&env, &address);
     }
@@ -264,30 +279,39 @@ impl InsuranceFundTrait for Insurance {
 #[contractimpl]
 /// Implementation of the Buffer trait to allow for ...
 impl BufferTrait for Insurance {
-    fn initialize(
-        env: Env,
-        norm_token_contract_address: Address,
-        lp_contract_address: Address,
-        max_balance: i128
-    ) {}
+    fn update_buffer_max_balance(env: Env, sender: Address, max_balance: i128) {
+        sender.require_auth();
+        check_nonnegative_amount(max_balance);
 
-    fn deposit(env: Env, amount: i128) {
-        if amount <= 0 {
-            return Err();
-        }
+        let mut config = get_config(&env);
+        config.buffer.max_balance = max_balance;
+    }
+
+    fn deposit_into_buffer(env: Env, sender: Address, amount: i128) {
+        sender.require_auth();
+        check_nonnegative_amount(amount);
 
         let current_balance = 0;
-        if current_balance + amount > max_balance {
-            return Err();
-        }
+        // if current_balance + amount > max_balance {
+        //     return Err();
+        // }
+
+        // ...
+
+        let config = get_config(&env);
+
+        token_contract::Client
+            ::new(&env, &config.buffer.gov_token)
+            .transfer(&sender, &env.current_contract_address(), &amount);
     }
 
-    fn buy_back_and_burn(env: Env, sender: Address, amount: i128) {
-        if amount <= 0 {
-            return Err();
-        }
+    fn execute_buffer_buyback(env: Env, sender: Address, amount: i128) {
+        sender.require_auth();
+        check_nonnegative_amount(amount);
 
-        // Buy NORM
+        let config = get_config(&env);
+
+        // Buy <amount> of the gov token from the secondary market
         let swap_response: SwapResponse = env.invoke_contract(
             &norm_lp_contract_address,
             &Symbol::new(&env, "swap"),
@@ -301,40 +325,99 @@ impl BufferTrait for Insurance {
             ]
         );
 
-        // Burn it
-        env.invoke_contract(&norm_token_contract_address, &Symbol::new(&env, "burn"), (
-            env.current_contract_address(),
-            amount,
-        ));
-
-        // Update things
+        // Burn the tokens (to reduce price)
+        token_contract::Client
+            ::new(&env, &config.buffer.gov_token)
+            .burn(&env.current_contract_address(), &amount);
     }
 
-    fn mint_and_sell(env: Env, sender: Address, amount: i128, to: Address) {
-        if amount <= 0 {
-            return Err();
-        }
+    fn execute_buffer_auction(env: Env, sender: Address, amount: i128) {
+        sender.require_auth();
+        check_nonnegative_amount(amount);
 
-        // Mint NORM tokens
-        env.invoke_contract(&norm_token_contract_address, &Symbol::new(&env, "mint"), (
-            env.current_contract_address(),
-            amount,
-        ));
+        let config = get_config(&env);
 
-        // Sell them
-        let swap_response: SwapResponse = env.invoke_contract(
-            &norm_lp_contract_address,
-            &Symbol::new(&env, "swap"),
-            vec![
-                &env,
-                sender.into_val(&env),
-                0, // _amount0_out: i128,
-                0, // _amount1_out: i128,
-                &env.current_contract_address(), // _to: Address,
-                [] // _data: Bytes
-            ]
-        );
+        // Mint gov tokens
+        token_contract::Client
+            ::new(&env, &config.buffer.gov_token)
+            .mint(&env.current_contract_address(), &amount);
 
-        // Transfer proceeds to recipient
+        let out_amount = match config.buffer.auction_location {
+            AuctionLocation::Native => {
+                // TODO: run gov token auction
+            }
+            AuctionLocation::External => {
+                // Sell them (https://github.com/AquaToken/soroban-amm/blob/master/liquidity_pool_router/src/contract.rs#L222)
+                let x = LiquidityPoolInterfaceTrait::swap(
+                    e,
+                    user,
+                    tokens,
+                    token_in,
+                    token_out,
+                    pool_index,
+                    in_amount,
+                    out_min
+                );
+
+                let out_amt = pool_contract::Client
+                    ::new(&env, &config.buffer.gov_token_pool)
+                    .swap(
+                        &env,
+                        &env.current_contract_address(),
+                        vec![&config.buffer.gov_token, &config.buffer.quote_token],
+                        &config.buffer.gov_token,
+                        &config.buffer.quote_token,
+                        &config.buffer.pool_index,
+                        &amount,
+                        0
+                    );
+                out_amt;
+            }
+        };
     }
+
+    // ################################################################
+    //                             USER
+    // ################################################################
+
+    fn bid_buffer_auction(env: Env, user: Address, auction_ts: u64, bid_amount: i128) {
+        user.require_auth();
+        check_nonnegative_amount(bid_amount);
+
+        let auction = get_auction(&env, auction_ts);
+
+        validate_auction(&env, auction);
+
+        let config = get_config(&env);
+
+        // user sends quote token
+        token_contract::Client
+            ::new(&env, &config.buffer.quote_token)
+            .transfer(&user, &env.current_contract_address(), &bid_amount);
+
+        // buffer sends gov token
+        let gov_token_amount = 0; // TODO:
+        token_contract::Client
+            ::new(&env, &config.buffer.gov_token)
+            .transfer(&env.current_contract_address(), &user, &gov_token_amount);
+
+        // update buffer and auction
+        auction.available_balance -= gov_token_amount;
+    }
+
+    // ################################################################
+    //                             QUERIES
+    // ################################################################
+
+    fn query_buffer(env: Env) {}
+
+    fn query_buffer_auctions(env: Env) {}
+
+    fn query_buffe_balance(env: Env) {}
+}
+
+fn validate_auction(env: &Env, auction: Auction) {
+    // check balance
+
+    // check ts within duration
 }

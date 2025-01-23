@@ -1,14 +1,14 @@
 use normal::error::ErrorCode;
-use soroban_sdk::{ contracttype, Vec };
+use soroban_sdk::{contracttype, Vec};
 
+use crate::{controller, math};
 use crate::{
-    position::{ Position, PositionUpdate },
+    position::{Position, PositionUpdate},
     reward::RewardInfo,
     storage::Config,
     tick::TickUpdate,
     tick_array::TickArray,
 };
-use crate::{ controller, math };
 
 #[contracttype]
 #[derive(Debug)]
@@ -29,7 +29,7 @@ pub fn calculate_modify_liquidity(
     tick_array_lower: &TickArray, // &AccountLoader<'info, TickArray>,
     tick_array_upper: &TickArray,
     liquidity_delta: i128,
-    timestamp: u64
+    timestamp: u64,
 ) -> Result<ModifyLiquidityUpdate> {
     let tick_array_lower = tick_array_lower.load()?;
     let tick_lower = tick_array_lower.get_tick(position.tick_lower_index, pool.tick_spacing)?;
@@ -45,7 +45,7 @@ pub fn calculate_modify_liquidity(
         position.tick_lower_index,
         position.tick_upper_index,
         liquidity_delta,
-        timestamp
+        timestamp,
     )
 }
 
@@ -54,7 +54,7 @@ pub fn calculate_fee_and_reward_growths(
     position: &Position,
     tick_array_lower: &TickArray, // &AccountLoader<'info, TickArray>,
     tick_array_upper: &TickArray,
-    timestamp: u64
+    timestamp: u64,
 ) -> Result<(PositionUpdate, Vec<RewardInfo>)> {
     let tick_array_lower = tick_array_lower.load()?;
     let tick_lower = tick_array_lower.get_tick(position.tick_lower_index, pool.tick_spacing)?;
@@ -72,7 +72,7 @@ pub fn calculate_fee_and_reward_growths(
         position.tick_lower_index,
         position.tick_upper_index,
         0,
-        timestamp
+        timestamp,
     )?;
     Ok((update.position_update, update.reward_infos))
 }
@@ -87,7 +87,7 @@ fn _calculate_modify_liquidity(
     tick_lower_index: i32,
     tick_upper_index: i32,
     liquidity_delta: i128,
-    timestamp: u64
+    timestamp: u64,
 ) -> Result<ModifyLiquidityUpdate> {
     // Disallow only updating position fee and reward growth when position has zero liquidity
     if liquidity_delta == 0 && position.liquidity == 0 {
@@ -100,7 +100,7 @@ fn _calculate_modify_liquidity(
         pool,
         position.tick_upper_index,
         position.tick_lower_index,
-        liquidity_delta
+        liquidity_delta,
     )?;
 
     let tick_lower_update = controller::tick::next_tick_modify_liquidity_update(
@@ -111,7 +111,7 @@ fn _calculate_modify_liquidity(
         pool.fee_growth_global_quote,
         &next_reward_infos,
         liquidity_delta,
-        false
+        false,
     )?;
 
     let tick_upper_update = controller::tick::next_tick_modify_liquidity_update(
@@ -122,7 +122,7 @@ fn _calculate_modify_liquidity(
         pool.fee_growth_global_quote,
         &next_reward_infos,
         liquidity_delta,
-        true
+        true,
     )?;
 
     let (fee_growth_inside_synthetic, fee_growth_inside_quote) =
@@ -133,7 +133,7 @@ fn _calculate_modify_liquidity(
             tick_upper,
             tick_upper_index,
             pool.fee_growth_global_synthetic,
-            pool.fee_growth_global_quote
+            pool.fee_growth_global_quote,
         );
 
     let reward_growths_inside = controller::tick::next_reward_growths_inside(
@@ -142,7 +142,7 @@ fn _calculate_modify_liquidity(
         tick_lower_index,
         tick_upper,
         tick_upper_index,
-        &next_reward_infos
+        &next_reward_infos,
     );
 
     let position_update = controller::position::next_position_modify_liquidity_update(
@@ -150,7 +150,7 @@ fn _calculate_modify_liquidity(
         liquidity_delta,
         fee_growth_inside_synthetic,
         fee_growth_inside_quote,
-        &reward_growths_inside
+        &reward_growths_inside,
     )?;
 
     Ok(ModifyLiquidityUpdate {
@@ -166,7 +166,7 @@ pub fn calculate_liquidity_token_deltas(
     current_tick_index: i32,
     sqrt_price: u128,
     position: &Position,
-    liquidity_delta: i128
+    liquidity_delta: i128,
 ) -> Result<(u64, u64)> {
     if liquidity_delta == 0 {
         return Err(ErrorCode::LiquidityZero.into());
@@ -187,7 +187,7 @@ pub fn calculate_liquidity_token_deltas(
             lower_price,
             upper_price,
             liquidity,
-            round_up
+            round_up,
         )?;
     } else if current_tick_index < position.tick_upper_index {
         // current tick inside position
@@ -195,21 +195,17 @@ pub fn calculate_liquidity_token_deltas(
             sqrt_price,
             upper_price,
             liquidity,
-            round_up
+            round_up,
         )?;
-        delta_quote = math::token_math::get_amount_delta_quote(
-            lower_price,
-            sqrt_price,
-            liquidity,
-            round_up
-        )?;
+        delta_quote =
+            math::token_math::get_amount_delta_quote(lower_price, sqrt_price, liquidity, round_up)?;
     } else {
         // current tick above position
         delta_quote = math::token_math::get_amount_delta_quote(
             lower_price,
             upper_price,
             liquidity,
-            round_up
+            round_up,
         )?;
     }
 
@@ -222,7 +218,7 @@ pub fn sync_modify_liquidity_values(
     tick_array_lower: &TickArray, // &AccountLoader<'info, TickArray>,
     tick_array_upper: &TickArray, // &AccountLoader<'info, TickArray>,
     modify_liquidity_update: ModifyLiquidityUpdate,
-    reward_last_updated_timestamp: u64
+    reward_last_updated_timestamp: u64,
 ) -> Result<()> {
     position.update(&modify_liquidity_update.position_update);
 
@@ -231,7 +227,7 @@ pub fn sync_modify_liquidity_values(
         .update_tick(
             position.tick_lower_index,
             pool.tick_spacing,
-            &modify_liquidity_update.tick_lower_update
+            &modify_liquidity_update.tick_lower_update,
         )?;
 
     tick_array_upper
@@ -239,13 +235,13 @@ pub fn sync_modify_liquidity_values(
         .update_tick(
             position.tick_upper_index,
             pool.tick_spacing,
-            &modify_liquidity_update.tick_upper_update
+            &modify_liquidity_update.tick_upper_update,
         )?;
 
     pool.update_rewards_and_liquidity(
         modify_liquidity_update.reward_infos,
         modify_liquidity_update.amm_liquidity,
-        reward_last_updated_timestamp
+        reward_last_updated_timestamp,
     );
 
     Ok(())

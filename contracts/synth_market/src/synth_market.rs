@@ -1,11 +1,11 @@
-use soroban_sdk::{ contractclient, Address, Env, String };
+use soroban_sdk::{contractclient, Address, Env, String};
 
 #[contractclient(name = "SynthMarketClient")]
 pub trait SynthMarketTrait {
     // ################################################################
     //                             ADMIN
     // ################################################################
-    fn initialize(env: Env, params: SynthMarketParams);
+    fn initialize(env: Env, sender: Address, params: SynthMarketParams);
 
     fn initialize_shutdown(env: Env, sender: Address, expiry_ts: i64);
 
@@ -17,17 +17,17 @@ pub trait SynthMarketTrait {
         env: Env,
         admin: Address,
         debt_floor: Option<u32>,
-        debt_ceiling: Option<u128>
+        debt_ceiling: Option<u128>,
     );
 
-    fn extend_expiry_timestamp(env: Env, admin: Address, expiry_timestamp: i64);
+    fn extend_expiry_ts(env: Env, admin: Address, expiry_timestamp: i64);
 
     fn update_margin_config(
         env: Env,
         admin: Address,
         margin_ratio_initial: u32,
         margin_ratio_maintenance: u32,
-        imf_factor: Option<u32>
+        imf_factor: Option<u32>,
     );
 
     fn update_liquidation_config(
@@ -35,7 +35,7 @@ pub trait SynthMarketTrait {
         admin: Address,
         liquidation_fee: u32,
         if_liquidation_fee: u32,
-        liquidation_penalty: Option<u32>
+        liquidation_penalty: Option<u32>,
     );
 
     fn update_name(env: Env, admin: Address, name: String);

@@ -1,6 +1,6 @@
-use soroban_sdk::{ log, Env };
+use soroban_sdk::{log, Env};
 
-use crate::error::{ NormalResult, ErrorCode };
+use crate::error::{ErrorCode, NormalResult};
 // use crate::math::bn::U192;
 // use solana_program::msg;
 // use std::convert::TryInto;
@@ -22,12 +22,15 @@ macro_rules! impl_cast {
     ($src:ty, $dst:ty) => {
         impl CastFrom<$src> for $dst {
             fn cast_from(value: $src, env: &Env) -> NormalResult<Self> {
-                value
-                    .try_into()
-                    .map_err(|_| {
-                        log!(env, "Casting error: Failed to cast {} to {}", stringify!($src), stringify!($dst));
-                        ErrorCode::CastingFailure
-                    })
+                value.try_into().map_err(|_| {
+                    log!(
+                        env,
+                        "Casting error: Failed to cast {} to {}",
+                        stringify!($src),
+                        stringify!($dst)
+                    );
+                    ErrorCode::CastingFailure
+                })
             }
         }
     };
@@ -62,6 +65,7 @@ impl_cast!(u128, usize);
 
 impl_cast!(i128, i64);
 impl_cast!(i64, i32);
+impl_cast!(i64, u64);
 impl_cast!(i32, i16);
 impl_cast!(i128, i32);
 

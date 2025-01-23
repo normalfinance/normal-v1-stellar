@@ -1,5 +1,5 @@
 use curve::Curve;
-use normal::ttl::{
+use normal::constants::{
     INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT,
     PERSISTENT_LIFETIME_THRESHOLD,
 };
@@ -217,7 +217,7 @@ pub fn save_minter(env: &Env, minter: &MinterInfo) {
 
 #[cfg(feature = "minter")]
 pub fn get_minter(env: &Env) -> Option<MinterInfo> {
-    use phoenix::ttl::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
+    use phoenix::constants::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
 
     let minter_info = env.storage().instance().get(&DataKey::Minter);
     env.storage()

@@ -9,7 +9,7 @@ use crate::{
         if_shares_to_vault_amount,
         vault_amount_to_if_shares,
     },
-    storage::{ InsuranceFund, Stake, StakeAction },
+    storage::{ save_insurance_fund, save_stake, InsuranceFund, Stake, StakeAction },
 };
 
 pub fn add_stake(
@@ -54,6 +54,10 @@ pub fn add_stake(
     insurance_fund.user_shares = insurance_fund.user_shares.safe_add(n_shares, env)?;
 
     let if_shares_after = stake.checked_if_shares(insurance_fund)?;
+
+    // TODO: must we manually save here?
+    save_insurance_fund(env, insurance_fund);
+    save_stake(env, user, stake);
 
     InsuranceFundEvents::stake_record(
         env,
@@ -194,6 +198,9 @@ pub fn request_remove_stake(
 
     let if_shares_after = stake.checked_if_shares(insurance_fund)?;
 
+    // TODO: must we manually save here?
+    save_insurance_fund(env, insurance_fund);
+
     InsuranceFundEvents::stake_record(
         env,
         now,
@@ -210,6 +217,9 @@ pub fn request_remove_stake(
     );
 
     stake.last_withdraw_request_ts = now;
+
+    // TODO: must we manually save here?
+    save_stake(env, user, stake);
 
     Ok(())
 }
@@ -255,6 +265,9 @@ pub fn cancel_request_remove_stake(
 
     let if_shares_after = stake.checked_if_shares(insurance_fund)?;
 
+    // TODO: must we manually save here?
+    save_insurance_fund(env, insurance_fund);
+    
     InsuranceFundEvents::stake_record(
         env,
         now,

@@ -10,13 +10,14 @@ use crate::{
     ConvertVec,
 };
 use normal::{
-    oracle::OracleSource,
-    ttl::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
-    utils::{LiquidityPoolInitInfo, PoolType, StakeInitInfo, TokenInitInfo},
+    constants::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD},
+    validate_bps,
 };
 use normal::{
-    ttl::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD},
-    validate_bps,
+    constants::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
+    error::ErrorCode,
+    oracle::OracleSource,
+    utils::{LiquidityPoolInitInfo, PoolType, StakeInitInfo, TokenInitInfo},
 };
 use soroban_sdk::{
     contract, contractimpl, contractmeta, log, panic_with_error, vec, Address, BytesN, Env,
@@ -33,7 +34,13 @@ pub struct SynthMarketFactory;
 
 pub trait SynthMarketFactoryTrait {
     #[allow(clippy::too_many_arguments)]
-    fn initialize(env: Env, admin: Address, governor: Address, market_wasm_hash: BytesN<32>);
+    fn initialize(
+        env: Env,
+        admin: Address,
+        governor: Address,
+        synth_market_wasm_hash: BytesN<32>,
+        quote_token_whitelist: Vec<Address>,
+    );
 
     #[allow(clippy::too_many_arguments)]
     fn create_synth_market(env: Env, sender: Address, params: SynthMarketParams) -> Address;
@@ -76,7 +83,13 @@ pub trait SynthMarketFactoryTrait {
 #[contractimpl]
 impl SynthMarketFactoryTrait for SynthMarketFactory {
     #[allow(clippy::too_many_arguments)]
-    fn initialize(env: Env, admin: Address, governor: Address, market_wasm_hash: BytesN<32>) {
+    fn initialize(
+        env: Env,
+        admin: Address,
+        governor: Address,
+        synth_market_wasm_hash: BytesN<32>,
+        quote_token_whitelist: Vec<Address>,
+    ) {
         if is_initialized(&env) {
             log!(
                 &env,
@@ -91,7 +104,8 @@ impl SynthMarketFactoryTrait for SynthMarketFactory {
             &env,
             Config {
                 admin: admin.clone(),
-                token_wasm_hash,
+                synth_market_wasm_hash,
+                quote_token_whitelist,
                 emergency_oracle_accounts: [],
                 oracle_guard_rails: OracleGuardRails::default(),
             },
@@ -139,25 +153,27 @@ impl SynthMarketFactoryTrait for SynthMarketFactory {
         // validate_token_info(&env, &lp_init_info.token_init_info, &lp_init_info.stake_init_info);
 
         let config = get_config(&env);
+
+        if !Self::is_token_allowed(&env, &params.quote_token) {
+            return Err(ErrorCode::TokenNotAllowed);
+        }
+
         let token_wasm_hash = config.token_wasm_hash;
 
-        let pool_hash = match pool_type {
-            PoolType::Xyk => config.lp_wasm_hash,
-            PoolType::Stable => get_stable_wasm_hash(&env),
-        };
+        let synth_market_hash = config.synth_market_wasm_hash;
 
         let market_contract_address = deploy_synth_market_contract(
             &env,
-            pool_hash,
-            &lp_init_info.token_init_info.token_a,
-            &lp_init_info.token_init_info.token_b,
+            synth_market_hash,
+            &params.token_init_info.token_a,
+            &params.token_init_info.token_b,
         );
 
         validate_bps!(
-            lp_init_info.swap_fee_bps,
-            lp_init_info.max_allowed_slippage_bps,
-            lp_init_info.max_allowed_spread_bps,
-            lp_init_info.max_referral_bps,
+            params.swap_fee_bps,
+            params.max_allowed_slippage_bps,
+            params.max_allowed_spread_bps,
+            params.max_referral_bps,
             default_slippage_bps,
             max_allowed_fee_bps
         );
@@ -166,7 +182,7 @@ impl SynthMarketFactoryTrait for SynthMarketFactory {
         let init_fn: Symbol = Symbol::new(&env, "initialize");
         let mut init_fn_args: Vec<Val> = (
             token_wasm_hash,
-            lp_init_info.clone(),
+            params.clone(),
             factory_addr,
             config.lp_token_decimals,
             share_token_name,
@@ -198,7 +214,7 @@ impl SynthMarketFactoryTrait for SynthMarketFactory {
     fn delete_initialized_synth_market(env: Env, sender: Address, market: Address) {
         let mut market = query_market_details();
 
-        log!(env, "market {}", market.name);
+        log!(&env, "market {}", market.name);
         // let config = get_config(&env);
 
         // to preserve all protocol invariants, can only remove the last market if it hasn't been "activated"

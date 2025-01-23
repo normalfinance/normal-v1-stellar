@@ -1,6 +1,6 @@
-use soroban_sdk::{ testutils::Address as _, Address, Env };
+use soroban_sdk::{testutils::Address as _, Address, Env};
 
-use self::setup::{ deploy_synth_market_factory_contract, install_synth_market_wasm };
+use self::setup::{deploy_synth_market_factory_contract, install_synth_market_wasm};
 
 mod config;
 mod setup;

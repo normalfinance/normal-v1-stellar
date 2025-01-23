@@ -1,12 +1,13 @@
 use super::setup::{
-    deploy_scheduler_contract,
+    deploy_index_factory_contract, deploy_scheduler_contract, deploy_synth_market_factory_contract,
     install_token_wasm,
-    deploy_synth_market_factory_contract,
-    deploy_index_factory_contract,
 };
-use crate::{ contract::{ Scheduler }, tests::setup::{ install_and_deploy_token_contract } };
+use crate::{contract::Scheduler, tests::setup::install_and_deploy_token_contract};
 
-use soroban_sdk::{ testutils::{ arbitrary::std, Address as _ }, vec, Address, Env, String };
+use soroban_sdk::{
+    testutils::{arbitrary::std, Address as _},
+    vec, Address, Env, String,
+};
 
 #[test]
 fn scheduler_successfully_inits_itself() {
@@ -24,7 +25,7 @@ fn scheduler_successfully_inits_itself() {
         &index_factory.address,
         keepers,
         500,
-        200
+        200,
     );
 
     assert_eq!(scheduler.get_admin(), admin);

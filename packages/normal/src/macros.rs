@@ -11,13 +11,11 @@ macro_rules! get_struct_values {
 
 #[macro_export]
 macro_rules! get_then_update_id {
-    ($struct:expr, $property:ident) => {
-        {
+    ($struct:expr, $property:ident) => {{
         let current_id = $struct.$property;
         $struct.$property = current_id.checked_add(1).or(Some(1)).unwrap();
         current_id
-        }
-    };
+    }};
 }
 #[macro_export]
 macro_rules! validate {

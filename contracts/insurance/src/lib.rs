@@ -9,10 +9,17 @@ mod events;
 mod controller;
 mod storage;
 mod math;
+mod interfaces;
 
 pub mod token_contract {
     soroban_sdk::contractimport!(
         file = "../../target/wasm32-unknown-unknown/release/soroban_token_contract.wasm"
+    );
+}
+
+pub mod pool_contract {
+    soroban_sdk::contractimport!(
+        file = "../../target/wasm32-unknown-unknown/release/aqua_pool.wasm"
     );
 }
 

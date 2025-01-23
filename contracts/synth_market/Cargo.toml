@@ -13,6 +13,7 @@ doctest = false
 [dependencies]
 soroban-sdk = { workspace = true }
 num-integer = { workspace = true }
+normal = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

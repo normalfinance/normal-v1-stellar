@@ -1,5 +1,5 @@
 use normal::error::ErrorCode;
-use soroban_sdk::{ Address, Vec };
+use soroban_sdk::{Address, Vec};
 
 use crate::storage::Config;
 

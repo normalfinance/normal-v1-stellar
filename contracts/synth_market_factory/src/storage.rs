@@ -1,8 +1,8 @@
-use normal::oracle::OracleGuardRails;
-use normal::ttl::{
+use normal::constants::{
     INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT,
     PERSISTENT_LIFETIME_THRESHOLD,
 };
+use normal::oracle::OracleGuardRails;
 use soroban_sdk::{
     contracttype, log, panic_with_error, symbol_short, Address, BytesN, ConversionError, Env,
     Symbol, TryFromVal, Val, Vec,
@@ -33,6 +33,8 @@ impl TryFromVal<Env, DataKey> for Val {
 pub struct Config {
     pub admin: Address,
     pub synth_market_wasm_hash: BytesN<32>,
+    /// Tokens allowed to mint index tokens
+    pub quote_token_whitelist: Vec<Address>,
     pub emergency_oracle_accounts: Vec<Address>,
     pub oracle_guard_rails: OracleGuardRails,
 }

@@ -1,14 +1,19 @@
-use crate::math::constants::{
-    MARGIN_PRECISION_U128,
-    MAX_POSITIVE_UPNL_FOR_INITIAL_MARGIN,
-    PRICE_PRECISION,
-    SPOT_IMF_PRECISION_U128,
-    SPOT_WEIGHT_PRECISION,
-    SPOT_WEIGHT_PRECISION_U128,
-};
-use crate::{ validate, PRICE_PRECISION_I128 };
-use crate::{ validation, PRICE_PRECISION_I64 };
+use normal::error::NormalResult;
+use soroban_sdk::contracttype;
 
+// use crate::math::constants::{
+//     MARGIN_PRECISION_U128,
+//     MAX_POSITIVE_UPNL_FOR_INITIAL_MARGIN,
+//     PRICE_PRECISION,
+//     SPOT_IMF_PRECISION_U128,
+//     SPOT_WEIGHT_PRECISION,
+//     SPOT_WEIGHT_PRECISION_U128,
+// };
+// use crate::storage::Position;
+// use crate::{ validate, PRICE_PRECISION_I128 };
+// use crate::{ validation, PRICE_PRECISION_I64 };
+
+#[contracttype]
 #[derive(Clone, Copy, PartialEq, Debug, Eq)]
 pub enum MarginRequirementType {
     Initial,
@@ -16,12 +21,59 @@ pub enum MarginRequirementType {
     Maintenance,
 }
 
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct MarginCalculation {
+    pub context: MarginContext,
+    pub total_collateral: i128,
+    pub margin_requirement: u128,
+    #[cfg(not(test))]
+    margin_requirement_plus_buffer: u128,
+    #[cfg(test)]
+    pub margin_requirement_plus_buffer: u128,
+    pub num_vault_liabilities: u8, // TODO: cant use u8
+    pub all_oracles_valid: bool,
+    pub with_perp_isolated_liability: bool,
+    pub total_spot_asset_value: i128,
+    pub total_vault_liability_value: u128,
+    // pub open_orders_margin_requirement: u128,
+    tracked_market_margin_req: u128,
+}
+
+impl MarginCalculation {
+    pub fn new(context: MarginContext) -> Self {
+        Self {
+            context,
+            total_collateral: 0,
+            margin_requirement: 0,
+            margin_requirement_plus_buffer: 0,
+            num_vault_liabilities: 0,
+            all_oracles_valid: true,
+            with_perp_isolated_liability: false,
+            total_spot_asset_value: 0,
+            total_vault_liability_value: 0,
+            tracked_market_margin_req: 0,
+        }
+    }
+
+    pub fn add_total_collateral(
+        &mut self,
+        total_collateral: i128,
+        env: &Env
+    ) -> Result<(), Symbol> {
+        self.total_collateral = self.total_collateral
+            .checked_add(total_collateral)
+            .ok_or_else(|| Symbol::from_str(env, "OverflowError"))?;
+        Ok(())
+    }
+}
+
 // pub fn calculate_size_premium_liability_weight(
 //     size: u128, // AMM_RESERVE_PRECISION
 //     imf_factor: u32,
 //     liability_weight: u32,
 //     precision: u128
-// ) -> DriftResult<u32> {
+// ) -> NormalResult<u32> {
 //     if imf_factor == 0 {
 //         return Ok(liability_weight);
 //     }
@@ -51,7 +103,7 @@ pub enum MarginRequirementType {
 //     size: u128, // AMM_RESERVE_PRECISION
 //     imf_factor: u32,
 //     asset_weight: u32
-// ) -> DriftResult<u32> {
+// ) -> NormalResult<u32> {
 //     if imf_factor == 0 {
 //         return Ok(asset_weight);
 //     }
@@ -81,7 +133,7 @@ pub enum MarginRequirementType {
 //     margin_requirement_type: MarginRequirementType,
 //     user_custom_margin_ratio: u32,
 //     track_open_order_fraction: bool
-// ) -> DriftResult<(u128, i128, u128, u128, u128)> {
+// ) -> NormalResult<(u128, i128, u128, u128, u128)> {
 //     let valuation_price = if market.status == MarketStatus::Settlement {
 //         market.expiry_price
 //     } else {
@@ -192,9 +244,9 @@ pub enum MarginRequirementType {
 // }
 
 pub fn calculate_margin_requirement_and_total_collateral_and_liability_info(
-    user: &User,
+    position: &Position,
     context: MarginContext
-) -> DriftResult<MarginCalculation> {
+) -> NormalResult<MarginCalculation> {
     let mut calculation = MarginCalculation::new(context);
 
     let user_custom_margin_ratio = if context.margin_type == MarginRequirementType::Initial {
@@ -500,7 +552,7 @@ pub fn calculate_margin_requirement_and_total_collateral_and_liability_info(
 pub fn validate_any_isolated_tier_requirements(
     user: &User,
     calculation: MarginCalculation
-) -> DriftResult {
+) -> NormalResult {
     if calculation.with_perp_isolated_liability && !user.is_reduce_only() {
         validate!(
             calculation.num_perp_liabilities <= 1,
@@ -538,7 +590,7 @@ pub fn validate_any_isolated_tier_requirements(
 pub fn meets_withdraw_margin_requirement(
     user: &User,
     margin_requirement_type: MarginRequirementType
-) -> DriftResult<bool> {
+) -> NormalResult<bool> {
     let strict = margin_requirement_type == MarginRequirementType::Initial;
     let context = MarginContext::standard(margin_requirement_type).strict(strict);
 
@@ -568,7 +620,7 @@ pub fn meets_withdraw_margin_requirement(
     Ok(true)
 }
 
-pub fn meets_initial_margin_requirement(user: &User) -> DriftResult<bool> {
+pub fn meets_initial_margin_requirement(user: &User) -> NormalResult<bool> {
     calculate_margin_requirement_and_total_collateral_and_liability_info(
         user,
 
@@ -576,7 +628,7 @@ pub fn meets_initial_margin_requirement(user: &User) -> DriftResult<bool> {
     ).map(|calc| calc.meets_margin_requirement())
 }
 
-pub fn meets_maintenance_margin_requirement(user: &User) -> DriftResult<bool> {
+pub fn meets_maintenance_margin_requirement(user: &User) -> NormalResult<bool> {
     calculate_margin_requirement_and_total_collateral_and_liability_info(
         user,
 
@@ -584,7 +636,7 @@ pub fn meets_maintenance_margin_requirement(user: &User) -> DriftResult<bool> {
     ).map(|calc| calc.meets_margin_requirement())
 }
 
-pub fn calculate_max_withdrawable_amount(market_index: u16, user: &User) -> DriftResult<u64> {
+pub fn calculate_max_withdrawable_amount(market_index: u16, user: &User) -> NormalResult<u64> {
     let calculation = calculate_margin_requirement_and_total_collateral_and_liability_info(
         user,
 
@@ -626,9 +678,7 @@ pub fn calculate_max_withdrawable_amount(market_index: u16, user: &User) -> Drif
         .cast()
 }
 
-pub fn calculate_user_equity(
-    user: &User,
-) -> DriftResult<(i128, bool)> {
+pub fn calculate_user_equity(user: &User) -> NormalResult<(i128, bool)> {
     let mut net_usd_value: i128 = 0;
     let mut all_oracles_valid = true;
 

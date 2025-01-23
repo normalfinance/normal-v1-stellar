@@ -1,6 +1,6 @@
-use soroban_sdk::{ log, Env };
+use soroban_sdk::{log, Env};
 
-use crate::error::{ NormalResult, ErrorCode };
+use crate::error::{ErrorCode, NormalResult};
 // use crate::math::bn::{U192, U256};
 use crate::math::ceil_div::CheckedCeilDiv;
 use crate::math::floor_div::CheckedFloorDiv;
@@ -34,7 +34,7 @@ macro_rules! checked_impl {
                 match self.checked_sub(v) {
                     Some(result) => Ok(result),
                     None => {
-                       log!(env, "Math error thrown at {}:{}", file!(), line!());
+                        log!(env, "Math error thrown at {}:{}", file!(), line!());
                         Err(ErrorCode::MathError)
                     }
                 }
@@ -46,7 +46,7 @@ macro_rules! checked_impl {
                 match self.checked_mul(v) {
                     Some(result) => Ok(result),
                     None => {
-                       log!(env, "Math error thrown at {}:{}", file!(), line!());
+                        log!(env, "Math error thrown at {}:{}", file!(), line!());
                         Err(ErrorCode::MathError)
                     }
                 }
@@ -58,7 +58,7 @@ macro_rules! checked_impl {
                 match self.checked_div(v) {
                     Some(result) => Ok(result),
                     None => {
-                       log!(env, "Math error thrown at {}:{}", file!(), line!());
+                        log!(env, "Math error thrown at {}:{}", file!(), line!());
                         Err(ErrorCode::MathError)
                     }
                 }
@@ -70,7 +70,7 @@ macro_rules! checked_impl {
                 match self.checked_ceil_div(v) {
                     Some(result) => Ok(result),
                     None => {
-                       log!(env, "Math error thrown at {}:{}", file!(), line!());
+                        log!(env, "Math error thrown at {}:{}", file!(), line!());
                         Err(ErrorCode::MathError)
                     }
                 }
@@ -106,7 +106,7 @@ macro_rules! div_floor_impl {
                 match self.checked_floor_div(v) {
                     Some(result) => Ok(result),
                     None => {
-                       log!(env, "Math error thrown at {}:{}", file!(), line!());
+                        log!(env, "Math error thrown at {}:{}", file!(), line!());
                         Err(ErrorCode::MathError)
                     }
                 }
@@ -124,14 +124,17 @@ div_floor_impl!(i32);
 #[cfg(test)]
 mod test {
     use crate::error::ErrorCode;
-    use crate::math::safe_math::{ SafeDivFloor, SafeMath };
+    use crate::math::safe_math::{SafeDivFloor, SafeMath};
     use soroban_sdk::Env;
 
     #[test]
     fn safe_add() {
         let env = Env::default();
         assert_eq!((1_u128).safe_add(1, &env).unwrap(), 2);
-        assert_eq!((1_u128).safe_add(u128::MAX, &env), Err(ErrorCode::MathError));
+        assert_eq!(
+            (1_u128).safe_add(u128::MAX, &env),
+            Err(ErrorCode::MathError)
+        );
     }
 
     #[test]
@@ -146,7 +149,10 @@ mod test {
         let env = Env::default();
         assert_eq!((8_u128).safe_mul(80, &env).unwrap(), 640);
         assert_eq!((1_u128).safe_mul(1, &env).unwrap(), 1);
-        assert_eq!((2_u128).safe_mul(u128::MAX, &env), Err(ErrorCode::MathError));
+        assert_eq!(
+            (2_u128).safe_mul(u128::MAX, &env),
+            Err(ErrorCode::MathError)
+        );
     }
 
     #[test]

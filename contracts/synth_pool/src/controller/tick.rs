@@ -1,18 +1,22 @@
 use normal::error::ErrorCode;
 
-use crate::{ errors::ErrorCode, math, reward::RewardInfo, tick::{ Tick, TickUpdate } };
+use crate::{
+    errors::ErrorCode,
+    math,
+    reward::RewardInfo,
+    tick::{Tick, TickUpdate},
+};
 
 pub fn next_tick_cross_update(
     tick: &Tick,
     fee_growth_global_synthetic: u128,
     fee_growth_global_quote: u128,
-    reward_infos: &[RewardInfo; NUM_REWARDS]
+    reward_infos: &[RewardInfo; NUM_REWARDS],
 ) -> Result<TickUpdate, ErrorCode> {
     let mut update = TickUpdate::from(tick);
 
-    update.fee_growth_outside_a = fee_growth_global_synthetic.wrapping_sub(
-        tick.fee_growth_outside_a
-    );
+    update.fee_growth_outside_a =
+        fee_growth_global_synthetic.wrapping_sub(tick.fee_growth_outside_a);
     update.fee_growth_outside_b = fee_growth_global_quote.wrapping_sub(tick.fee_growth_outside_b);
 
     for (i, reward_info) in reward_infos.iter().enumerate() {
@@ -20,9 +24,9 @@ pub fn next_tick_cross_update(
             continue;
         }
 
-        update.reward_growths_outside[i] = reward_info.growth_global_x64.wrapping_sub(
-            tick.reward_growths_outside[i]
-        );
+        update.reward_growths_outside[i] = reward_info
+            .growth_global_x64
+            .wrapping_sub(tick.reward_growths_outside[i]);
     }
     Ok(update)
 }
@@ -36,44 +40,49 @@ pub fn next_tick_modify_liquidity_update(
     fee_growth_global_quote: u128,
     reward_infos: &[RewardInfo; NUM_REWARDS],
     liquidity_delta: i128,
-    is_upper_tick: bool
+    is_upper_tick: bool,
 ) -> Result<TickUpdate, ErrorCode> {
     // noop if there is no change in liquidity
     if liquidity_delta == 0 {
         return Ok(TickUpdate::from(tick));
     }
 
-    let liquidity_gross = math::liquidity_math::add_liquidity_delta(
-        tick.liquidity_gross,
-        liquidity_delta
-    )?;
+    let liquidity_gross =
+        math::liquidity_math::add_liquidity_delta(tick.liquidity_gross, liquidity_delta)?;
 
     // Update to an uninitialized tick if remaining liquidity is being removed
     if liquidity_gross == 0 {
         return Ok(TickUpdate::default());
     }
 
-    let (fee_growth_outside_a, fee_growth_outside_b, reward_growths_outside) = if
-        tick.liquidity_gross == 0
-    {
-        // By convention, assume all prior growth happened below the tick
-        if tick_current_index >= tick_index {
-            (
-                fee_growth_global_synthetic,
-                fee_growth_global_quote,
-                RewardInfo::to_reward_growths(reward_infos),
-            )
+    let (fee_growth_outside_a, fee_growth_outside_b, reward_growths_outside) =
+        if tick.liquidity_gross == 0 {
+            // By convention, assume all prior growth happened below the tick
+            if tick_current_index >= tick_index {
+                (
+                    fee_growth_global_synthetic,
+                    fee_growth_global_quote,
+                    RewardInfo::to_reward_growths(reward_infos),
+                )
+            } else {
+                (0, 0, [0; NUM_REWARDS])
+            }
         } else {
-            (0, 0, [0; NUM_REWARDS])
-        }
-    } else {
-        (tick.fee_growth_outside_a, tick.fee_growth_outside_b, tick.reward_growths_outside)
-    };
+            (
+                tick.fee_growth_outside_a,
+                tick.fee_growth_outside_b,
+                tick.reward_growths_outside,
+            )
+        };
 
     let liquidity_net = if is_upper_tick {
-        tick.liquidity_net.checked_sub(liquidity_delta).ok_or(ErrorCode::LiquidityNetError)?
+        tick.liquidity_net
+            .checked_sub(liquidity_delta)
+            .ok_or(ErrorCode::LiquidityNetError)?
     } else {
-        tick.liquidity_net.checked_add(liquidity_delta).ok_or(ErrorCode::LiquidityNetError)?
+        tick.liquidity_net
+            .checked_add(liquidity_delta)
+            .ok_or(ErrorCode::LiquidityNetError)?
     };
 
     Ok(TickUpdate {
@@ -95,7 +104,7 @@ pub fn next_fee_growths_inside(
     tick_upper: &Tick,
     tick_upper_index: i32,
     fee_growth_global_synthetic: u128,
-    fee_growth_global_quote: u128
+    fee_growth_global_quote: u128,
 ) -> (u128, u128) {
     // By convention, when initializing a tick, all fees have been earned below the tick.
     let (fee_growth_below_a, fee_growth_below_b) = if !tick_lower.initialized {
@@ -106,14 +115,20 @@ pub fn next_fee_growths_inside(
             fee_growth_global_quote.wrapping_sub(tick_lower.fee_growth_outside_b),
         )
     } else {
-        (tick_lower.fee_growth_outside_a, tick_lower.fee_growth_outside_b)
+        (
+            tick_lower.fee_growth_outside_a,
+            tick_lower.fee_growth_outside_b,
+        )
     };
 
     // By convention, when initializing a tick, no fees have been earned above the tick.
     let (fee_growth_above_a, fee_growth_above_b) = if !tick_upper.initialized {
         (0, 0)
     } else if tick_current_index < tick_upper_index {
-        (tick_upper.fee_growth_outside_a, tick_upper.fee_growth_outside_b)
+        (
+            tick_upper.fee_growth_outside_a,
+            tick_upper.fee_growth_outside_b,
+        )
     } else {
         (
             fee_growth_global_synthetic.wrapping_sub(tick_upper.fee_growth_outside_a),
@@ -125,7 +140,9 @@ pub fn next_fee_growths_inside(
         fee_growth_global_synthetic
             .wrapping_sub(fee_growth_below_a)
             .wrapping_sub(fee_growth_above_a),
-        fee_growth_global_quote.wrapping_sub(fee_growth_below_b).wrapping_sub(fee_growth_above_b),
+        fee_growth_global_quote
+            .wrapping_sub(fee_growth_below_b)
+            .wrapping_sub(fee_growth_above_b),
     )
 }
 
@@ -137,7 +154,7 @@ pub fn next_reward_growths_inside(
     tick_lower_index: i32,
     tick_upper: &Tick,
     tick_upper_index: i32,
-    reward_infos: &[RewardInfo; NUM_REWARDS]
+    reward_infos: &[RewardInfo; NUM_REWARDS],
 ) -> [u128; NUM_REWARDS] {
     let mut reward_growths_inside = [0; NUM_REWARDS];
 
@@ -150,7 +167,9 @@ pub fn next_reward_growths_inside(
         let reward_growths_below = if !tick_lower.initialized {
             reward_infos[i].growth_global_x64
         } else if tick_current_index < tick_lower_index {
-            reward_infos[i].growth_global_x64.wrapping_sub(tick_lower.reward_growths_outside[i])
+            reward_infos[i]
+                .growth_global_x64
+                .wrapping_sub(tick_lower.reward_growths_outside[i])
         } else {
             tick_lower.reward_growths_outside[i]
         };
@@ -161,10 +180,13 @@ pub fn next_reward_growths_inside(
         } else if tick_current_index < tick_upper_index {
             tick_upper.reward_growths_outside[i]
         } else {
-            reward_infos[i].growth_global_x64.wrapping_sub(tick_upper.reward_growths_outside[i])
+            reward_infos[i]
+                .growth_global_x64
+                .wrapping_sub(tick_upper.reward_growths_outside[i])
         };
 
-        reward_growths_inside[i] = reward_infos[i].growth_global_x64
+        reward_growths_inside[i] = reward_infos[i]
+            .growth_global_x64
             .wrapping_sub(reward_growths_below)
             .wrapping_sub(reward_growths_above);
     }

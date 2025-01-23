@@ -6,8 +6,8 @@ use crate::{
     utils::deploy_index_token_contract,
 };
 use normal::{
+    constants::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD},
     error::ErrorCode,
-    ttl::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD},
     types::IndexTokenInitInfo,
     validate_bps,
 };

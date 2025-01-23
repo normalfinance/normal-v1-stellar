@@ -1,6 +1,6 @@
-use soroban_sdk::{ log, Env };
+use soroban_sdk::{log, Env};
 
-use crate::error::{ NormalResult, ErrorCode };
+use crate::error::{ErrorCode, NormalResult};
 // use solana_program::msg;
 // use std::panic::Location;
 

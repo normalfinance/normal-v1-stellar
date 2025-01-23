@@ -131,11 +131,11 @@ impl IndexTokenTrait for IndexToken {
 
         save_index(&env, index);
 
+        IndexTokenEvents::initialize(&env, admin, name, symbol);
+
         // Mint initial tokens
         let initial_mint_amount = base_nav / initial_price;
         Self::mint(env, sender, index_token_amount, to);
-
-        IndexTokenEvents::initialize(&env, admin, name, symbol);
     }
 
     fn update_manager_fee(env: Env, sender: Address, manager_fee_bps: i64) {
@@ -233,13 +233,15 @@ impl IndexTokenTrait for IndexToken {
     }
 
     fn update_rebalance_threshold(env: Env, sender: Address, rebalance_threshold: i64) {
+        sender.require_auth();
+
         let mut index = get_index(&env);
 
         if index.is_public {
             is_governor(&env, sender);
         } else {
             is_admin(&env, sender);
-            sender.require_auth();
+            // sender.require_auth();
         }
 
         save_index(

@@ -3,6 +3,7 @@ use normal::{
     error::NormalResult,
     safe_decrement,
     safe_increment,
+    types::OrderDirection,
 };
 use soroban_sdk::{ contracttype, symbol_short, Address, Env, Symbol, Vec };
 
@@ -12,8 +13,73 @@ use soroban_sdk::{ contracttype, symbol_short, Address, Env, Symbol, Vec };
 #[derive(Clone, Debug)]
 pub enum DataKey {
     Config,
+    Buffer,
     InsuranceFund,
     Initialized,
+}
+
+// ################################################################
+//                             AUCTION
+// ################################################################
+
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Debug, Eq)]
+pub enum AuctionType {
+    /// selling collateral from a liquidation
+    Collateral,
+    /// selling newly minted NORM to cover Protocol Debt (the deficit from Collateral Auctions)
+    Debt,
+    /// selling excess synthetic token proceeds over the Insurance Fund max limit for NORM to be burned
+    Surplus,
+}
+
+/**
+ * Native auctions:
+ * - set a balance available for purchase
+ * - set a price and bidding config
+ * - users can use functions to bid and purchase on the auction
+ * - contract simply updates properties as purchases occur
+ */
+
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Debug, Eq)]
+pub enum AuctionLocation {
+    /// Sell the asset directly to users via Normal interface
+    Native,
+    /// Sell the asset via a 3rd-party DEX
+    External,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Auction {
+    pub amount: i128,
+    pub direction: OrderDirection,
+    pub location: AuctionLocation,
+    pub duration: u64,
+    pub start_ts: u64,
+    pub total_auctioned: i128,
+    pub start_price: u64,
+    pub end_price: u64,
+}
+
+// ################################################################
+//                             BUFFER
+// ################################################################
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Buffer {
+    pub gov_token: Address,
+    pub gov_token_pool: Address, // DEX pool - Aquarius pool router: CBQDHNBFBZYE4MKPWBSJOPIYLW4SFSXAXUTSXJN76GNKYVYPCKWC6QUK
+    pub quote_token: Address,
+    // Auction
+    pub auctions: Vec<Auction>,
+    pub min_auction_duration: u64,
+    // other
+    pub max_balance: i128,
+    pub total_burns: i128,
+    pub total_mints: i128,
 }
 
 // ################################################################
@@ -35,11 +101,11 @@ impl InsuranceFund {
     }
 }
 
-pub fn save_config(env: &Env, config: Config) {
-    env.storage().persistent().set(&DataKey::Config, &config);
+pub fn save_insurance_fund(env: &Env, insurance_fund: InsuranceFund) {
+    env.storage().persistent().set(&DataKey::InsuranceFund, &insurance_fund);
     env.storage()
         .persistent()
-        .extend_ttl(&DataKey::Config, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        .extend_ttl(&DataKey::InsuranceFund, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 }
 
 pub fn get_insurance_fund(env: &Env) -> InsuranceFund {
@@ -71,6 +137,7 @@ pub enum Operation {
 pub struct Config {
     pub admin: Address,
     pub governor: Address,
+    pub buffer: Buffer,
     pub share_token: Address,
     pub stake_asset: Address,
     pub unstaking_period: i64,

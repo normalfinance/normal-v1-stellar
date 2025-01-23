@@ -1,4 +1,17 @@
-use soroban_sdk::{ contracttype, log, panic_with_error, symbol_short, Address, Env, String, Symbol };
+use normal::{
+    constants::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD },
+    error::{ ErrorCode, NormalResult },
+};
+use soroban_sdk::{
+    contracttype,
+    log,
+    panic_with_error,
+    symbol_short,
+    Address,
+    Env,
+    String,
+    Symbol,
+};
 
 pub const ADMIN: Symbol = symbol_short!("ADMIN");
 pub const GOVERNOR: Symbol = symbol_short!("GOVERNOR");
@@ -19,7 +32,7 @@ pub fn is_admin(env: &Env, address: Address) {
         .get(&ADMIN)
         .unwrap_or_else(|| {
             log!(env, "Factory: Admin not set");
-            panic_with_error!(&env, ContractError::AdminNotSet)
+            panic_with_error!(&env, ErrorCode::AdminNotSet)
         });
 
     env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
@@ -47,10 +60,6 @@ pub fn is_governor(env: &Env, address: Address) {
 }
 
 // ################################################################
-
-#[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SynthMarketParams {}
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -309,7 +318,7 @@ impl SynthMarket {
     }
 
     pub fn is_reduce_only(&self) -> bool {
-        Ok(self.status == MarketStatus::ReduceOnly)
+        self.status == MarketStatus::ReduceOnly
     }
 
     pub fn is_operation_paused(&self, operation: Operation) -> bool {
@@ -398,7 +407,7 @@ impl SynthMarket {
     }
 
     // TODO: rework for AMM swap price change
-    pub fn is_price_divergence_ok_for_settle_pnl(&self, oracle_price: i64) -> DriftResult<bool> {
+    pub fn is_price_divergence_ok_for_settle_pnl(&self, oracle_price: i64) -> NormalResult<bool> {
         let oracle_divergence = oracle_price
             .safe_sub(self.amm.historical_oracle_data.last_oracle_price_twap_5min)?
             .safe_mul(PERCENTAGE_PRECISION_I64)?
@@ -408,12 +417,12 @@ impl SynthMarket {
             .unsigned_abs();
 
         let oracle_divergence_limit = match self.contract_tier {
-            ContractTier::A => PERCENTAGE_PRECISION_U64 / 200, // 50 bps
-            ContractTier::B => PERCENTAGE_PRECISION_U64 / 200, // 50 bps
-            ContractTier::C => PERCENTAGE_PRECISION_U64 / 100, // 100 bps
-            ContractTier::Speculative => PERCENTAGE_PRECISION_U64 / 40, // 250 bps
-            ContractTier::HighlySpeculative => PERCENTAGE_PRECISION_U64 / 40, // 250 bps
-            ContractTier::Isolated => PERCENTAGE_PRECISION_U64 / 40, // 250 bps
+            SynthTier::A => PERCENTAGE_PRECISION_U64 / 200, // 50 bps
+            SynthTier::B => PERCENTAGE_PRECISION_U64 / 200, // 50 bps
+            SynthTier::C => PERCENTAGE_PRECISION_U64 / 100, // 100 bps
+            SynthTier::Speculative => PERCENTAGE_PRECISION_U64 / 40, // 250 bps
+            SynthTier::HighlySpeculative => PERCENTAGE_PRECISION_U64 / 40, // 250 bps
+            SynthTier::Isolated => PERCENTAGE_PRECISION_U64 / 40, // 250 bps
         };
 
         if oracle_divergence >= oracle_divergence_limit {
@@ -548,7 +557,7 @@ pub struct Position {
     /// ----
 
     /// Whether the user is active, being liquidated or bankrupt
-    pub status: u8,
+    pub status: PositionStatus,
     /// The total values of deposits the user has made
     /// precision: QUOTE_PRECISION
     pub total_deposits: u64,
@@ -562,7 +571,7 @@ pub struct Position {
     /// Custom max initial margin ratio for the user
     pub max_margin_ratio: u32,
     /// The next liquidation id to be used for user
-    pub next_liquidation_id: u16,
+    pub next_liquidation_id: u32,
 }
 
 impl Position {
@@ -576,7 +585,8 @@ impl Position {
     }
 
     pub fn is_bankrupt(&self) -> bool {
-        self.status & (PositionStatus::Bankrupt as u8) > 0
+        // self.status & (PositionStatus::Bankrupt as u8) > 0
+        self.status == PositionStatus::Bankrupt
     }
 
     pub fn is_reduce_only(&self) -> bool {
@@ -619,7 +629,7 @@ impl Position {
         Ok(())
     }
 
-    pub fn enter_liquidation(&mut self) -> NormalResult<u16> {
+    pub fn enter_liquidation(&mut self) -> NormalResult<u32> {
         if self.is_being_liquidated() {
             return self.next_liquidation_id.safe_sub(1);
         }
@@ -677,7 +687,7 @@ impl Position {
         &mut self,
 
         margin_requirement_type: MarginRequirementType,
-        withdraw_market_index: u16,
+        withdraw_market_index: u32,
         withdraw_amount: u128,
         now: i64
     ) -> NormalResult<bool> {

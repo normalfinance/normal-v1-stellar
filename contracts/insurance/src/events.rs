@@ -1,4 +1,4 @@
-use soroban_sdk::{ Address, Env, String, Symbol };
+use soroban_sdk::{ Address, Env, Symbol };
 
 use crate::storage::StakeAction;
 
@@ -29,9 +29,9 @@ impl InsuranceFundEvents {
 
     /// Emitted when a user updates their stake in the Insurance Fund
     ///
-    /// - topics - `["stake_record", user: Address]`
+    /// - topics - `["insurance_fund_stake_record", user: Address]`
     /// - data - `[ts: u64, user: Address, action: StakeAction, amount: i128, insurance_vault_amount_before: u64, if_shares_before: u128, user_if_shares_before: u128, total_if_shares_before: u128, if_shares_after: u128, total_if_shares_after: u128, user_if_shares_after: u128]`
-    pub fn stake_record(
+    pub fn insurance_fund_stake_record(
         env: &Env,
         ts: u64,
         user: Address,
@@ -45,7 +45,7 @@ impl InsuranceFundEvents {
         total_if_shares_after: u128,
         user_if_shares_after: u128
     ) {
-        let topics = (Symbol::new(&env, "stake_record"), user);
+        let topics = (Symbol::new(&env, "insurance_fund_stake_record"), user);
         env.events().publish(topics, (
             ts,
             amount,

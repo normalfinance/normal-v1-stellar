@@ -77,7 +77,7 @@ pub struct Index {
     ///
     pub component_assets: Vec<IndexAsset>,
     /// Minimum amount of time that must pass before the index can be rebalanced again
-    pub rebalance_threshold: i64,
+    pub rebalance_threshold: u64,
     /// The ts when the index was last rebalanced
     pub rebalance_ts: u64,
     /// The ts when the index was last updated (any property)

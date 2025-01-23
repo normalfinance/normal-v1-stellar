@@ -1,12 +1,8 @@
+use crate::math::{Q64_MASK, Q64_RESOLUTION};
 use normal::error::ErrorCode;
-use crate::math::{ Q64_MASK, Q64_RESOLUTION };
 
 use super::{
-    div_round_up_if,
-    div_round_up_if_u256,
-    mul_u256,
-    U256Muldiv,
-    MAX_SQRT_PRICE_X64,
+    div_round_up_if, div_round_up_if_u256, mul_u256, U256Muldiv, MAX_SQRT_PRICE_X64,
     MIN_SQRT_PRICE_X64,
 };
 
@@ -77,7 +73,7 @@ pub fn get_amount_delta_synthetic(
     sqrt_price_0: u128,
     sqrt_price_1: u128,
     liquidity: u128,
-    round_up: bool
+    round_up: bool,
 ) -> Result<u64, ErrorCode> {
     match try_get_amount_delta_synthetic(sqrt_price_0, sqrt_price_1, liquidity, round_up) {
         Ok(AmountDeltaU64::Valid(value)) => Ok(value),
@@ -90,7 +86,7 @@ pub fn try_get_amount_delta_synthetic(
     sqrt_price_0: u128,
     sqrt_price_1: u128,
     liquidity: u128,
-    round_up: bool
+    round_up: bool,
 ) -> Result<AmountDeltaU64, ErrorCode> {
     let (sqrt_price_lower, sqrt_price_upper) = increasing_price_order(sqrt_price_0, sqrt_price_1);
 
@@ -135,7 +131,7 @@ pub fn get_amount_delta_quote(
     sqrt_price_0: u128,
     sqrt_price_1: u128,
     liquidity: u128,
-    round_up: bool
+    round_up: bool,
 ) -> Result<u64, ErrorCode> {
     match try_get_amount_delta_quote(sqrt_price_0, sqrt_price_1, liquidity, round_up) {
         Ok(AmountDeltaU64::Valid(value)) => Ok(value),
@@ -148,7 +144,7 @@ pub fn try_get_amount_delta_quote(
     sqrt_price_0: u128,
     sqrt_price_1: u128,
     liquidity: u128,
-    round_up: bool
+    round_up: bool,
 ) -> Result<AmountDeltaU64, ErrorCode> {
     let (sqrt_price_lower, sqrt_price_upper) = increasing_price_order(sqrt_price_0, sqrt_price_1);
 
@@ -166,12 +162,20 @@ pub fn try_get_amount_delta_quote(
 
         let should_round = round_up && p & Q64_MASK > 0;
         if should_round && result == u64::MAX {
-            return Ok(AmountDeltaU64::ExceedsMax(ErrorCode::MultiplicationOverflow));
+            return Ok(AmountDeltaU64::ExceedsMax(
+                ErrorCode::MultiplicationOverflow,
+            ));
         }
 
-        Ok(AmountDeltaU64::Valid(if should_round { result + 1 } else { result }))
+        Ok(AmountDeltaU64::Valid(if should_round {
+            result + 1
+        } else {
+            result
+        }))
     } else {
-        Ok(AmountDeltaU64::ExceedsMax(ErrorCode::MultiplicationShiftRightOverflow))
+        Ok(AmountDeltaU64::ExceedsMax(
+            ErrorCode::MultiplicationShiftRightOverflow,
+        ))
     }
 }
 
@@ -204,7 +208,7 @@ pub fn get_next_sqrt_price_from_a_round_up(
     sqrt_price: u128,
     liquidity: u128,
     amount: u64,
-    amount_specified_is_input: bool
+    amount_specified_is_input: bool,
 ) -> Result<u128, ErrorCode> {
     if amount == 0 {
         return Ok(sqrt_price);
@@ -246,7 +250,7 @@ pub fn get_next_sqrt_price_from_b_round_down(
     sqrt_price: u128,
     liquidity: u128,
     amount: u64,
-    amount_specified_is_input: bool
+    amount_specified_is_input: bool,
 ) -> Result<u128, ErrorCode> {
     // We always want square root price to be rounded down, which means
     // Case 3. If we are fixing input (adding B), we are increasing price, we want delta to be floor(delta)
@@ -264,10 +268,14 @@ pub fn get_next_sqrt_price_from_b_round_down(
     // Q64(32).64 +/- Q64.64
     if amount_specified_is_input {
         // We are adding token b to supply, causing price to increase
-        sqrt_price.checked_add(delta).ok_or(ErrorCode::SqrtPriceOutOfBounds)
+        sqrt_price
+            .checked_add(delta)
+            .ok_or(ErrorCode::SqrtPriceOutOfBounds)
     } else {
         // We are removing token b from supply,. causing price to decrease
-        sqrt_price.checked_sub(delta).ok_or(ErrorCode::SqrtPriceOutOfBounds)
+        sqrt_price
+            .checked_sub(delta)
+            .ok_or(ErrorCode::SqrtPriceOutOfBounds)
     }
 }
 
@@ -276,7 +284,7 @@ pub fn get_next_sqrt_price(
     liquidity: u128,
     amount: u64,
     amount_specified_is_input: bool,
-    a_to_b: bool
+    a_to_b: bool,
 ) -> Result<u128, ErrorCode> {
     if amount_specified_is_input == a_to_b {
         // We are fixing A
@@ -307,7 +315,7 @@ pub fn get_next_sqrt_price(
             sqrt_price,
             liquidity,
             amount,
-            amount_specified_is_input
+            amount_specified_is_input,
         )
     } else {
         // We are fixing B
@@ -338,7 +346,7 @@ pub fn get_next_sqrt_price(
             sqrt_price,
             liquidity,
             amount,
-            amount_specified_is_input
+            amount_specified_is_input,
         )
     }
 }

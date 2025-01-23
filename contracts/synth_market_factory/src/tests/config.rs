@@ -1,7 +1,10 @@
-use super::setup::{ deploy_synth_market_factory_contract };
-use crate::{ contract::{ SynthMarketFactory, SynthMarketFactoryClient }, tests::setup::{} };
+use super::setup::deploy_synth_market_factory_contract;
+use crate::contract::{SynthMarketFactory, SynthMarketFactoryClient};
 
-use soroban_sdk::{ testutils::{ arbitrary::std, Address as _ }, vec, Address, Env, String };
+use soroban_sdk::{
+    testutils::{arbitrary::std, Address as _},
+    vec, Address, Env, String,
+};
 
 #[test]
 fn factory_successfully_inits_itself() {

@@ -1,7 +1,7 @@
 use normal::types::OrderDirection;
-use soroban_sdk::{ contractclient, Address, Env, Vec };
+use soroban_sdk::{contractclient, Address, Env, Vec};
 
-use crate::storage::{ Asset, Schedule, ScheduleType };
+use crate::storage::{Asset, Schedule, ScheduleType};
 
 #[contractclient(name = "ScheduleClient")]
 pub trait SchedulerTrait {
@@ -13,7 +13,7 @@ pub trait SchedulerTrait {
         index_factory_address: Address,
         keeper_accounts: Vec<Address>,
         protocol_fee_bps: i64,
-        keeper_fee_bps: i64
+        keeper_fee_bps: i64,
     );
 
     // Allows admin address set during initialization to change some parameters of the
@@ -25,14 +25,14 @@ pub trait SchedulerTrait {
         synth_market_factory_address: Option<Address>,
         index_factory_address: Option<Address>,
         protocol_fee_bps: Option<i64>,
-        keeper_fee_bps: Option<i64>
+        keeper_fee_bps: Option<i64>,
     );
 
     fn update_keeper_accounts(
         env: Env,
         sender: Address,
         to_add: Vec<Address>,
-        to_remove: Vec<Address>
+        to_remove: Vec<Address>,
     );
 
     fn collect_protocol_fees(env: Env, sender: Address, to: Address);
@@ -63,8 +63,8 @@ pub trait SchedulerTrait {
         direction: OrderDirection,
         active: bool,
         interval_seconds: u64,
-        min_price: Option<u16>,
-        max_price: Option<u16>
+        min_price: Option<u32>,
+        max_price: Option<u32>,
     );
 
     // Allows user to change some parameters of a schedule
@@ -77,9 +77,9 @@ pub trait SchedulerTrait {
         direction: Option<OrderDirection>,
         active: Option<bool>,
         interval_seconds: Option<u64>,
-        total_orders: Option<u16>,
-        min_price: Option<u16>,
-        max_price: Option<u16>
+        total_orders: Option<u32>,
+        min_price: Option<u32>,
+        max_price: Option<u32>,
     );
 
     fn delete_schedule(env: Env, user: Address, schedule_timestamp: u64);

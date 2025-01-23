@@ -3,7 +3,7 @@ use soroban_sdk::Vec;
 
 use crate::{
     errors::ErrorCode,
-    tick::{ Tick, TickUpdate, TICK_ARRAY_SIZE },
+    tick::{Tick, TickUpdate, TICK_ARRAY_SIZE},
     tick_array::TickArray,
 };
 
@@ -18,14 +18,14 @@ impl SwapTickSequence {
         Self::new_with_proxy(
             ProxiedTickArray::new_initialized(ta0),
             ta1.map(ProxiedTickArray::new_initialized),
-            ta2.map(ProxiedTickArray::new_initialized)
+            ta2.map(ProxiedTickArray::new_initialized),
         )
     }
 
     pub(crate) fn new_with_proxy(
         ta0: ProxiedTickArray,
         ta1: Option<ProxiedTickArray>,
-        ta2: Option<ProxiedTickArray>
+        ta2: Option<ProxiedTickArray>,
     ) -> Self {
         let mut vec = Vec::with_capacity(3);
         vec.push(ta0);
@@ -53,7 +53,7 @@ impl SwapTickSequence {
         &self,
         array_index: usize,
         tick_index: i32,
-        tick_spacing: u16
+        tick_spacing: u16,
     ) -> Result<&Tick> {
         let array = self.arrays.get(array_index);
         match array {
@@ -78,7 +78,7 @@ impl SwapTickSequence {
         array_index: usize,
         tick_index: i32,
         tick_spacing: u16,
-        update: &TickUpdate
+        update: &TickUpdate,
     ) -> Result<()> {
         let array = self.arrays.get_mut(array_index);
         match array {
@@ -94,7 +94,7 @@ impl SwapTickSequence {
         &self,
         array_index: usize,
         tick_index: i32,
-        tick_spacing: u16
+        tick_spacing: u16,
     ) -> Result<isize> {
         let array = self.arrays.get(array_index);
         match array {
@@ -122,7 +122,7 @@ impl SwapTickSequence {
         tick_index: i32,
         tick_spacing: u16,
         a_to_b: bool,
-        start_array_index: usize
+        start_array_index: usize,
     ) -> Result<(usize, i32)> {
         let ticks_in_array = TICK_ARRAY_SIZE * (tick_spacing as i32);
         let mut search_index = tick_index;
@@ -138,11 +138,8 @@ impl SwapTickSequence {
                 }
             };
 
-            let next_index = next_array.get_next_init_tick_index(
-                search_index,
-                tick_spacing,
-                a_to_b
-            )?;
+            let next_index =
+                next_array.get_next_init_tick_index(search_index, tick_spacing, a_to_b)?;
 
             match next_index {
                 Some(next_index) => {

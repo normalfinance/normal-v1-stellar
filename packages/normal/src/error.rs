@@ -32,7 +32,7 @@ pub enum ErrorCode {
     // Index Token Errors
 
     // Index Token Factory Errors
-    IndexFactoryOperationPaused = 15,
+    IndexFactoryOperationPaused = 21,
     // Insurance Errors
 
     // Scheduler Errors
@@ -42,7 +42,6 @@ pub enum ErrorCode {
     // Synth Market Factory Errors
 
     // Synth Pool Errors
-    
 
     // Toke Errors
 
@@ -53,26 +52,22 @@ pub enum ErrorCode {
 
 #[macro_export]
 macro_rules! print_error {
-    ($err:expr) => {
-        {
+    ($err:expr) => {{
         || {
             let error_code: ErrorCode = $err;
             log!("{:?} thrown at {}:{}", error_code, file!(), line!());
             $err
         }
-        }
-    };
+    }};
 }
 
 #[macro_export]
 macro_rules! math_error {
-    () => {
-        {
+    () => {{
         || {
             let error_code = $crate::error::ErrorCode::MathError;
             log!("Error {} thrown at {}:{}", error_code, file!(), line!());
             error_code
         }
-        }
-    };
+    }};
 }

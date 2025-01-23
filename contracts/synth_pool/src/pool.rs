@@ -1,6 +1,9 @@
-use soroban_sdk::{ contractclient, Address, BytesN, Env, String };
+use soroban_sdk::{contractclient, Address, BytesN, Env, String};
 
-use crate::{ position::PositionUpdate, storage::{ Config, SynthPoolParams } };
+use crate::{
+    position::PositionUpdate,
+    storage::{Config, SynthPoolParams},
+};
 
 #[contractclient(name = "SynthPoolClient")]
 pub trait SynthPoolTrait {
@@ -14,7 +17,7 @@ pub trait SynthPoolTrait {
         protocol_fee_rate: u32,
         share_token_decimals: u32,
         share_token_name: String,
-        share_token_symbol: String
+        share_token_symbol: String,
     );
 
     fn initialize_tick_array(env: Env, start_tick_index: i32);
@@ -28,7 +31,7 @@ pub trait SynthPoolTrait {
         protocol_fee_rate: Option<i64>,
         max_allowed_slippage_bps: Option<i64>,
         max_allowed_spread_bps: Option<i64>,
-        max_allowed_variance_bps: Option<i64>
+        max_allowed_variance_bps: Option<i64>,
     );
 
     fn reset_oracle_twap(env: Env);
@@ -57,7 +60,7 @@ pub trait SynthPoolTrait {
         position_timestamp: u64,
         liquidity_amount: u128,
         token_max_a: u64,
-        token_max_b: u64
+        token_max_b: u64,
     );
 
     fn decrease_liquidity(
@@ -66,7 +69,7 @@ pub trait SynthPoolTrait {
         position_timestamp: u64,
         liquidity_amount: u128,
         token_max_a: u64,
-        token_max_b: u64
+        token_max_b: u64,
     );
 
     fn close_position(env: Env, sender: Address, position_timestamp: u64);
@@ -78,7 +81,7 @@ pub trait SynthPoolTrait {
         other_amount_threshold: u64,
         sqrt_price_limit: u128,
         amount_specified_is_input: bool,
-        a_to_b: bool // Zero for one
+        a_to_b: bool, // Zero for one
     );
 
     fn collect_fees(env: Env, sender: Address, to: Address, position_timestamp: u64);
