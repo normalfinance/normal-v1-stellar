@@ -49,35 +49,3 @@ pub enum ErrorCode {
 
     // Vote Errors
 }
-
-#[macro_export]
-macro_rules! print_error {
-    ($err:expr, $env:expr) => {
-        {
-        || {
-            let error_code: ErrorCode = $err;
-            log!($env, "{:?} thrown at {}:{}", error_code, file!(), line!());
-            $err
-        }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! math_error {
-    ($env:expr) => {
-        {
-        || {
-            let error_code = $crate::error::ErrorCode::MathError;
-            log!(
-                $env,
-                "Error {} thrown at {}:{}",
-                error_code,
-                file!(),
-                line!()
-            );
-            error_code
-        }
-        }
-    };
-}

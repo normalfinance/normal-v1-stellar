@@ -1,18 +1,18 @@
 use soroban_sdk::Env;
 
-use crate::{ error::NormalResult, math_error };
+use crate::error::{self, NormalResult};
 
-use super::{ bn::U192, casting::Cast, safe_math::SafeMath };
+use super::{bn::U192, casting::Cast, safe_math::SafeMath};
 
 pub fn standardize_value_with_remainder_i128(
     env: &Env,
     value: i128,
-    step_size: u128
+    step_size: u128,
 ) -> NormalResult<(i128, i128)> {
     let remainder = value
         .unsigned_abs()
         .checked_rem_euclid(step_size)
-        .ok_or_else(math_error!(&env))?
+        .ok_or_else(|| error::ErrorCode::MathError)?
         .cast::<i128>(env)?
         .safe_mul(value.signum(), env)?;
 
@@ -25,10 +25,12 @@ pub fn get_proportion_i128(
     env: &Env,
     value: i128,
     numerator: u128,
-    denominator: u128
+    denominator: u128,
 ) -> NormalResult<i128> {
     let proportional_u128 = get_proportion_u128(env, value.unsigned_abs(), numerator, denominator)?;
-    let proportional_value = proportional_u128.cast::<i128>(env)?.safe_mul(value.signum(), env)?;
+    let proportional_value = proportional_u128
+        .cast::<i128>(env)?
+        .safe_mul(value.signum(), env)?;
 
     Ok(proportional_value)
 }
@@ -37,7 +39,7 @@ pub fn get_proportion_u128(
     env: &Env,
     value: u128,
     numerator: u128,
-    denominator: u128
+    denominator: u128,
 ) -> NormalResult<u128> {
     // we use u128::max.sqrt() here
     let large_constant = u64::MAX.cast::<u128>(env)?;
@@ -54,13 +56,18 @@ pub fn get_proportion_u128(
         // get values to ensure a ceiling division
         let (std_value, r) = standardize_value_with_remainder_i128(
             env,
-            value.safe_mul(denominator.safe_sub(numerator, env)?, env)?.cast::<i128>(env)?,
-            denominator
+            value
+                .safe_mul(denominator.safe_sub(numerator, env)?, env)?
+                .cast::<i128>(env)?,
+            denominator,
         )?;
 
         // perform ceiling division by subtracting one if there is a remainder
         value
-            .safe_sub(std_value.cast::<u128>(env)?.safe_div(denominator, env)?, env)?
+            .safe_sub(
+                std_value.cast::<u128>(env)?.safe_div(denominator, env)?,
+                env,
+            )?
             .safe_sub(r.signum().cast::<u128>(env)?, env)?
     } else {
         value.safe_mul(numerator, env)?.safe_div(denominator, env)?
@@ -73,7 +80,7 @@ pub fn on_the_hour_update(
     env: &Env,
     now: i64,
     last_update_ts: i64,
-    update_period: i64
+    update_period: i64,
 ) -> NormalResult<i64> {
     let time_since_last_update = now.safe_sub(last_update_ts, env)?;
 
@@ -110,7 +117,13 @@ pub fn on_the_hour_update(
 #[cfg(test)]
 #[allow(clippy::comparison_chain)]
 pub fn log10(n: u128) -> u128 {
-    if n < 10 { 0 } else if n == 10 { 1 } else { log10(n / 10) + 1 }
+    if n < 10 {
+        0
+    } else if n == 10 {
+        1
+    } else {
+        log10(n / 10) + 1
+    }
 }
 
 pub fn log10_iter(n: u128) -> u128 {

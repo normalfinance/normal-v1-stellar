@@ -4,7 +4,7 @@
 #![allow(clippy::ptr_offset_with_cast)]
 #![allow(clippy::manual_range_contains)]
 
-use soroban_sdk::{ Vec };
+// use soroban_sdk::Vec;
 
 use crate::error::ErrorCode::BnConversionError;
 
@@ -38,20 +38,20 @@ impl U256 {
         self.try_into().map_err(|_| BnConversionError)
     }
 
-    /// Convert from little endian bytes
-    pub fn from_le_bytes(bytes: [u8; 32]) -> Self {
-        U256::from_little_endian(&bytes)
-    }
+    // /// Convert from little endian bytes
+    // pub fn from_le_bytes(bytes: [u8; 32]) -> Self {
+    //     U256::from_little_endian(&bytes)
+    // }
 
-    /// Convert to little endian bytes
-    pub fn to_le_bytes(self) -> [u8; 32] {
-        let mut buf: Vec<u8> = Vec::with_capacity(size_of::<Self>());
-        self.to_little_endian(buf.borrow_mut());
+    // /// Convert to little endian bytes
+    // pub fn to_le_bytes(self) -> [u8; 32] {
+    //     let mut buf: Vec<u8> = Vec::with_capacity(size_of::<Self>());
+    //     self.to_little_endian(buf.borrow_mut());
 
-        let mut bytes: [u8; 32] = [0u8; 32];
-        bytes.copy_from_slice(buf.as_slice());
-        bytes
-    }
+    //     let mut bytes: [u8; 32] = [0u8; 32];
+    //     bytes.copy_from_slice(buf.as_slice());
+    //     bytes
+    // }
 }
 
 construct_uint! {
@@ -80,18 +80,19 @@ impl U192 {
         self.try_into().map_err(|_| BnConversionError)
     }
 
-    /// Convert from little endian bytes
-    pub fn from_le_bytes(bytes: [u8; 24]) -> Self {
-        U192::from_little_endian(&bytes)
-    }
+    // /// Convert from little endian bytes
+    // pub fn from_le_bytes(bytes: [u8; 24]) -> Self {
+    //     U192::from_little_endian(&bytes)
+    // }
 
-    /// Convert to little endian bytes
-    pub fn to_le_bytes(self) -> [u8; 24] {
-        let mut buf: Vec<u8> = Vec::with_capacity(size_of::<Self>());
-        self.to_little_endian(buf.borrow_mut());
+    // /// Convert to little endian bytes
+    // pub fn to_le_bytes(self) -> [u8; 24] {
+    //     // let mut buf: Vec<u8> = Vec::with_capacity(size_of::<Self>());
+    //     let mut buf: Vec<u8> = Vec::new(env);
+    //     self.to_little_endian(buf.borrow_mut());
 
-        let mut bytes: [u8; 24] = [0u8; 24];
-        bytes.copy_from_slice(buf.as_slice());
-        bytes
-    }
+    //     let mut bytes: [u8; 24] = [0u8; 24];
+    //     bytes.copy_from_slice(buf.as_slice());
+    //     bytes
+    // }
 }

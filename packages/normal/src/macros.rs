@@ -17,6 +17,7 @@ macro_rules! get_then_update_id {
         current_id
     }};
 }
+
 #[macro_export]
 macro_rules! validate {
     ($env:expr, $assert:expr, $err:expr) => {
@@ -66,40 +67,21 @@ macro_rules! dlog {
     };
 }
 
-// #[macro_export]
-// macro_rules! load_mut {
-//     ($account_loader:expr) => {{
-//         $account_loader.load_mut().map_err(|e| {
-//             msg!("e {:?}", e);
-//             let error_code = ErrorCode::UnableToLoadAccountLoader;
-//             msg!("Error {} thrown at {}:{}", error_code, file!(), line!());
-//             error_code
-//         })
-//     }};
-// }
-
-// #[macro_export]
-// macro_rules! load {
-//     ($account_loader:expr) => {{
-//         $account_loader.load().map_err(|_| {
-//             let error_code = ErrorCode::UnableToLoadAccountLoader;
-//             msg!("Error {} thrown at {}:{}", error_code, file!(), line!());
-//             error_code
-//         })
-//     }};
-// }
-
 #[macro_export]
 macro_rules! safe_increment {
     ($struct:expr, $value:expr) => {{
-        $struct = $struct.checked_add($value).ok_or_else(math_error!())?
+        $struct = $struct
+            .checked_add($value)
+            .ok_or_else(|| error::ErrorCode::MathError)?
     }};
 }
 
 #[macro_export]
 macro_rules! safe_decrement {
     ($struct:expr, $value:expr) => {{
-        $struct = $struct.checked_sub($value).ok_or_else(math_error!())?
+        $struct = $struct
+            .checked_sub($value)
+            .ok_or_else(|| error::ErrorCode::MathError)?
     }};
 }
 

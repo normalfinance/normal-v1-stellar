@@ -1,5 +1,5 @@
 use normal::error::ErrorCode;
-use soroban_sdk::{ Address, Vec };
+use soroban_sdk::{Address, Vec};
 
 use crate::storage::Config;
 
@@ -51,7 +51,10 @@ pub struct PositionRewardInfo {
     pub amount_owed: u64,
 }
 
-pub fn calculate_collect_reward(position_reward: PositionRewardInfo, vault_amount: u64) -> (u64, u64) {
+pub fn calculate_collect_reward(
+    position_reward: PositionRewardInfo,
+    vault_amount: u64,
+) -> (u64, u64) {
     let amount_owed = position_reward.amount_owed;
     let (transfer_amount, updated_amount_owed) = if amount_owed > vault_amount {
         (vault_amount, amount_owed - vault_amount)

@@ -1,14 +1,5 @@
 use soroban_sdk::{
-    contract,
-    contractimpl,
-    contractmeta,
-    log,
-    panic_with_error,
-    vec,
-    Address,
-    BytesN,
-    Env,
-    String,
+    contract, contractimpl, contractmeta, log, panic_with_error, vec, Address, BytesN, Env, String,
     Vec,
 };
 
@@ -17,28 +8,24 @@ use crate::{
     events::SynthPoolEvents,
     math::bit_math::checked_mul_shift_right,
     pool::SynthPoolTrait,
-    position::{ get_position_by_ts, get_positions, Position, PositionUpdate },
-    reward::{ calculate_collect_reward, RewardInfo },
+    position::{get_position_by_ts, get_positions, Position, PositionUpdate},
+    reward::{calculate_collect_reward, RewardInfo},
     storage::{
-        get_pool,
-        save_config,
-        save_default_slippage_bps,
-        utils::{ self, get_admin_old, is_initialized, set_initialized },
-        Pool,
-        SynthPoolParams,
+        get_pool, save_config, save_default_slippage_bps,
+        utils::{self, get_admin_old, is_initialized, set_initialized},
+        Pool, SynthPoolParams,
     },
     tick::Tick,
     tick_array::TickArray,
     token_contract,
-    utils::{ sparse_swap::SparseSwapTickSequenceBuilder, swap_utils::update_and_swap_amm },
+    utils::{sparse_swap::SparseSwapTickSequenceBuilder, swap_utils::update_and_swap_amm},
 };
 use normal::{
-    constants::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD },
+    constants::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD},
     error::ErrorCode,
     oracle::get_oracle_price,
-    utils::{ convert_i128_to_u128, is_approx_ratio },
-    validate_bps,
-    validate_int_parameters,
+    utils::{convert_i128_to_u128, is_approx_ratio},
+    validate_bps, validate_int_parameters,
 };
 
 fn check_nonnegative_amount(amount: i128) {
@@ -74,10 +61,13 @@ impl SynthPoolTrait for SynthPool {
         share_token_name: String,
         share_token_symbol: String,
         default_slippage_bps: i64,
-        max_allowed_fee_bps: i64
+        max_allowed_fee_bps: i64,
     ) {
         if is_initialized(&env) {
-            log!(&env, "Pool: Initialize: initializing contract twice is not allowed");
+            log!(
+                &env,
+                "Pool: Initialize: initializing contract twice is not allowed"
+            );
             panic_with_error!(&env, ErrorCode::AlreadyInitialized);
         }
 
@@ -108,7 +98,7 @@ impl SynthPoolTrait for SynthPool {
             env.current_contract_address(),
             share_token_decimals,
             share_token_name,
-            share_token_symbol
+            share_token_symbol,
         );
 
         let config = Config {
@@ -163,11 +153,13 @@ impl SynthPoolTrait for SynthPool {
         protocol_fee_rate: Option<i64>,
         max_allowed_slippage_bps: Option<i64>,
         max_allowed_spread_bps: Option<i64>,
-        max_allowed_variance_bps: Option<i64>
+        max_allowed_variance_bps: Option<i64>,
     ) {
         let admin: Address = utils::get_admin_old(&env);
         admin.require_auth();
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let mut pool = get_pool(&env);
 
@@ -215,7 +207,11 @@ impl SynthPoolTrait for SynthPool {
 
         let pool = &mut get_pool(&env);
 
-        log!(&env, "resetting amm oracle twap for market {}", market.market_index);
+        log!(
+            &env,
+            "resetting amm oracle twap for market {}",
+            market.market_index
+        );
         log!(
             &env,
             "amm.historical_oracle_data.last_oracle_price_twap: {:?} -> {:?}",
@@ -245,22 +241,27 @@ impl SynthPoolTrait for SynthPool {
         let now = env.ledger().timestamp();
 
         let pool = &mut get_pool(&env);
-        log!(&env, "updating amm oracle twap for market {}", market.market_index);
+        log!(
+            &env,
+            "updating amm oracle twap for market {}",
+            market.market_index
+        );
         // let price_oracle = &ctx.accounts.oracle;
         let oracle_twap = pool.get_oracle_twap(price_oracle, clock.slot)?;
 
         if let Some(oracle_twap) = oracle_twap {
-            let oracle_mark_gap_before = pool.last_mark_price_twap
+            let oracle_mark_gap_before = pool
+                .last_mark_price_twap
                 .cast::<i64>()?
                 .safe_sub(pool.historical_oracle_data.last_oracle_price_twap)?;
 
-            let oracle_mark_gap_after = amm.last_mark_price_twap
+            let oracle_mark_gap_after = amm
+                .last_mark_price_twap
                 .cast::<i64>()?
                 .safe_sub(oracle_twap)?;
 
-            if
-                (oracle_mark_gap_after > 0 && oracle_mark_gap_before < 0) ||
-                (oracle_mark_gap_after < 0 && oracle_mark_gap_before > 0)
+            if (oracle_mark_gap_after > 0 && oracle_mark_gap_before < 0)
+                || (oracle_mark_gap_after < 0 && oracle_mark_gap_before > 0)
             {
                 log!(
                     &env,
@@ -277,7 +278,8 @@ impl SynthPoolTrait for SynthPool {
                 amm.historical_oracle_data.last_oracle_price_twap =
                     amm.last_mark_price_twap.cast::<i64>()?;
                 amm.historical_oracle_data.last_oracle_price_twap_ts = now;
-            } else if oracle_mark_gap_after.unsigned_abs() <= oracle_mark_gap_before.unsigned_abs() {
+            } else if oracle_mark_gap_after.unsigned_abs() <= oracle_mark_gap_before.unsigned_abs()
+            {
                 log!(
                     &env,
                     "amm.historical_oracle_data.last_oracle_price_twap {} -> {}",
@@ -384,7 +386,7 @@ impl SynthPoolTrait for SynthPool {
             market,
             position_mint,
             &ctx.accounts.position_token_account,
-            &ctx.accounts.token_program
+            &ctx.accounts.token_program,
         )?;
 
         SynthPoolEvents::CreatePosition();
@@ -401,7 +403,7 @@ impl SynthPoolTrait for SynthPool {
     fn close_position(env: Env, sender: Address, position_ts: u64) {
         verify_position_authority(
             &ctx.accounts.position_token_account,
-            &ctx.accounts.position_authority
+            &ctx.accounts.position_authority,
         )?;
 
         let position = get_position_by_ts(&env, &sender, position_ts);
@@ -415,7 +417,7 @@ impl SynthPoolTrait for SynthPool {
             &ctx.accounts.receiver,
             &ctx.accounts.position_mint,
             &ctx.accounts.position_token_account,
-            &ctx.accounts.token_program
+            &ctx.accounts.token_program,
         );
 
         SynthPoolEvents::ClosePosition();
@@ -429,7 +431,7 @@ impl SynthPoolTrait for SynthPool {
         token_max_a: u64,
         token_max_b: u64,
         tick_array_lower: TickArray,
-        tick_array_upper: TickArray
+        tick_array_upper: TickArray,
     ) {
         // Depositor needs to authorize the deposit
         sender.require_auth();
@@ -449,7 +451,7 @@ impl SynthPoolTrait for SynthPool {
             &tick_array_lower,
             &tick_array_upper,
             liquidity_delta,
-            timestamp
+            timestamp,
         )?;
 
         controller::liquidity::sync_modify_liquidity_values(
@@ -458,14 +460,14 @@ impl SynthPoolTrait for SynthPool {
             &tick_array_lower,
             &tick_array_upper,
             update,
-            timestamp
+            timestamp,
         )?;
 
         let (delta_a, delta_b) = controller::liquidity::calculate_liquidity_token_deltas(
             pool.tick_current_index,
             pool.sqrt_price,
             &position,
-            liquidity_delta
+            liquidity_delta,
         )?;
 
         if delta_a > token_max_a || delta_b > token_max_b {
@@ -502,7 +504,7 @@ impl SynthPoolTrait for SynthPool {
 
         let recipient = match to {
             Some(to_address) => to_address, // Use the provided `to` address
-            None => sender, // Otherwise use the sender address
+            None => sender,                 // Otherwise use the sender address
         };
 
         pool.transfer_a(env.current_contract_address(), recipient, fee_owed_a);
@@ -519,7 +521,7 @@ impl SynthPoolTrait for SynthPool {
         token_max_a: u64,
         token_max_b: u64,
         tick_array_lower: TickArray,
-        tick_array_upper: TickArray
+        tick_array_upper: TickArray,
     ) -> (i128, i128) {
         sender.require_auth();
 
@@ -538,7 +540,7 @@ impl SynthPoolTrait for SynthPool {
             &tick_array_lower,
             &tick_array_upper,
             liquidity_delta,
-            timestamp
+            timestamp,
         )?;
 
         controller::liquidity::sync_modify_liquidity_values(
@@ -547,14 +549,14 @@ impl SynthPoolTrait for SynthPool {
             &ctx.accounts.tick_array_lower,
             &ctx.accounts.tick_array_upper,
             update,
-            timestamp
+            timestamp,
         )?;
 
         let (delta_a, delta_b) = controller::liquidity::calculate_liquidity_token_deltas(
             ctx.accounts.amm.tick_current_index,
             ctx.accounts.amm.sqrt_price,
             &ctx.accounts.position,
-            liquidity_delta
+            liquidity_delta,
         )?;
 
         if delta_a < token_max_a || delta_b < token_max_b {
@@ -583,12 +585,14 @@ impl SynthPoolTrait for SynthPool {
         // other
         tick_array_0: TickArray,
         tick_array_1: TickArray,
-        tick_array_2: TickArray
+        tick_array_2: TickArray,
     ) {
         sender.require_auth();
         check_nonnegative_amount(amount);
 
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let timestamp = env.ledger().timestamp();
         let config = get_pool(&env);
@@ -597,7 +601,7 @@ impl SynthPoolTrait for SynthPool {
             env,
             a_to_b,
             vec![tick_array_0, tick_array_1, tick_array_2],
-            None
+            None,
         )?;
         let mut swap_tick_sequence = builder.build()?;
 
@@ -608,19 +612,17 @@ impl SynthPoolTrait for SynthPool {
             sqrt_price_limit,
             amount_specified_is_input,
             a_to_b,
-            timestamp
+            timestamp,
         )?;
 
         if amount_specified_is_input {
-            if
-                (a_to_b && other_amount_threshold > swap_update.amount_quote) ||
-                (!a_to_b && other_amount_threshold > swap_update.amount_synthetic)
+            if (a_to_b && other_amount_threshold > swap_update.amount_quote)
+                || (!a_to_b && other_amount_threshold > swap_update.amount_synthetic)
             {
                 return Err(ErrorCode::AmountOutBelowMinimum.into());
             }
-        } else if
-            (a_to_b && other_amount_threshold < swap_update.amount_synthetic) ||
-            (!a_to_b && other_amount_threshold < swap_update.amount_quote)
+        } else if (a_to_b && other_amount_threshold < swap_update.amount_synthetic)
+            || (!a_to_b && other_amount_threshold < swap_update.amount_quote)
         {
             return Err(ErrorCode::AmountInAboveMaximum.into());
         }
@@ -634,7 +636,7 @@ impl SynthPoolTrait for SynthPool {
             config.token_b,
             swap_update,
             a_to_b,
-            timestamp
+            timestamp,
         );
 
         SynthPoolEvents::swap(&env, to, buy_a, out, in_max);
@@ -653,7 +655,7 @@ impl SynthPoolTrait for SynthPool {
         let position = &mut get_position_by_ts(&env, key, position_ts);
         let (transfer_amount, updated_amount_owed) = calculate_collect_reward(
             position.reward_infos[index],
-            ctx.accounts.reward_vault.amount
+            ctx.accounts.reward_vault.amount,
         );
 
         position.update_reward_owed(index, updated_amount_owed);
@@ -671,13 +673,17 @@ impl SynthPoolTrait for SynthPool {
     // Queries
 
     fn query_share_token_address(env: Env) -> Address {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         get_pool(&env).share_token
     }
 
     fn query_pool_info(env: Env) -> PoolResponse {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         let config = get_pool(&env);
 
         PoolResponse {

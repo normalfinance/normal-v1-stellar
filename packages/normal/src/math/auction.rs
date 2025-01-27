@@ -4,8 +4,7 @@ use soroban_sdk::Env;
 
 use crate::{
     constants::AUCTION_DERIVE_PRICE_FRACTION,
-    error::NormalResult,
-    math_error,
+    error::{self, NormalResult},
     oracle::OraclePriceData,
     types::{Auction, OrderDirection},
 };
@@ -144,9 +143,10 @@ pub fn standardize_price(
         return Ok(0);
     }
 
+    let error_code = error::ErrorCode::MathError;
     let remainder = price
         .checked_rem_euclid(tick_size)
-        .ok_or_else(math_error!(&env))?;
+        .ok_or_else(|| error_code)?;
 
     if remainder == 0 {
         return Ok(price);

@@ -1,24 +1,11 @@
 use curve::Curve;
 use normal::constants::{
-    INSTANCE_BUMP_AMOUNT,
-    INSTANCE_LIFETIME_THRESHOLD,
-    PERSISTENT_BUMP_AMOUNT,
+    INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT,
     PERSISTENT_LIFETIME_THRESHOLD,
 };
 use soroban_sdk::{
-    contracttype,
-    log,
-    panic_with_error,
-    symbol_short,
-    vec,
-    Address,
-    ConversionError,
-    Env,
-    String,
-    Symbol,
-    TryFromVal,
-    Val,
-    Vec,
+    contracttype, log, panic_with_error, symbol_short, vec, Address, ConversionError, Env, String,
+    Symbol, TryFromVal, Val, Vec,
 };
 
 use crate::error::ContractError;
@@ -73,14 +60,18 @@ pub struct VestingInfo {
 
 pub fn save_admin_old(env: &Env, admin: &Address) {
     env.storage().persistent().set(&DataKey::Admin, admin);
-    env.storage()
-        .persistent()
-        .extend_ttl(&DataKey::Admin, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &DataKey::Admin,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn _save_admin(env: &Env, admin: &Address) {
     env.storage().instance().set(&ADMIN, admin);
-    env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 }
 
 pub fn get_admin_old(env: &Env) -> Address {
@@ -92,23 +83,24 @@ pub fn get_admin_old(env: &Env) -> Address {
             log!(&env, "Vesting: Get admin: Critical error - No admin found");
             panic_with_error!(env, ContractError::NoAdminFound);
         });
-    env.storage()
-        .persistent()
-        .extend_ttl(&DataKey::Admin, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &DataKey::Admin,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 
     admin_addr
 }
 
 pub fn _get_admin(env: &Env) -> Address {
-    env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-
     env.storage()
         .instance()
-        .get(&ADMIN)
-        .unwrap_or_else(|| {
-            log!(&env, "Vesting: Admin not set");
-            panic_with_error!(&env, ContractError::AdminNotFound)
-        })
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+
+    env.storage().instance().get(&ADMIN).unwrap_or_else(|| {
+        log!(&env, "Vesting: Admin not set");
+        panic_with_error!(&env, ContractError::AdminNotFound)
+    })
 }
 
 #[contracttype]
@@ -135,9 +127,11 @@ pub fn save_vesting(env: &Env, address: &Address, vesting_info: &VestingInfo) {
     }
 
     env.storage().persistent().set(&vesting_key, vesting_info);
-    env.storage()
-        .persistent()
-        .extend_ttl(&vesting_key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &vesting_key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn update_vesting(env: &Env, address: &Address, index: u64, vesting_info: &VestingInfo) {
@@ -146,9 +140,11 @@ pub fn update_vesting(env: &Env, address: &Address, index: u64, vesting_info: &V
         index,
     };
     env.storage().persistent().set(&vesting_key, vesting_info);
-    env.storage()
-        .persistent()
-        .extend_ttl(&vesting_key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &vesting_key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn get_vesting(env: &Env, recipient: &Address, index: u64) -> VestingInfo {
@@ -167,9 +163,11 @@ pub fn get_vesting(env: &Env, recipient: &Address, index: u64) -> VestingInfo {
             );
             panic_with_error!(env, ContractError::VestingNotFoundForAddress);
         });
-    env.storage()
-        .persistent()
-        .extend_ttl(&vesting_key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &vesting_key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 
     vesting_info
 }
@@ -187,9 +185,11 @@ pub fn get_all_vestings(env: &Env, address: &Address) -> Vec<VestingInfo> {
         if let Some(vesting_info) = env.storage().persistent().get(&vesting_key) {
             vestings.push_back(vesting_info);
             index += 1;
-            env.storage()
-                .persistent()
-                .extend_ttl(&vesting_key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+            env.storage().persistent().extend_ttl(
+                &vesting_key,
+                PERSISTENT_LIFETIME_THRESHOLD,
+                PERSISTENT_BUMP_AMOUNT,
+            );
         } else {
             break;
         }
@@ -199,8 +199,12 @@ pub fn get_all_vestings(env: &Env, address: &Address) -> Vec<VestingInfo> {
 }
 
 pub fn save_token_info(env: &Env, token_info: &VestingTokenInfo) {
-    env.storage().instance().set(&DataKey::VestingTokenInfo, token_info);
-    env.storage().instance().extend_ttl(PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage()
+        .instance()
+        .set(&DataKey::VestingTokenInfo, token_info);
+    env.storage()
+        .instance()
+        .extend_ttl(PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 }
 
 pub fn get_token_info(env: &Env) -> VestingTokenInfo {
@@ -209,31 +213,51 @@ pub fn get_token_info(env: &Env) -> VestingTokenInfo {
         .instance()
         .get(&DataKey::VestingTokenInfo)
         .unwrap_or_else(|| {
-            log!(&env, "Vesting: Get token info: Critical error - No token info found");
+            log!(
+                &env,
+                "Vesting: Get token info: Critical error - No token info found"
+            );
             panic_with_error!(env, ContractError::NoTokenInfoFound);
         });
-    env.storage().instance().extend_ttl(PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage()
+        .instance()
+        .extend_ttl(PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 
     vesting_token_info
 }
 
 pub fn save_max_vesting_complexity(env: &Env, max_vesting_complexity: &u32) {
-    env.storage().instance().set(&DataKey::MaxVestingComplexity, max_vesting_complexity);
-    env.storage().instance().extend_ttl(PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage()
+        .instance()
+        .set(&DataKey::MaxVestingComplexity, max_vesting_complexity);
+    env.storage()
+        .instance()
+        .extend_ttl(PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 }
 
 pub fn get_max_vesting_complexity(env: &Env) -> u32 {
-    let vesting_complexity = env.storage().instance().get(&DataKey::MaxVestingComplexity).unwrap();
-    env.storage().instance().extend_ttl(PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    let vesting_complexity = env
+        .storage()
+        .instance()
+        .get(&DataKey::MaxVestingComplexity)
+        .unwrap();
+    env.storage()
+        .instance()
+        .extend_ttl(PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 
     vesting_complexity
 }
 
 pub fn is_initialized(e: &Env) -> bool {
-    e.storage().instance().get(&DataKey::IsInitialized).unwrap_or(false)
+    e.storage()
+        .instance()
+        .get(&DataKey::IsInitialized)
+        .unwrap_or(false)
 }
 
 pub fn set_initialized(e: &Env) {
     e.storage().instance().set(&DataKey::IsInitialized, &true);
-    e.storage().instance().extend_ttl(PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    e.storage()
+        .instance()
+        .extend_ttl(PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 }

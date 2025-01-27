@@ -1,45 +1,27 @@
 use normal::{
-    constants::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD },
-    utils::{ convert_i128_to_u128, convert_u128_to_i128 },
+    constants::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD},
+    utils::{convert_i128_to_u128, convert_u128_to_i128},
 };
 use soroban_sdk::{
-    contract,
-    contractimpl,
-    contractmeta,
-    log,
-    panic_with_error,
-    Address,
-    BytesN,
-    Env,
-    Vec,
+    contract, contractimpl, contractmeta, log, panic_with_error, Address, BytesN, Env, Vec,
 };
 
 use crate::{
     error::ContractError,
     storage::{
-        get_admin_old,
-        get_all_vestings,
-        get_max_vesting_complexity,
-        get_token_info,
-        get_vesting,
-        is_initialized,
-        save_admin_old,
-        save_max_vesting_complexity,
-        save_token_info,
-        save_vesting,
-        set_initialized,
-        update_vesting,
-        VestingInfo,
-        VestingSchedule,
-        VestingTokenInfo,
-        ADMIN,
+        get_admin_old, get_all_vestings, get_max_vesting_complexity, get_token_info, get_vesting,
+        is_initialized, save_admin_old, save_max_vesting_complexity, save_token_info, save_vesting,
+        set_initialized, update_vesting, VestingInfo, VestingSchedule, VestingTokenInfo, ADMIN,
     },
     token_contract,
-    utils::{ check_duplications, validate_vesting_schedule },
+    utils::{check_duplications, validate_vesting_schedule},
 };
 
 // Metadata that is added on to the WASM custom section
-contractmeta!(key = "Description", val = "Normal Protocol Token Vesting Contract");
+contractmeta!(
+    key = "Description",
+    val = "Normal Protocol Token Vesting Contract"
+);
 #[contract]
 pub struct Vesting;
 
@@ -49,7 +31,7 @@ pub trait VestingTrait {
         env: Env,
         admin: Address,
         vesting_token: VestingTokenInfo,
-        max_vesting_complexity: u32
+        max_vesting_complexity: u32,
     );
 
     fn create_vesting_schedules(env: Env, vesting_accounts: Vec<VestingSchedule>);
@@ -79,10 +61,13 @@ impl VestingTrait for Vesting {
         env: Env,
         admin: Address,
         vesting_token: VestingTokenInfo,
-        max_vesting_complexity: u32
+        max_vesting_complexity: u32,
     ) {
         if is_initialized(&env) {
-            log!(&env, "Stake: Initialize: initializing contract twice is not allowed");
+            log!(
+                &env,
+                "Stake: Initialize: initializing contract twice is not allowed"
+            );
             panic_with_error!(&env, ContractError::AlreadyInitialized);
         }
 
@@ -100,13 +85,16 @@ impl VestingTrait for Vesting {
         save_token_info(&env, &token_info);
         save_max_vesting_complexity(&env, &max_vesting_complexity);
 
-        env.events().publish(("Initialize", "Vesting contract with admin: "), admin);
+        env.events()
+            .publish(("Initialize", "Vesting contract with admin: "), admin);
     }
 
     fn create_vesting_schedules(env: Env, vesting_schedules: Vec<VestingSchedule>) {
         let admin = get_admin_old(&env);
         admin.require_auth();
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         if vesting_schedules.is_empty() {
             log!(
@@ -122,9 +110,8 @@ impl VestingTrait for Vesting {
         let mut total_vested_amount = 0;
 
         vesting_schedules.into_iter().for_each(|vesting_schedule| {
-            let vested_amount = validate_vesting_schedule(&env, &vesting_schedule.curve).expect(
-                "Invalid curve and amount"
-            );
+            let vested_amount = validate_vesting_schedule(&env, &vesting_schedule.curve)
+                .expect("Invalid curve and amount");
 
             if max_vesting_complexity <= vesting_schedule.curve.size() {
                 log!(
@@ -142,7 +129,7 @@ impl VestingTrait for Vesting {
                     balance: vested_amount,
                     recipient: vesting_schedule.recipient,
                     schedule: vesting_schedule.curve.clone(),
-                })
+                }),
             );
 
             total_vested_amount += vested_amount;
@@ -163,13 +150,15 @@ impl VestingTrait for Vesting {
         token_client.transfer(
             &admin,
             &env.current_contract_address(),
-            &convert_u128_to_i128(total_vested_amount)
+            &convert_u128_to_i128(total_vested_amount),
         );
     }
 
     fn claim(env: Env, sender: Address, index: u64) {
         sender.require_auth();
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let available_to_claim = Self::query_available_to_claim(env.clone(), sender.clone(), index);
 
@@ -203,46 +192,63 @@ impl VestingTrait for Vesting {
             &(VestingInfo {
                 balance: sender_balance - convert_i128_to_u128(available_to_claim),
                 ..vesting_info
-            })
+            }),
         );
 
-        token_client.transfer(&env.current_contract_address(), &sender, &available_to_claim);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &sender,
+            &available_to_claim,
+        );
 
-        env.events().publish(("Claim", "Claimed tokens: "), available_to_claim);
+        env.events()
+            .publish(("Claim", "Claimed tokens: "), available_to_claim);
     }
 
     fn query_balance(env: Env, address: Address) -> i128 {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         token_contract::Client::new(&env, &get_token_info(&env).address).balance(&address)
     }
 
     fn query_vesting_info(env: Env, address: Address, index: u64) -> VestingInfo {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         get_vesting(&env, &address, index)
     }
 
     fn query_all_vesting_info(env: Env, address: Address) -> Vec<VestingInfo> {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         get_all_vestings(&env, &address)
     }
 
     fn query_token_info(env: Env) -> VestingTokenInfo {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         get_token_info(&env)
     }
 
     fn query_vesting_contract_balance(env: Env) -> i128 {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         let token_address = get_token_info(&env).address;
         token_contract::Client::new(&env, &token_address).balance(&env.current_contract_address())
     }
 
     fn query_available_to_claim(env: Env, address: Address, index: u64) -> i128 {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         let vesting_info = get_vesting(&env, &address, index);
 
         convert_u128_to_i128(
-            vesting_info.balance - vesting_info.schedule.value(env.ledger().timestamp())
+            vesting_info.balance - vesting_info.schedule.value(env.ledger().timestamp()),
         )
     }
 
