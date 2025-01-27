@@ -19,12 +19,12 @@ echo "Contracts compiled."
 echo "Optimize contracts..."
 
 soroban contract optimize --wasm soroban_token_contract.wasm
-soroban contract optimize --wasm phoenix_factory.wasm
-soroban contract optimize --wasm phoenix_pool.wasm
-soroban contract optimize --wasm phoenix_pool_stable.wasm
-soroban contract optimize --wasm phoenix_stake.wasm
-soroban contract optimize --wasm phoenix_stake_rewards.wasm
-soroban contract optimize --wasm phoenix_multihop.wasm
+soroban contract optimize --wasm normal_insurance.wasm
+soroban contract optimize --wasm normal_oracle_proxy.wasm
+soroban contract optimize --wasm normal_synth_market_factory.wasm
+soroban contract optimize --wasm normal_synth_market.wasm
+soroban contract optimize --wasm normal_amm.wasm
+soroban contract optimize --wasm normal_scheduler.wasm
 
 echo "Contracts optimized."
 
@@ -50,13 +50,13 @@ soroban contract invoke \
     initialize \
     --admin $ADMIN_ADDRESS \
     --decimal 7 \
-    --name PHOENIX \
-    --symbol PHO
+    --name NORMAL \
+    --symbol NORM
 
-echo "PHO Token initialized."
+echo "NORM Token initialized."
 
 FACTORY_ADDR=$(soroban contract deploy \
-    --wasm phoenix_factory.optimized.wasm \
+    --wasm normal_synth_market_factory.optimized.wasm \
     --source $IDENTITY_STRING \
     --network $NETWORK)
 
@@ -71,7 +71,7 @@ else
     TOKEN_ID2=$TOKEN_ADDR1
 fi
 
-echo "Install the soroban_token, phoenix_pool and phoenix_stake contracts..."
+echo "Install the soroban_token, normal_amm and normal_synth_market contracts..."
 
 TOKEN_WASM_HASH=$(soroban contract install \
     --wasm soroban_token_contract.optimized.wasm \
@@ -79,34 +79,21 @@ TOKEN_WASM_HASH=$(soroban contract install \
     --network $NETWORK)
 
 # Continue with the rest of the deployments
-PAIR_WASM_HASH=$(soroban contract install \
-    --wasm phoenix_pool.optimized.wasm \
+SYNTH_MARKET_WASM_HASH=$(soroban contract install \
+    --wasm normal_synth_market.optimized.wasm \
     --source $IDENTITY_STRING \
     --network $NETWORK)
 
-STABLE_PAIR_WASM_HASH=$(soroban contract install \
-    --wasm phoenix_pool_stable.optimized.wasm \
-    --source $IDENTITY_STRING \
-    --network $NETWORK)
-
-STAKE_WASM_HASH=$(soroban contract install \
-    --wasm phoenix_stake.optimized.wasm \
-    --source $IDENTITY_STRING \
-    --network $NETWORK)
-
-STAKE_REWARDS_WASM_HASH=$(soroban contract install \
-    --wasm phoenix_stake_rewards.optimized.wasm \
-    --source $IDENTITY_STRING \
-    --network $NETWORK)
+# ...
 
 echo "Token, pair and stake contracts deployed."
 
 echo "Initialize factory..."
 
-MULTIHOP=$(soroban contract install \
-    --wasm phoenix_multihop.optimized.wasm \
-    --source $IDENTITY_STRING \
-    --network $NETWORK)
+# MULTIHOP=$(soroban contract install \
+#     --wasm phoenix_multihop.optimized.wasm \
+#     --source $IDENTITY_STRING \
+#     --network $NETWORK)
 
 soroban contract invoke \
     --id $FACTORY_ADDR \
@@ -115,14 +102,10 @@ soroban contract invoke \
     -- \
     initialize \
     --admin $ADMIN_ADDRESS \
-    --multihop_wasm_hash $MULTIHOP \
-    --lp_wasm_hash $PAIR_WASM_HASH \
-    --stable_wasm_hash $STABLE_PAIR_WASM_HASH \
-    --stake_wasm_hash $STAKE_WASM_HASH \
-    --stake_rewards_wasm_hash $STAKE_REWARDS_WASM_HASH \
+    --synth_market_wasm_hash $SYNTH_MARKET_WASM_HASH \
     --token_wasm_hash $TOKEN_WASM_HASH \
-    --whitelisted_accounts "[ \"${ADMIN_ADDRESS}\" ]" \
-    --lp_token_decimals 7
+    # --whitelisted_accounts "[ \"${ADMIN_ADDRESS}\" ]" \
+    # --lp_token_decimals 7
 
 echo "Factory initialized: " $FACTORY_ADDR
 
@@ -133,7 +116,7 @@ soroban contract invoke \
     --source $IDENTITY_STRING \
     --network $NETWORK \
     -- \
-    create_liquidity_pool \
+    create_synth_market \
     --sender $ADMIN_ADDRESS \
     --lp_init_info "{ \"admin\": \"${ADMIN_ADDRESS}\", \"swap_fee_bps\": 1000, \"fee_recipient\": \"${ADMIN_ADDRESS}\", \"max_allowed_slippage_bps\": 10000, \"default_slippage_bps\": 3000, \"max_allowed_spread_bps\": 10000, \"max_referral_bps\": 5000, \"token_init_info\": { \"token_a\": \"${TOKEN_ID1}\", \"token_b\": \"${TOKEN_ID2}\" }, \"stake_init_info\": { \"min_bond\": \"100\", \"min_reward\": \"100\", \"max_distributions\": 3, \"manager\": \"${ADMIN_ADDRESS}\", \"max_complexity\": 7 } }" \
     --default_slippage_bps 3000 \
@@ -142,18 +125,18 @@ soroban contract invoke \
     --share_token_symbol "XPST" \
     --pool_type 0
 
-echo "Query XLM/PHO pair address..."
+echo "Query XLM/NORM pair address..."
 
-PAIR_ADDR=$(soroban contract invoke \
+MARKET_ADDR=$(soroban contract invoke \
     --id $FACTORY_ADDR \
     --source $IDENTITY_STRING \
     --network $NETWORK --fee 100 \
     -- \
-    query_pools | jq -r '.[0]')
+    query_markets | jq -r '.[0]')
 
-echo "Pair contract initialized."
+echo "Market contract initialized."
 
-echo "Mint PHO token to the admin and provide liquidity..."
+echo "Mint NORM token to the admin and provide liquidity..."
 soroban contract invoke \
     --id $TOKEN_ADDR2 \
     --source $IDENTITY_STRING \
@@ -163,7 +146,7 @@ soroban contract invoke \
 
 # Provide liquidity in 2:1 ratio to the pool
 soroban contract invoke \
-    --id $PAIR_ADDR \
+    --id $MARKET_ADDR \
     --source $IDENTITY_STRING \
     --network $NETWORK --fee 10000000 \
     -- \
@@ -175,7 +158,7 @@ echo "Liquidity provided."
 echo "Query stake contract address..."
 
 STAKE_ADDR=$(soroban contract invoke \
-    --id $PAIR_ADDR \
+    --id $MARKET_ADDR \
     --source $IDENTITY_STRING \
     --network $NETWORK --fee 10000000 \
     -- \
@@ -240,7 +223,7 @@ soroban contract invoke \
 
 echo "Query PHO/USDC pair address..."
 
-PAIR_ADDR2=$(soroban contract invoke \
+MARKET_ADDR2=$(soroban contract invoke \
     --id $FACTORY_ADDR \
     --source $IDENTITY_STRING \
     --network $NETWORK --fee 100 \
@@ -266,7 +249,7 @@ soroban contract invoke \
 
 # Provide liquidity in 2:1 ratio to the pool
 soroban contract invoke \
-    --id $PAIR_ADDR2 \
+    --id $MARKET_ADDR2 \
     --source $IDENTITY_STRING \
     --network $NETWORK --fee 10000000 \
     -- \
@@ -278,7 +261,7 @@ echo "Liquidity provided."
 echo "Query stake contract address..."
 
 STAKE_ADDR2=$(soroban contract invoke \
-    --id $PAIR_ADDR \
+    --id $MARKET_ADDR \
     --source $IDENTITY_STRING \
     --network $NETWORK --fee 10000000 \
     -- \
@@ -299,11 +282,11 @@ echo "#############################"
 
 echo "Initialization complete!"
 echo "XLM address: $XLM"
-echo "PHO address: $TOKEN_ADDR2"
+echo "NORM address: $TOKEN_ADDR2"
 echo "USDC address: $TOKEN_ADDR1"
-echo "XLM/PHO Pair Contract address: $PAIR_ADDR"
-echo "XLM/PHO Stake Contract address: $STAKE_ADDR"
-echo "PHO/USDC Pair Contract address: $PAIR_ADDR2"
-echo "PHO/USDC Stake Contract address: $STAKE_ADDR2"
+echo "XLM/NORM Pair Contract address: $PAIR_ADDR"
+echo "XLM/NORM Stake Contract address: $STAKE_ADDR"
+echo "NORM/USDC Pair Contract address: $PAIR_ADDR2"
+echo "NORM/USDC Stake Contract address: $STAKE_ADDR2"
 echo "Factory Contract address: $FACTORY_ADDR"
 echo "Multihop Contract address: $MULTIHOP"
