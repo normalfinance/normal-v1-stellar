@@ -35,7 +35,7 @@ pub trait IndexTokenTrait {
 
     fn update_blacklist(env: Env, sender: Address, to_add: Vec<Address>, to_remove: Vec<Address>);
 
-    fn update_rebalance_threshold(env: Env, sender: Address, rebalance_threshold: i64);
+    fn update_rebalance_threshold(env: Env, sender: Address, rebalance_threshold: u64);
 
     // ################################################################
     //                              KEEPER

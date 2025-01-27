@@ -1,6 +1,6 @@
-use soroban_sdk::{ Address, BytesN, Env, String };
+use soroban_sdk::{Address, BytesN, Env, String};
 
-use crate::storage::{ Config, InsuranceFund, Stake };
+use crate::storage::{Config, InsuranceFund, Stake};
 
 pub trait InsuranceFundTrait {
     // ################################################################
@@ -18,7 +18,7 @@ pub trait InsuranceFundTrait {
         share_token_decimals: u32,
         share_token_name: String,
         share_token_symbol: String,
-        max_buffer_balance: i128
+        max_buffer_balance: i128,
     );
 
     // ################################################################

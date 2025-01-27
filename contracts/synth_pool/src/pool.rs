@@ -1,8 +1,9 @@
-use soroban_sdk::{contractclient, Address, BytesN, Env, String};
+use soroban_sdk::{ contractclient, Address, BytesN, Env, String };
 
 use crate::{
     position::PositionUpdate,
-    storage::{Config, SynthPoolParams},
+    storage::{ Config, SynthPoolParams },
+    tick_array::TickArray,
 };
 
 #[contractclient(name = "SynthPoolClient")]
@@ -17,7 +18,7 @@ pub trait SynthPoolTrait {
         protocol_fee_rate: u32,
         share_token_decimals: u32,
         share_token_name: String,
-        share_token_symbol: String,
+        share_token_symbol: String
     );
 
     fn initialize_tick_array(env: Env, start_tick_index: i32);
@@ -31,20 +32,20 @@ pub trait SynthPoolTrait {
         protocol_fee_rate: Option<i64>,
         max_allowed_slippage_bps: Option<i64>,
         max_allowed_spread_bps: Option<i64>,
-        max_allowed_variance_bps: Option<i64>,
+        max_allowed_variance_bps: Option<i64>
     );
 
     fn reset_oracle_twap(env: Env);
     fn update_oracle_twap(env: Env);
 
     fn initialize_reward(env: Env, reward_index: u8);
-    fn set_reward_emissions(env: Env, reward_timestamp: u64, emissions_per_second_x64: u128);
+    fn set_reward_emissions(env: Env, reward_ts: u64, emissions_per_second_x64: u128);
 
     // ################################################################
     //                             KEEPER
     // ################################################################
 
-    //    ...
+    fn collect_protocol_fees(env: Env, sender: Address, to: Address);
 
     // ################################################################
     //                             USER
@@ -57,22 +58,26 @@ pub trait SynthPoolTrait {
     fn increase_liquidity(
         env: Env,
         sender: Address,
-        position_timestamp: u64,
+        position_ts: u64,
         liquidity_amount: u128,
         token_max_a: u64,
         token_max_b: u64,
+        tick_array_lower: TickArray,
+        tick_array_upper: TickArray
     );
 
     fn decrease_liquidity(
         env: Env,
         sender: Address,
-        position_timestamp: u64,
+        position_ts: u64,
         liquidity_amount: u128,
         token_max_a: u64,
         token_max_b: u64,
+        tick_array_lower: TickArray,
+        tick_array_upper: TickArray
     );
 
-    fn close_position(env: Env, sender: Address, position_timestamp: u64);
+    fn close_position(env: Env, sender: Address, position_ts: u64);
 
     fn swap(
         env: Env,
@@ -81,11 +86,12 @@ pub trait SynthPoolTrait {
         other_amount_threshold: u64,
         sqrt_price_limit: u128,
         amount_specified_is_input: bool,
-        a_to_b: bool, // Zero for one
+        a_to_b: bool // Zero for one
     );
 
-    fn collect_fees(env: Env, sender: Address, to: Address, position_timestamp: u64);
-    fn collect_reward(env: Env, sender: Address, to: Address, reward_timestamp: u64);
+    fn collect_fees(env: Env, sender: Address, to: Option<Address>, position_ts: u64);
+
+    fn collect_reward(env: Env, sender: Address, to: Address, reward_ts: u64);
 
     // ################################################################
     //                             QUERIES

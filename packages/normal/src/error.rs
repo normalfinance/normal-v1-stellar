@@ -52,22 +52,32 @@ pub enum ErrorCode {
 
 #[macro_export]
 macro_rules! print_error {
-    ($err:expr) => {{
+    ($err:expr, $env:expr) => {
+        {
         || {
             let error_code: ErrorCode = $err;
-            log!("{:?} thrown at {}:{}", error_code, file!(), line!());
+            log!($env, "{:?} thrown at {}:{}", error_code, file!(), line!());
             $err
         }
-    }};
+        }
+    };
 }
 
 #[macro_export]
 macro_rules! math_error {
-    () => {{
+    ($env:expr) => {
+        {
         || {
             let error_code = $crate::error::ErrorCode::MathError;
-            log!("Error {} thrown at {}:{}", error_code, file!(), line!());
+            log!(
+                $env,
+                "Error {} thrown at {}:{}",
+                error_code,
+                file!(),
+                line!()
+            );
             error_code
         }
-    }};
+        }
+    };
 }

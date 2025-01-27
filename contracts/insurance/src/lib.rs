@@ -5,11 +5,11 @@ mod buffer;
 mod insurance_fund;
 
 mod contract;
-mod events;
 mod controller;
-mod storage;
-mod math;
+mod events;
 mod interfaces;
+mod math;
+mod storage;
 
 pub mod token_contract {
     soroban_sdk::contractimport!(

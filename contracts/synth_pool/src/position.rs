@@ -1,10 +1,14 @@
 use normal::constants::MAX_REWARDS;
 use normal::error::ErrorCode;
-use soroban_sdk::{contracttype, Address, Env, Vec};
+use soroban_sdk::{ contracttype, Address, Env, Vec };
 
 use crate::{
-    contract::SynthPool, errors::ErrorCode, math::FULL_RANGE_ONLY_TICK_SPACING_THRESHOLD,
-    reward::PositionRewardInfo, storage::Config, tick::Tick,
+    contract::SynthPool,
+    errors::ErrorCode,
+    math::FULL_RANGE_ONLY_TICK_SPACING_THRESHOLD,
+    reward::PositionRewardInfo,
+    storage::Config,
+    tick::Tick,
 };
 
 #[contracttype]
@@ -34,6 +38,8 @@ pub struct Position {
     pub fee_owed_b: u64,
 
     pub reward_infos: Vec<PositionRewardInfo>,
+
+    pub position_ts: u64,
 }
 
 impl Position {
@@ -59,21 +65,24 @@ impl Position {
         &mut self,
         pool: &Config,
         tick_lower_index: i32,
-        tick_upper_index: i32,
+        tick_upper_index: i32
     ) -> Result<()> {
-        if !Tick::check_is_usable_tick(tick_lower_index, pool.tick_spacing)
-            || !Tick::check_is_usable_tick(tick_upper_index, pool.tick_spacing)
-            || tick_lower_index >= tick_upper_index
+        if
+            !Tick::check_is_usable_tick(tick_lower_index, pool.tick_spacing) ||
+            !Tick::check_is_usable_tick(tick_upper_index, pool.tick_spacing) ||
+            tick_lower_index >= tick_upper_index
         {
             return Err(ErrorCode::InvalidTickIndex.into());
         }
 
         // On tick spacing >= 2^15, should only be able to open full range positions
         if pool.tick_spacing >= FULL_RANGE_ONLY_TICK_SPACING_THRESHOLD {
-            let (full_range_lower_index, full_range_upper_index) =
-                Tick::full_range_indexes(pool.tick_spacing);
-            if tick_lower_index != full_range_lower_index
-                || tick_upper_index != full_range_upper_index
+            let (full_range_lower_index, full_range_upper_index) = Tick::full_range_indexes(
+                pool.tick_spacing
+            );
+            if
+                tick_lower_index != full_range_lower_index ||
+                tick_upper_index != full_range_upper_index
             {
                 return Err(ErrorCode::FullRangeOnlyPool.into());
             }
@@ -102,29 +111,34 @@ pub struct PositionInfo {
     pub positions: Vec<Position>,
 }
 
-pub fn get_positions(env: &Env, key: &Address) -> PositionInfo {
+pub fn get_position_info(env: &Env, key: &Address) -> PositionInfo {
     let position_info = match env.storage().persistent().get::<_, PositionInfo>(key) {
         Some(info) => info,
-        None => PositionInfo {
-            positions: Vec::new(env),
-        },
+        None =>
+            PositionInfo {
+                positions: Vec::new(env),
+            },
     };
-    env.storage().persistent().has(&key).then(|| {
-        env.storage().persistent().extend_ttl(
-            &key,
-            PERSISTENT_LIFETIME_THRESHOLD,
-            PERSISTENT_BUMP_AMOUNT,
-        );
-    });
+    env.storage()
+        .persistent()
+        .has(&key)
+        .then(|| {
+            env.storage()
+                .persistent()
+                .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        });
 
     position_info
 }
 
-pub fn save_positions(env: &Env, key: &Address, position_info: &PositionInfo) {
+pub fn save_position_info(env: &Env, key: &Address, position_info: &PositionInfo) {
     env.storage().persistent().set(key, position_info);
-    env.storage().persistent().extend_ttl(
-        &key,
-        PERSISTENT_LIFETIME_THRESHOLD,
-        PERSISTENT_BUMP_AMOUNT,
-    );
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+}
+
+pub fn get_position_by_ts(env: &Env, key: &Address, ts: u64) -> Position {
+    let position_info = get_position_info(env, key);
+    position_info.positions.find
 }

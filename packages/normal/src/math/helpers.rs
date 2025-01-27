@@ -2,7 +2,7 @@ use soroban_sdk::Env;
 
 use crate::{ error::NormalResult, math_error };
 
-use super::{ casting::Cast, safe_math::SafeMath };
+use super::{ bn::U192, casting::Cast, safe_math::SafeMath };
 
 pub fn standardize_value_with_remainder_i128(
     env: &Env,
@@ -12,7 +12,7 @@ pub fn standardize_value_with_remainder_i128(
     let remainder = value
         .unsigned_abs()
         .checked_rem_euclid(step_size)
-        .ok_or_else(math_error!())?
+        .ok_or_else(math_error!(&env))?
         .cast::<i128>(env)?
         .safe_mul(value.signum(), env)?;
 
@@ -46,10 +46,10 @@ pub fn get_proportion_u128(
         value
     } else if value >= large_constant || numerator >= large_constant {
         let value = U192::from(value)
-            .safe_mul(U192::from(numerator))?
-            .safe_div(U192::from(denominator))?;
+            .safe_mul(U192::from(numerator), &env)?
+            .safe_div(U192::from(denominator), &env)?;
 
-        value.cast::<u128>()?
+        value.cast::<u128>(env)?
     } else if numerator > denominator / 2 && denominator > numerator {
         // get values to ensure a ceiling division
         let (std_value, r) = standardize_value_with_remainder_i128(

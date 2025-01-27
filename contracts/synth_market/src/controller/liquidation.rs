@@ -1,8 +1,11 @@
 // #[cfg(test)]
 // mod tests;
 
-use normal::{ error::{ ErrorCode, NormalResult }, validate };
-use soroban_sdk::{ Address, Env };
+use normal::{
+    error::{ErrorCode, NormalResult},
+    validate,
+};
+use soroban_sdk::{Address, Env};
 
 use crate::storage::Position;
 
@@ -13,7 +16,7 @@ pub fn liquidate_position(
     limit_price: Option<u64>,
     user: &Address,
     liquidator: &Address,
-    now: i64
+    now: i64,
 ) -> NormalResult {
     // TODO: do we define these per market or at the factory level?
     let liquidation_margin_buffer_ratio = state.liquidation_margin_buffer_ratio;
@@ -22,7 +25,11 @@ pub fn liquidate_position(
 
     let mut position = get_position(&env, &user);
 
-    validate!(!position.is_bankrupt(), ErrorCode::UserBankrupt, "user bankrupt")?;
+    validate!(
+        !position.is_bankrupt(),
+        ErrorCode::UserBankrupt,
+        "user bankrupt"
+    )?;
 
     validate!(
         !market.is_operation_paused(SynthOperation::Liquidation),
@@ -33,9 +40,8 @@ pub fn liquidate_position(
 
     let margin_calculation = calculate_margin_requirement_and_total_collateral_and_liability_info(
         user,
-        MarginContext::liquidation(liquidation_margin_buffer_ratio).track_market_margin_requirement(
-            MarketIdentifier::perp(market_index)
-        )?
+        MarginContext::liquidation(liquidation_margin_buffer_ratio)
+            .track_market_margin_requirement(MarketIdentifier::perp(market_index))?,
     )?;
 
     if !position.is_being_liquidated() && margin_calculation.meets_margin_requirement() {
@@ -63,7 +69,7 @@ pub fn liquidate_position(
         oracle_price_data,
         state,
         now,
-        Some(DriftAction::Liquidate)
+        Some(DriftAction::Liquidate),
     )?;
 
     let oracle_price = if market.status == MarketStatus::Settlement {
@@ -74,10 +80,15 @@ pub fn liquidate_position(
 
     let oracle_price_too_divergent = is_oracle_too_divergent_with_twap_5min(
         oracle_price,
-        perp_market_map.get_ref(
-            &market_index
-        )?.amm.historical_oracle_data.last_oracle_price_twap_5min,
-        state.oracle_guard_rails.max_oracle_twap_5min_percent_divergence().cast()?
+        perp_market_map
+            .get_ref(&market_index)?
+            .amm
+            .historical_oracle_data
+            .last_oracle_price_twap_5min,
+        state
+            .oracle_guard_rails
+            .max_oracle_twap_5min_percent_divergence()
+            .cast()?,
     )?;
 
     validate!(!oracle_price_too_divergent, ErrorCode::PriceBandsBreached)?;
@@ -86,7 +97,7 @@ pub fn liquidate_position(
 
     let margin_ratio = SynthMarket::get_margin_ratio(
         user_base_asset_amount.cast()?,
-        MarginRequirementType::Maintenance
+        MarginRequirementType::Maintenance,
     )?;
 
     let margin_ratio_with_buffer = margin_ratio.safe_add(liquidation_margin_buffer_ratio)?;
@@ -104,7 +115,7 @@ pub fn liquidate_position(
         liquidator_fee,
         oracle_price,
         quote_oracle_price,
-        market.if_liquidation_fee
+        market.if_liquidation_fee,
     )?;
     let base_asset_amount_to_cover_margin_shortage = standardize_base_asset_amount_ceil(
         calculate_base_asset_amount_to_cover_margin_shortage(
@@ -113,9 +124,9 @@ pub fn liquidate_position(
             liquidator_fee,
             if_liquidation_fee,
             oracle_price,
-            quote_oracle_price
+            quote_oracle_price,
         )?,
-        market.amm.order_step_size // TODO: is this the tick spacing?
+        market.amm.order_step_size, // TODO: is this the tick spacing?
     )?;
 
     // ...
@@ -128,13 +139,17 @@ pub fn resolve_position_bankruptcy(
     user: &Address,
     liquidator: &Address,
     now: i64,
-    insurance_fund_vault_balance: u64
+    insurance_fund_vault_balance: u64,
 ) -> NormalResult<u64> {
     if !user.is_bankrupt() && is_user_bankrupt(user) {
         user.enter_bankruptcy();
     }
 
-    validate!(user.is_bankrupt(), ErrorCode::UserNotBankrupt, "user not bankrupt")?;
+    validate!(
+        user.is_bankrupt(),
+        ErrorCode::UserNotBankrupt,
+        "user not bankrupt"
+    )?;
 
     validate!(
         !liquidator.is_being_liquidated(),
@@ -142,7 +157,11 @@ pub fn resolve_position_bankruptcy(
         "liquidator being liquidated"
     )?;
 
-    validate!(!liquidator.is_bankrupt(), ErrorCode::UserBankrupt, "liquidator bankrupt")?;
+    validate!(
+        !liquidator.is_bankrupt(),
+        ErrorCode::UserBankrupt,
+        "liquidator bankrupt"
+    )?;
 
     let market = perp_market_map.get_ref(&market_index)?;
 
@@ -156,29 +175,44 @@ pub fn resolve_position_bankruptcy(
     drop(market);
 
     user.get_perp_position(market_index).map_err(|e| {
-        msg!("User does not have a position for perp market {}", market_index);
+        msg!(
+            "User does not have a position for perp market {}",
+            market_index
+        );
         e
     })?;
 
-    let loss = user.get_perp_position(market_index)?.quote_asset_amount.cast::<i128>()?;
+    let loss = user
+        .get_perp_position(market_index)?
+        .quote_asset_amount
+        .cast::<i128>()?;
 
-    validate!(loss < 0, ErrorCode::InvalidPerpPositionToLiquidate, "user must have negative pnl")?;
+    validate!(
+        loss < 0,
+        ErrorCode::InvalidPerpPositionToLiquidate,
+        "user must have negative pnl"
+    )?;
 
-    let MarginCalculation { margin_requirement, total_collateral, .. } =
-        calculate_margin_requirement_and_total_collateral_and_liability_info(
-            user,
-            perp_market_map,
-            spot_market_map,
-            oracle_map,
-            MarginContext::standard(MarginRequirementType::Maintenance)
-        )?;
+    let MarginCalculation {
+        margin_requirement,
+        total_collateral,
+        ..
+    } = calculate_margin_requirement_and_total_collateral_and_liability_info(
+        user,
+        perp_market_map,
+        spot_market_map,
+        oracle_map,
+        MarginContext::standard(MarginRequirementType::Maintenance),
+    )?;
 
     // spot market's insurance fund draw attempt here (before social loss)
     // subtract 1 from available insurance_fund_vault_balance so deposits in insurance vault always remains >= 1
 
     let if_payment = {
         let mut perp_market = perp_market_map.get_ref_mut(&market_index)?;
-        let max_insurance_withdraw = perp_market.insurance_claim.quote_max_insurance
+        let max_insurance_withdraw = perp_market
+            .insurance_claim
+            .quote_max_insurance
             .safe_sub(perp_market.insurance_claim.quote_settled_insurance)?
             .cast::<u128>()?;
 
@@ -187,8 +221,10 @@ pub fn resolve_position_bankruptcy(
             .min(insurance_fund_vault_balance.saturating_sub(1).cast()?)
             .min(max_insurance_withdraw);
 
-        perp_market.insurance_claim.quote_settled_insurance =
-            perp_market.insurance_claim.quote_settled_insurance.safe_add(if_payment.cast()?)?;
+        perp_market.insurance_claim.quote_settled_insurance = perp_market
+            .insurance_claim
+            .quote_settled_insurance
+            .safe_add(if_payment.cast()?)?;
 
         // move if payment to pnl pool
         let spot_market = &mut spot_market_map.get_ref_mut(&QUOTE_SPOT_MARKET_INDEX)?;
@@ -200,7 +236,7 @@ pub fn resolve_position_bankruptcy(
             &SpotBalanceType::Deposit,
             spot_market,
             &mut perp_market.pnl_pool,
-            false
+            false,
         )?;
 
         if_payment
@@ -238,7 +274,7 @@ pub fn resolve_position_bankruptcy(
             &SpotBalanceType::Borrow,
             spot_market,
             &mut perp_market.amm.fee_pool,
-            false
+            false,
         )?;
     }
 
@@ -251,23 +287,27 @@ pub fn resolve_position_bankruptcy(
 
     let cumulative_funding_rate_delta = calculate_funding_rate_deltas_to_resolve_bankruptcy(
         loss_to_socialize,
-        perp_market_map.get_ref(&market_index)?.deref()
+        perp_market_map.get_ref(&market_index)?.deref(),
     )?;
 
     // socialize loss
     if loss_to_socialize < 0 {
         let mut market = perp_market_map.get_ref_mut(&market_index)?;
 
-        market.amm.total_social_loss = market.amm.total_social_loss.safe_add(
-            loss_to_socialize.unsigned_abs()
-        )?;
+        market.amm.total_social_loss = market
+            .amm
+            .total_social_loss
+            .safe_add(loss_to_socialize.unsigned_abs())?;
 
-        market.amm.cumulative_funding_rate_long = market.amm.cumulative_funding_rate_long.safe_add(
-            cumulative_funding_rate_delta
-        )?;
+        market.amm.cumulative_funding_rate_long = market
+            .amm
+            .cumulative_funding_rate_long
+            .safe_add(cumulative_funding_rate_delta)?;
 
-        market.amm.cumulative_funding_rate_short =
-            market.amm.cumulative_funding_rate_short.safe_sub(cumulative_funding_rate_delta)?;
+        market.amm.cumulative_funding_rate_short = market
+            .amm
+            .cumulative_funding_rate_short
+            .safe_sub(cumulative_funding_rate_delta)?;
     }
 
     // clear bad debt
@@ -278,7 +318,7 @@ pub fn resolve_position_bankruptcy(
         update_quote_asset_amount(
             &mut user.perp_positions[position_index],
             &mut market,
-            -quote_asset_amount
+            -quote_asset_amount,
         )?;
 
         user.increment_total_socialized_loss(quote_asset_amount.unsigned_abs())?;
@@ -317,23 +357,29 @@ pub fn resolve_position_bankruptcy(
 pub fn calculate_margin_freed(
     position: &Position,
     liquidation_margin_buffer_ratio: u32,
-    initial_margin_shortage: u128
+    initial_margin_shortage: u128,
 ) -> NormalResult<(u64, MarginCalculation)> {
     let margin_calculation_after =
         calculate_margin_requirement_and_total_collateral_and_liability_info(
             position,
-            MarginContext::liquidation(liquidation_margin_buffer_ratio)
+            MarginContext::liquidation(liquidation_margin_buffer_ratio),
         )?;
 
     let new_margin_shortage = margin_calculation_after.margin_shortage()?;
 
-    let margin_freed = initial_margin_shortage.saturating_sub(new_margin_shortage).cast::<u64>()?;
+    let margin_freed = initial_margin_shortage
+        .saturating_sub(new_margin_shortage)
+        .cast::<u64>()?;
 
     Ok((margin_freed, margin_calculation_after))
 }
 
 pub fn set_position_status_to_being_liquidated(position: &mut Position, now: u64) -> NormalResult {
-    validate!(!position.is_bankrupt(), ErrorCode::UserBankrupt, "position bankrupt")?;
+    validate!(
+        !position.is_bankrupt(),
+        ErrorCode::UserBankrupt,
+        "position bankrupt"
+    )?;
 
     validate!(
         !position.is_being_liquidated(),
@@ -347,7 +393,7 @@ pub fn set_position_status_to_being_liquidated(position: &mut Position, now: u64
         perp_market_map,
         spot_market_map,
         oracle_map,
-        MarginContext::liquidation(liquidation_margin_buffer_ratio)
+        MarginContext::liquidation(liquidation_margin_buffer_ratio),
     )?;
 
     if !position.is_being_liquidated() && margin_calculation.meets_margin_requirement() {

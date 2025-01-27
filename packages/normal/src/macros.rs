@@ -51,15 +51,19 @@ macro_rules! validate {
 
 #[macro_export]
 macro_rules! dlog {
-    ($($variable: expr),+) => {{
+    ($($variable:expr),+) => {
+        {
         $(
             log!("{}: {}", stringify!($variable), $variable);
         )+
-    }};
-    ($($arg:tt)+) => {{
+        }
+    };
+    ($($arg:tt)+) => {
+        {
             #[cfg(not(feature = "mainnet-beta"))]
             log!($($arg)+);
-    }};
+        }
+    };
 }
 
 // #[macro_export]

@@ -1,17 +1,17 @@
 use normal::{
-    error::{ ErrorCode, NormalResult },
-    math::{ casting::Cast, helpers::get_proportion_u128, safe_math },
+    error::{ErrorCode, NormalResult},
+    math::{casting::Cast, helpers::get_proportion_u128, safe_math},
     validate,
 };
 use soroban_sdk::Env;
 
-use crate::storage::{ InsuranceFund, Stake };
+use crate::storage::{InsuranceFund, Stake};
 
 pub fn vault_amount_to_if_shares(
     env: &Env,
     amount: u64,
     total_if_shares: u128,
-    insurance_fund_vault_balance: u64
+    insurance_fund_vault_balance: u64,
 ) -> NormalResult<u128> {
     // relative to the entire pool + total amount minted
     let n_shares = if insurance_fund_vault_balance > 0 {
@@ -21,7 +21,7 @@ pub fn vault_amount_to_if_shares(
             env,
             amount.cast::<u128>(env)?,
             total_if_shares,
-            insurance_fund_vault_balance.cast::<u128>(env)?
+            insurance_fund_vault_balance.cast::<u128>(env)?,
         )?
     } else {
         // must be case that total_if_shares == 0 for nice result for user
@@ -41,7 +41,7 @@ pub fn if_shares_to_vault_amount(
     env: &Env,
     n_shares: u128,
     total_if_shares: u128,
-    insurance_fund_vault_balance: u64
+    insurance_fund_vault_balance: u64,
 ) -> NormalResult<u64> {
     validate!(
         n_shares <= total_if_shares,
@@ -56,8 +56,9 @@ pub fn if_shares_to_vault_amount(
             env,
             insurance_fund_vault_balance as u128,
             n_shares,
-            total_if_shares
-        )?.cast::<u64>(env)?
+            total_if_shares,
+        )?
+        .cast::<u64>(env)?
     } else {
         0
     };
@@ -68,7 +69,7 @@ pub fn if_shares_to_vault_amount(
 pub fn calculate_rebase_info(
     env: &Env,
     total_if_shares: u128,
-    insurance_fund_vault_balance: u64
+    insurance_fund_vault_balance: u64,
 ) -> NormalResult<(u32, u128)> {
     let rebase_divisor_full = total_if_shares
         .safe_div(10)?
@@ -84,7 +85,7 @@ pub fn calculate_if_shares_lost(
     env: &Env,
     stake: &Stake,
     insurance_fund: &InsuranceFund,
-    insurance_fund_vault_balance: u64
+    insurance_fund_vault_balance: u64,
 ) -> NormalResult<u128> {
     let n_shares = stake.last_withdraw_request_shares;
 
@@ -92,7 +93,7 @@ pub fn calculate_if_shares_lost(
         env,
         n_shares,
         insurance_fund.total_shares,
-        insurance_fund_vault_balance
+        insurance_fund_vault_balance,
     )?;
 
     let if_shares_lost = if amount > stake.last_withdraw_request_value {
@@ -100,7 +101,7 @@ pub fn calculate_if_shares_lost(
             env,
             stake.last_withdraw_request_value,
             insurance_fund.total_shares.safe_sub(n_shares)?,
-            insurance_fund_vault_balance.safe_sub(stake.last_withdraw_request_value)?
+            insurance_fund_vault_balance.safe_sub(stake.last_withdraw_request_value)?,
         )?;
 
         validate!(

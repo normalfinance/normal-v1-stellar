@@ -1,11 +1,15 @@
-use soroban_sdk::{ testutils::Address as _, Address, BytesN, Env };
+use soroban_sdk::{testutils::Address as _, Address, BytesN, Env};
 
-use crate::{ contract::{ Insurance, InsuranceClient }, token_contract };
+use crate::{
+    contract::{Insurance, InsuranceClient},
+    token_contract,
+};
 
 pub fn deploy_token_contract<'a>(env: &Env, admin: &Address) -> token_contract::Client<'a> {
     token_contract::Client::new(
         env,
-        &env.register_stellar_asset_contract_v2(admin.clone()).address()
+        &env.register_stellar_asset_contract_v2(admin.clone())
+            .address(),
     )
 }
 
@@ -18,7 +22,8 @@ mod insurance_contract {
 
 #[allow(dead_code)]
 fn install_insurance_contract_wasm(env: &Env) -> BytesN<32> {
-    env.deployer().upload_contract_wasm(insurance_contract::WASM)
+    env.deployer()
+        .upload_contract_wasm(insurance_contract::WASM)
 }
 
 pub const ONE_WEEK: u64 = 604800;
@@ -31,11 +36,19 @@ pub fn deploy_insurance_contract<'a>(
     lp_token: &Address,
     manager: &Address,
     owner: &Address,
-    max_complexity: &u32
+    max_complexity: &u32,
 ) -> InsuranceClient<'a> {
     let admin = admin.into().unwrap_or(Address::generate(env));
     let insurance = InsuranceClient::new(env, &env.register(Insurance, ()));
 
-    insurance.initialize(&admin, lp_token, &MIN_BOND, &MIN_REWARD, manager, owner, max_complexity);
+    insurance.initialize(
+        &admin,
+        lp_token,
+        &MIN_BOND,
+        &MIN_REWARD,
+        manager,
+        owner,
+        max_complexity,
+    );
     insurance
 }

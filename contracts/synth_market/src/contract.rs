@@ -3,13 +3,13 @@ use soroban_sdk::{
     Symbol,
 };
 
+use crate::controller;
 use crate::{
     constants::{LIQUIDATION_FEE_TO_MARGIN_PRECISION_RATIO, MAX_MARGIN_RATIO, MIN_MARGIN_RATIO},
     storage::{get_admin, get_market, get_position, save_market, save_position, DataKey},
     synth_market::SynthMarketTrait,
     token_contract,
 };
-use crate::controller;
 use normal::{dlog, safe_math::SafeMath, utils::validate};
 use normal::{
     oracle::{

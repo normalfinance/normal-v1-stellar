@@ -22,50 +22,56 @@ Normal is an over-collateralized synthetic asset protocol enabling low fee and d
 
 ## Features
 
--   Invest in Top 100 cryptos without leaving Stellar
--   Invest in diversified portfolios of crypto with just one click
--   Create your own crypto portfolios and earn income when others invest in them
--   Earn competitive yield on XLM by providing collateral to mint synthetic assets
--   Earn yield by providing liquidity to various Normal AMMs
+- Invest in Top 100 cryptos without leaving Stellar
+- Invest in diversified portfolios of crypto with just one click
+- Create your own crypto portfolios and earn income when others invest in them
+- Earn competitive yield on XLM by providing collateral to mint synthetic assets
+- Earn yield by providing liquidity to various Normal AMMs
 
 ## Contracts
 
 The core smart contracts powering the Normal Protocol:
 
--   [`AMM`](https://github.com/normalfinance/normal-v1-stellar/tree/develop/soroban/contracts/amm) - A constant product automated market maket (AMM) for swapping in and out of synthetic assets.
--   [`Governor`](https://github.com/normalfinance/normal-v1-stellar/tree/develop/soroban/contracts/governor) - Fork of [soroban-governor](https://github.com/script3/soroban-governor), the core contract of the Normal DAO. Its core responsibility is managing the proposal workflow. Proposals allow the Governor contract to interact with the greater Soroban ecosystem, enabling things like the Governor sending funds to a grant recipient or depositing into an AMM.
--   [`Index`](https://github.com/normalfinance/normal-v1-stellar/tree/develop/soroban/contracts/index) - Manages the creation, maintenance, minting, redeeming, and price peg of an on-chain crypto index fund.
--   [`IndexFactory`](https://github.com/normalfinance/normal-v1-stellar/tree/develop/soroban/contracts/index_factory) - Deploys `Index` contracts and provides structured access using an `index_id`.
--   [`IndexToken`](https://github.com/normalfinance/normal-v1-stellar/tree/develop/soroban/contracts/index_token) - A Soroban token representing ownership in an `Index`. Extension of the Token Interface to collect a `protocol_fee` and `manager_fee` on qualifying `transfer` and `transfer_from` transactions.
--   [`InsuranceFund`](https://github.com/normalfinance/normal-v1-stellar/tree/develop/soroban/contracts/insurance_fund) - A backstop fund to cover protocol debt (deficits incurred from liquidations). Pays yield to depositors in exchange for the right to make a claim in the event of protocol debt.
--   [`OracleSecurityModule`](https://github.com/normalfinance/normal-v1-stellar/tree/develop/soroban/contracts/osm) - A proxy between oracle prices and synth and index price pegs to apply various validations and allow emergency oracle replacement or freezing.
--   [`Scheduler`](https://github.com/normalfinance/normal-v1-stellar/tree/develop/soroban/contracts/scheduler) - An on-chain dollar cost average order schedulor for recurring buys or sells of synthetic assets or crypto indexes. Does not currently support 3rd party DEXes.
--   [`State`](https://github.com/normalfinance/normal-v1-stellar/tree/develop/soroban/contracts/state) - Global configuration values for the Normal Protocol and its constituent contracts.
--   [`SynthMarket`](https://github.com/normalfinance/normal-v1-stellar/tree/develop/soroban/contracts/synth_market) - Manages the creation, maintenance, margin, collateral, liquidation, and price peg of a synthetic asset.
--   [`SynthMarketFactory`](https://github.com/normalfinance/normal-v1-stellar/tree/develop/soroban/contracts/synth_market_factory) - Deploys `SynthMarket` contracts and provides structed access using a `market_index`.
--   [`Votes`](https://github.com/normalfinance/normal-v1-stellar/tree/develop/soroban/contracts/votes) - Fork of [soroban-governor](https://github.com/script3/soroban-governor), enforcing bonding/vote-escrowed access to participation in Normal DAO proposals.
+- [`Governor`](https://github.com/normalfinance/normal-v1-stellar/tree/master/contracts/governor) - Fork of [soroban-governor](https://github.com/script3/soroban-governor), the core contract of the Normal DAO. Its core responsibility is managing the proposal workflow. Proposals allow the Governor contract to interact with the greater Soroban ecosystem, enabling things like the Governor sending funds to a grant recipient or depositing into an AMM.
+- [`Index`](https://github.com/normalfinance/normal-v1-stellar/tree/master/contracts/index) - Manages the creation, maintenance, minting, redeeming, and price peg of an on-chain crypto index fund.
+- [`IndexFactory`](https://github.com/normalfinance/normal-v1-stellar/tree/master/contracts/index_factory) - Deploys `Index` contracts and provides structured access using an `index_id`.
+- [`IndexToken`](https://github.com/normalfinance/normal-v1-stellar/tree/master/contracts/index_token) - A Soroban token representing ownership in an `Index`. Extension of the Token Interface to collect a `protocol_fee` and `manager_fee` on qualifying `transfer` and `transfer_from` transactions.
+- [`Insurance`](https://github.com/normalfinance/normal-v1-stellar/tree/master/contracts/insurance) - A backstop fund to cover protocol debt (deficits incurred from liquidations). Pays yield to depositors in exchange for the right to make a claim in the event of protocol debt.
+- [`Scheduler`](https://github.com/normalfinance/normal-v1-stellar/tree/master/contracts/scheduler) - An on-chain dollar cost average order schedulor for recurring buys or sells of synthetic assets or crypto indexes. Does not currently support 3rd party DEXes.
+- [`SynthMarket`](https://github.com/normalfinance/normal-v1-stellar/tree/master/contracts/synth_market) - Manages the creation, maintenance, margin, collateral, liquidation, and price peg of a synthetic asset.
+- [`SynthMarketFactory`](https://github.com/normalfinance/normal-v1-stellar/tree/master/contracts/synth_market_factory) - Deploys `SynthMarket` contracts and provides structed access using a `market_index`.
+- [`SynthPool`](https://github.com/normalfinance/normal-v1-stellar/tree/master/contracts/synth_pool) - A constant product automated market maket (AMM) for swapping in and out of synthetic assets.
+- [`Votes`](https://github.com/normalfinance/normal-v1-stellar/tree/master/contracts/votes) - Fork of [soroban-governor](https://github.com/script3/soroban-governor), enforcing bonding/vote-escrowed access to participation in Normal DAO proposals.
+- [`Votes`](https://github.com/normalfinance/normal-v1-stellar/tree/master/contracts/votes) - Fork of [soroban-governor](https://github.com/script3/soroban-governor), enforcing bonding/vote-escrowed access to participation in Normal DAO proposals.
+
+## Packages
+
+dfdsf
+
+- [`Curve`](https://github.com/normalfinance/normal-v1-stellar/tree/master/packages/curve) - Fork of [soroban-governor](https://github.com/script3/soroban-governor), enforcing bonding/vote-escrowed access to participation in Normal DAO proposals.
+- [`Normal`](https://github.com/normalfinance/normal-v1-stellar/tree/master/packages/normal) - Fork of [soroban-governor](https://github.com/script3/soroban-governor), enforcing bonding/vote-escrowed access to participation in Normal DAO proposals.
+- [`Oracle`](https://github.com/normalfinance/normal-v1-stellar/tree/master/packages/oracle) - A proxy between oracle prices and synth and index price pegs to apply various validations and allow emergency oracle replacement or freezing.
 
 ## Deployment
 
 Testnet and Mainnet addresses of the contract detailed above:
 
-| Contract Name          | Testnet Address    | Mainnet Address    |
-| ---------------------- | ------------------ | ------------------ |
-| Governor               | `<insert address>` | `<insert address>` |
-| Index Factory          | `<insert address>` | `<insert address>` |
-| Index Token            | `<insert address>` | `<insert address>` |
-| Insurance Fund         | `<insert address>` | `<insert address>` |
-| Oracle Security Module | `<insert address>` | `<insert address>` |
-| Scheduler              | `<insert address>` | `<insert address>` |
-| State                  | `<insert address>` | `<insert address>` |
-| Synth Market Factory   | `<insert address>` | `<insert address>` |
-| Votes                  | `<insert address>` | `<insert address>` |
+| Contract Name        | Testnet Address    | Mainnet Address    |
+| -------------------- | ------------------ | ------------------ |
+| Governor             | `<insert address>` | `<insert address>` |
+| Index Factory        | `<insert address>` | `<insert address>` |
+| Index Token          | `<insert address>` | `<insert address>` |
+| Insurance            | `<insert address>` | `<insert address>` |
+| Scheduler            | `<insert address>` | `<insert address>` |
+| State                | `<insert address>` | `<insert address>` |
+| Synth Market Factory | `<insert address>` | `<insert address>` |
+| Votes                | `<insert address>` | `<insert address>` |
 
-## Markets / AMMs
+## Markets / Pools
 
-Deployed synthetic markets and their respective AMM:
+Deployed synthetic markets and their respective Synth Pool:
 
-| Market Name | Market Address     | AMM Address        |
+| Market Name | Market Address     | Pool Address       |
 | ----------- | ------------------ | ------------------ |
 | nBTC/XLM    | `<insert address>` | `<insert address>` |
 | nETH/XLM    | `<insert address>` | `<insert address>` |
@@ -81,7 +87,7 @@ Deployed Normal Crypto Indexes:
 
 ## Authors
 
--   [@jmoneynormal](https://www.github.com/jmoneynormal)
+- [@jmoneynormal](https://www.github.com/jmoneynormal)
 
 ## Contributing
 
@@ -93,17 +99,17 @@ Please adhere to this project's `code of conduct`.
 
 ## Roadmap
 
--   Additional market support
--   Synthetic yield tokens
--   Increased index customization
--   Limit orders
--   Additional collateral types
+- Additional market support
+- Synthetic yield tokens
+- Increased index customization
+- Limit orders
+- Additional collateral types
 
 ## Used By
 
 This project is used by the following companies:
 
--   Coming soon
+- Coming soon
 
 ## License
 

@@ -280,6 +280,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "crunchy"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43da5946c66ffcc7745f48db692ffbb10a83bfe0afd96235c5c2a4fb23994929"
+
+[[package]]
 name = "crypto-bigint"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -580,13 +586,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "governor"
-version = "0.1.0"
-dependencies = [
- "soroban-sdk",
-]
-
-[[package]]
 name = "group"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -773,9 +772,18 @@ checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 name = "normal"
 version = "0.1.0"
 dependencies = [
+ "num-traits",
  "soroban-decimal",
  "soroban-sdk",
  "test-case",
+ "uint",
+]
+
+[[package]]
+name = "normal-governor"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
 ]
 
 [[package]]
@@ -831,6 +839,15 @@ dependencies = [
  "curve",
  "normal",
  "soroban-decimal",
+ "soroban-sdk",
+]
+
+[[package]]
+name = "normal-votes"
+version = "0.1.0"
+dependencies = [
+ "sep-41-token",
+ "soroban-fixed-point-math",
  "soroban-sdk",
 ]
 
@@ -1576,6 +1593,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
 
 [[package]]
+name = "uint"
+version = "0.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76f64bba2c53b04fcab63c01a7d7427eadc821e3bc48c34dc9ba29c501164b52"
+dependencies = [
+ "byteorder",
+ "crunchy",
+ "hex",
+ "static_assertions",
+]
+
+[[package]]
 name = "unicode-ident"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1586,15 +1615,6 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
-
-[[package]]
-name = "votes"
-version = "0.1.0"
-dependencies = [
- "sep-41-token",
- "soroban-fixed-point-math",
- "soroban-sdk",
-]
 
 [[package]]
 name = "wasi"

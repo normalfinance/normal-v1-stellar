@@ -19,11 +19,10 @@ pub fn is_position_bankrupt(position: &Position) -> bool {
     }
 
     for perp_position in user.perp_positions.iter() {
-        if
-            perp_position.base_asset_amount != 0 ||
-            perp_position.quote_asset_amount > 0 ||
-            perp_position.has_open_order() ||
-            perp_position.is_lp()
+        if perp_position.base_asset_amount != 0
+            || perp_position.quote_asset_amount > 0
+            || perp_position.has_open_order()
+            || perp_position.is_lp()
         {
             return false;
         }

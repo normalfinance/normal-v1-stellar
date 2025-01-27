@@ -10,8 +10,8 @@ use normal::error::ErrorCode;
 use normal::types::{IndexAsset, IndexTokenInitInfo};
 use soroban_sdk::token::{self, Interface as _};
 use soroban_sdk::{
-    assert_with_error, contract, contractimpl, contractmeta, log, panic_with_error, symbol_short,
-    Address, Env, Map, String, Symbol, Vec,
+    contract, contractimpl, contractmeta, log, panic_with_error, Address, Env, Map, String, Symbol,
+    Vec,
 };
 use soroban_token_sdk::metadata::TokenMetadata;
 use soroban_token_sdk::TokenUtils;
@@ -21,7 +21,7 @@ use crate::{
     events::IndexTokenEvents,
     index_factory_contract, index_factory_contract,
     index_token::IndexTokenTrait,
-    storage::{get_index, save_index, DataKey, Index, IndexOperation},
+    storage::{get_index, save_index, Index, IndexOperation},
     token_contract,
 };
 use normal::math::oracle::{is_oracle_valid_for_action, oracle_validity, NormalAction};
@@ -232,7 +232,7 @@ impl IndexTokenTrait for IndexToken {
         save_index(&env, Index { blacklist, ..index });
     }
 
-    fn update_rebalance_threshold(env: Env, sender: Address, rebalance_threshold: i64) {
+    fn update_rebalance_threshold(env: Env, sender: Address, rebalance_threshold: u64) {
         sender.require_auth();
 
         let mut index = get_index(&env);

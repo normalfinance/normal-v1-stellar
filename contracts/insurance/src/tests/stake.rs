@@ -3,22 +3,17 @@ extern crate std;
 use pretty_assertions::assert_eq;
 use soroban_sdk::{
     symbol_short,
-    testutils::{ Address as _, AuthorizedFunction, AuthorizedInvocation, Ledger },
-    vec,
-    Address,
-    Env,
-    IntoVal,
-    Symbol,
-    Vec,
+    testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation, Ledger},
+    vec, Address, Env, IntoVal, Symbol, Vec,
 };
 
-use super::setup::{ deploy_insurance_contract, deploy_token_contract };
+use super::setup::{deploy_insurance_contract, deploy_token_contract};
 
 use crate::{
-    contract::{ Insurance, InsuranceClient },
-    msg::{ ConfigResponse, StakedResponse },
-    storage::{ Config, Stake },
-    tests::setup::{ ONE_DAY, ONE_WEEK },
+    contract::{Insurance, InsuranceClient},
+    msg::{ConfigResponse, StakedResponse},
+    storage::{Config, Stake},
+    tests::setup::{ONE_DAY, ONE_WEEK},
 };
 
 const DEFAULT_COMPLEXITY: u32 = 7;
@@ -39,15 +34,18 @@ fn initialize_insurance_contract() {
         &lp_token.address,
         &manager,
         &owner,
-        &DEFAULT_COMPLEXITY
+        &DEFAULT_COMPLEXITY,
     );
 
     let response = insurance.query_config();
-    assert_eq!(response, ConfigResponse {
-        config: Config {
-            lp_token: lp_token.address,
-        },
-    });
+    assert_eq!(
+        response,
+        ConfigResponse {
+            config: Config {
+                lp_token: lp_token.address,
+            },
+        }
+    );
 
     let response = staking.query_admin();
     assert_eq!(response, admin);
@@ -63,14 +61,17 @@ fn test_deploying_insurance_twice_should_fail() {
     let governor = Address::generate(&env);
     let lp_token = deploy_token_contract(&env, &admin);
 
-    let first = deploy_insurance_contract(
-        &env,
-        admin.clone(),
-        governor.clone(),
-        &lp_token.address,
-    );
+    let first = deploy_insurance_contract(&env, admin.clone(), governor.clone(), &lp_token.address);
 
-    first.initialize(&admin, &governor, &lp_token.address, &100i128, 18, "TEST", "TEEST");
+    first.initialize(
+        &admin,
+        &governor,
+        &lp_token.address,
+        &100i128,
+        18,
+        "TEST",
+        "TEEST",
+    );
 }
 
 #[test]
@@ -83,12 +84,8 @@ fn add_stake_simple() {
     let user = Address::generate(&env);
     let lp_token = deploy_token_contract(&env, &admin);
 
-    let insurance = deploy_insurance_contract(
-        &env,
-        admin.clone(),
-        governor.clone(),
-        &lp_token.address
-    );
+    let insurance =
+        deploy_insurance_contract(&env, admin.clone(), governor.clone(), &lp_token.address);
 
     env.ledger().with_mut(|li| {
         li.timestamp = ONE_WEEK;
@@ -98,8 +95,9 @@ fn add_stake_simple() {
 
     insurance.add_stake(&user, &10_000);
 
-    assert_eq!(env.auths(), [
-        (
+    assert_eq!(
+        env.auths(),
+        [(
             user.clone(),
             AuthorizedInvocation {
                 function: AuthorizedFunction::Contract((
@@ -116,16 +114,19 @@ fn add_stake_simple() {
                     sub_invocations: std::vec![],
                 }],
             },
-        ),
-    ]);
+        ),]
+    );
 
     let stake = insurance.query_stake(&user);
     assert_eq!(
         stake,
-        vec![&env, Stake {
-            stake: 10_000,
-            stake_timestamp: ONE_WEEK,
-        }]
+        vec![
+            &env,
+            Stake {
+                stake: 10_000,
+                stake_timestamp: ONE_WEEK,
+            }
+        ]
     );
     // assert_eq!(insurance.query_total_staked(), 10_000);
 
@@ -157,7 +158,7 @@ fn remove_stake_simple() {
         &lp_token.address,
         &manager,
         &owner,
-        &DEFAULT_COMPLEXITY
+        &DEFAULT_COMPLEXITY,
     );
 
     lp_token.mint(&user, &35_000);
@@ -183,8 +184,9 @@ fn remove_stake_simple() {
 
     staking.unbond(&user, &10_000, &(ONE_DAY + ONE_DAY));
 
-    assert_eq!(env.auths(), [
-        (
+    assert_eq!(
+        env.auths(),
+        [(
             user.clone(),
             AuthorizedInvocation {
                 function: AuthorizedFunction::Contract((
@@ -194,8 +196,8 @@ fn remove_stake_simple() {
                 )),
                 sub_invocations: std::vec![],
             },
-        ),
-    ]);
+        ),]
+    );
 
     let bonds = staking.query_staked(&user).stakes;
     assert_eq!(

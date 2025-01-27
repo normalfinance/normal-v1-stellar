@@ -1,7 +1,7 @@
 use soroban_sdk::{log, Env};
 
 use crate::error::{ErrorCode, NormalResult};
-// use crate::math::bn::U192;
+use crate::math::bn::U192;
 // use solana_program::msg;
 // use std::convert::TryInto;
 // use std::panic::Location;
@@ -55,22 +55,25 @@ macro_rules! impl_cast {
 // }
 
 // Implement for common casting scenarios
+impl_cast!(U192, u128);
 impl_cast!(u128, u64);
 impl_cast!(u128, i128);
 impl_cast!(u64, u32);
 impl_cast!(u64, i64);
+impl_cast!(u64, u128);
 impl_cast!(u32, u16);
 impl_cast!(u128, u32);
 impl_cast!(u128, usize);
 
 impl_cast!(i128, i64);
+impl_cast!(i128, u128);
 impl_cast!(i64, i32);
 impl_cast!(i64, u64);
 impl_cast!(i32, i16);
 impl_cast!(i128, i32);
 
 // Cast trait implementations for types
-// impl Cast for U192 {}
+impl Cast for U192 {}
 impl Cast for u128 {}
 impl Cast for u64 {}
 impl Cast for u32 {}

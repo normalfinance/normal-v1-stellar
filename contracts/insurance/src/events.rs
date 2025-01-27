@@ -1,4 +1,4 @@
-use soroban_sdk::{ Address, Env, Symbol };
+use soroban_sdk::{Address, Env, Symbol};
 
 use crate::storage::StakeAction;
 
@@ -19,7 +19,7 @@ impl InsuranceFundEvents {
         ts: u64,
         admin: Address,
         governor: Address,
-        share_token_address: Address
+        share_token_address: Address,
     ) {
         let topics = (Symbol::new(&env, "initialization"), admin, governor);
         env.events().publish(topics, (ts, share_token_address));
@@ -43,20 +43,23 @@ impl InsuranceFundEvents {
         total_if_shares_before: u128,
         if_shares_after: u128,
         total_if_shares_after: u128,
-        user_if_shares_after: u128
+        user_if_shares_after: u128,
     ) {
         let topics = (Symbol::new(&env, "insurance_fund_stake_record"), user);
-        env.events().publish(topics, (
-            ts,
-            amount,
-            insurance_vault_amount_before,
-            if_shares_before,
-            user_if_shares_before,
-            total_if_shares_before,
-            if_shares_after,
-            total_if_shares_after,
-            user_if_shares_after,
-        ));
+        env.events().publish(
+            topics,
+            (
+                ts,
+                amount,
+                insurance_vault_amount_before,
+                if_shares_before,
+                user_if_shares_before,
+                total_if_shares_before,
+                if_shares_after,
+                total_if_shares_after,
+                user_if_shares_after,
+            ),
+        );
     }
 }
 

@@ -1,7 +1,7 @@
-use normal::{ error::NormalResult, types::OrderDirection };
-use normal::math;
-use soroban_sdk::contracttype;
 use crate::constants::LIQUIDATION_FEE_TO_MARGIN_PRECISION_RATIO;
+use normal::math;
+use normal::{error::NormalResult, types::OrderDirection};
+use soroban_sdk::contracttype;
 
 pub const LIQUIDATION_FEE_ADJUST_GRACE_PERIOD_SLOTS: u64 = 1_500; // ~10 minutes
 
@@ -11,7 +11,7 @@ pub fn calculate_base_asset_amount_to_cover_margin_shortage(
     liquidation_fee: u32,
     if_liquidation_fee: u32,
     oracle_price: i64,
-    quote_oracle_price: i64
+    quote_oracle_price: i64,
 ) -> NormalResult<u64> {
     let margin_ratio = margin_ratio.safe_mul(LIQUIDATION_FEE_TO_MARGIN_PRECISION_RATIO)?;
 
@@ -32,8 +32,8 @@ pub fn calculate_base_asset_amount_to_cover_margin_shortage(
                     oracle_price
                         .cast::<u128>()?
                         .safe_mul(if_liquidation_fee.cast()?)?
-                        .safe_div(LIQUIDATION_FEE_PRECISION_U128)?
-                )?
+                        .safe_div(LIQUIDATION_FEE_PRECISION_U128)?,
+                )?,
         )?
         .cast()
 }
@@ -46,7 +46,7 @@ pub fn calculate_liability_transfer_to_cover_margin_shortage(
     liability_liquidation_multiplier: u32,
     liability_decimals: u32,
     liability_price: i64,
-    if_liquidation_fee: u32
+    if_liquidation_fee: u32,
 ) -> NormalResult<u128> {
     // If unsettled pnl asset weight is 1 and quote asset is 1, this calculation breaks
     if asset_weight >= liability_weight {
@@ -84,8 +84,8 @@ pub fn calculate_liability_transfer_to_cover_margin_shortage(
                         .safe_mul(if_liquidation_fee.cast()?)?
                         .safe_div(LIQUIDATION_FEE_PRECISION_U128)?
                         .safe_mul(liability_weight.cast()?)?
-                        .safe_mul(10)?
-                )?
+                        .safe_mul(10)?,
+                )?,
         )?
         .safe_div(denominator_scale)
 }
@@ -97,7 +97,7 @@ pub fn calculate_liability_transfer_implied_by_asset_amount(
     asset_price: i64,
     liability_liquidation_multiplier: u32,
     liability_decimals: u32,
-    liability_price: i64
+    liability_price: i64,
 ) -> NormalResult<u128> {
     let (numerator_scale, denominator_scale) = if liability_decimals > asset_decimals {
         ((10_u128).pow(liability_decimals - asset_decimals), 1)
@@ -110,7 +110,9 @@ pub fn calculate_liability_transfer_implied_by_asset_amount(
         .safe_mul(asset_price.cast()?)?
         .safe_mul(liability_liquidation_multiplier.cast()?)?
         .safe_div_ceil(
-            liability_price.cast::<u128>()?.safe_mul(asset_liquidation_multiplier.cast()?)?
+            liability_price
+                .cast::<u128>()?
+                .safe_mul(asset_liquidation_multiplier.cast()?)?,
         )?
         .safe_div_ceil(denominator_scale)
 }
@@ -123,7 +125,7 @@ pub fn calculate_asset_transfer_for_liability_transfer(
     liability_amount: u128,
     liability_liquidation_multiplier: u32,
     liability_decimals: u32,
-    liability_price: i64
+    liability_price: i64,
 ) -> NormalResult<u128> {
     let (numerator_scale, denominator_scale) = if asset_decimals > liability_decimals {
         ((10_u128).pow(asset_decimals - liability_decimals), 1)
@@ -135,7 +137,11 @@ pub fn calculate_asset_transfer_for_liability_transfer(
         .safe_mul(numerator_scale)?
         .safe_mul(liability_price.cast()?)?
         .safe_mul(asset_liquidation_multiplier.cast()?)?
-        .safe_div(asset_price.cast::<u128>()?.safe_mul(liability_liquidation_multiplier.cast()?)?)?
+        .safe_div(
+            asset_price
+                .cast::<u128>()?
+                .safe_mul(liability_liquidation_multiplier.cast()?)?,
+        )?
         .safe_div(denominator_scale)?
         .max(1);
 
@@ -170,14 +176,14 @@ pub fn is_user_being_liquidated(
     market_map: &PerpMarketMap,
     spot_market_map: &SpotMarketMap,
     oracle_map: &mut OracleMap,
-    liquidation_margin_buffer_ratio: u32
+    liquidation_margin_buffer_ratio: u32,
 ) -> NormalResult<bool> {
     let margin_calculation = calculate_margin_requirement_and_total_collateral_and_liability_info(
         user,
         market_map,
         spot_market_map,
         oracle_map,
-        MarginContext::liquidation(liquidation_margin_buffer_ratio)
+        MarginContext::liquidation(liquidation_margin_buffer_ratio),
     )?;
 
     let is_being_liquidated = !margin_calculation.can_exit_liquidation()?;
@@ -190,7 +196,7 @@ pub fn validate_user_not_being_liquidated(
     market_map: &PerpMarketMap,
     spot_market_map: &SpotMarketMap,
     oracle_map: &mut OracleMap,
-    liquidation_margin_buffer_ratio: u32
+    liquidation_margin_buffer_ratio: u32,
 ) -> NormalResult {
     if !user.is_being_liquidated() {
         return Ok(());
@@ -201,7 +207,7 @@ pub fn validate_user_not_being_liquidated(
         market_map,
         spot_market_map,
         oracle_map,
-        liquidation_margin_buffer_ratio
+        liquidation_margin_buffer_ratio,
     )?;
 
     if is_still_being_liquidated {
@@ -221,7 +227,7 @@ pub enum LiquidationMultiplierType {
 
 pub fn calculate_liquidation_multiplier(
     liquidation_fee: u32,
-    multiplier_type: LiquidationMultiplierType
+    multiplier_type: LiquidationMultiplierType,
 ) -> NormalResult<u32> {
     match multiplier_type {
         LiquidationMultiplierType::Premium => LIQUIDATION_FEE_PRECISION.safe_add(liquidation_fee),
@@ -233,15 +239,16 @@ pub fn calculate_liquidation_multiplier(
 
 pub fn calculate_cumulative_deposit_interest_delta_to_resolve_bankruptcy(
     borrow: u128,
-    spot_market: &SpotMarket
+    spot_market: &SpotMarket,
 ) -> NormalResult<u128> {
     let total_deposits = get_token_amount(
         spot_market.deposit_balance,
         spot_market,
-        &SpotBalanceType::Deposit
+        &SpotBalanceType::Deposit,
     )?;
 
-    spot_market.cumulative_deposit_interest
+    spot_market
+        .cumulative_deposit_interest
         .safe_mul(borrow)?
         .safe_div_ceil(total_deposits)
         .or(Ok(0))
@@ -252,7 +259,7 @@ pub fn validate_transfer_satisfies_limit_price(
     liability_transfer: u128,
     asset_decimals: u32,
     liability_decimals: u32,
-    limit_price: Option<u64>
+    limit_price: Option<u64>,
 ) -> NormalResult {
     let limit_price = match limit_price {
         Some(limit_price) => limit_price,
@@ -265,7 +272,7 @@ pub fn validate_transfer_satisfies_limit_price(
         asset_transfer,
         liability_transfer,
         asset_decimals,
-        liability_decimals
+        liability_decimals,
     )?;
 
     validate!(
@@ -282,7 +289,7 @@ pub fn calculate_max_pct_to_liquidate(
     margin_shortage: u128,
     slot: u64,
     initial_pct_to_liquidate: u128,
-    liquidation_duration: u128
+    liquidation_duration: u128,
 ) -> NormalResult<u128> {
     // if margin shortage is tiny, accelerate liquidation
     if margin_shortage < 50 * QUOTE_PRECISION {
@@ -305,7 +312,9 @@ pub fn calculate_max_pct_to_liquidate(
         .safe_div(LIQUIDATION_PCT_PRECISION)?;
     let margin_freeable = max_margin_freed.saturating_sub(user.liquidation_margin_freed.cast()?);
 
-    margin_freeable.safe_mul(LIQUIDATION_PCT_PRECISION)?.safe_div(margin_shortage)
+    margin_freeable
+        .safe_mul(LIQUIDATION_PCT_PRECISION)?
+        .safe_div(margin_shortage)
 }
 
 pub fn calculate_position_insurance_fund_fee(
@@ -315,15 +324,14 @@ pub fn calculate_position_insurance_fund_fee(
     liquidator_fee: u32,
     oracle_price: i64,
     quote_oracle_price: i64,
-    max_if_liquidation_fee: u32
+    max_if_liquidation_fee: u32,
 ) -> NormalResult<u32> {
     let margin_ratio = margin_ratio.safe_mul(LIQUIDATION_FEE_TO_MARGIN_PRECISION_RATIO)?;
 
-    if
-        oracle_price == 0 ||
-        quote_oracle_price == 0 ||
-        margin_ratio <= liquidator_fee ||
-        user_base_asset_amount == 0
+    if oracle_price == 0
+        || quote_oracle_price == 0
+        || margin_ratio <= liquidator_fee
+        || user_base_asset_amount == 0
     {
         return Ok(0);
     }
@@ -343,7 +351,7 @@ pub fn calculate_position_insurance_fund_fee(
                 .safe_mul(PRICE_PRECISION)?
                 .safe_div(price)?
                 .cast::<u32>()
-                .unwrap_or(u32::MAX)
+                .unwrap_or(u32::MAX),
         )
         // multiply by 95% to avoid situation where fee leads to deposits == negative pnl
         // leading to bankruptcy
@@ -359,28 +367,26 @@ pub fn get_liquidation_order_params(
     existing_direction: OrderDirection,
     base_asset_amount: u64,
     oracle_price: i64,
-    liquidation_fee: u32
+    liquidation_fee: u32,
 ) -> NormalResult<OrderParams> {
     let direction = existing_direction.opposite();
 
     let oracle_price_u128 = oracle_price.abs().cast::<u128>()?;
     let limit_price = match direction {
-        PositionDirection::Long =>
-            oracle_price_u128
-                .safe_add(
-                    oracle_price_u128
-                        .safe_mul(liquidation_fee.cast()?)?
-                        .safe_div(LIQUIDATION_FEE_PRECISION_U128)?
-                )?
-                .cast::<u64>()?,
-        PositionDirection::Short =>
-            oracle_price_u128
-                .safe_sub(
-                    oracle_price_u128
-                        .safe_mul(liquidation_fee.cast()?)?
-                        .safe_div(LIQUIDATION_FEE_PRECISION_U128)?
-                )?
-                .cast::<u64>()?,
+        PositionDirection::Long => oracle_price_u128
+            .safe_add(
+                oracle_price_u128
+                    .safe_mul(liquidation_fee.cast()?)?
+                    .safe_div(LIQUIDATION_FEE_PRECISION_U128)?,
+            )?
+            .cast::<u64>()?,
+        PositionDirection::Short => oracle_price_u128
+            .safe_sub(
+                oracle_price_u128
+                    .safe_mul(liquidation_fee.cast()?)?
+                    .safe_div(LIQUIDATION_FEE_PRECISION_U128)?,
+            )?
+            .cast::<u64>()?,
     };
 
     let order_params = OrderParams {
@@ -401,7 +407,7 @@ pub fn get_liquidation_fee(
     base_liquidation_fee: u32,
     max_liquidation_fee: u32,
     last_active_user_ts: u64,
-    current_ts: u64
+    current_ts: u64,
 ) -> NormalResult<u32> {
     let slots_elapsed = current_ts.safe_sub(last_active_user_ts)?;
     if slots_elapsed < LIQUIDATION_FEE_ADJUST_GRACE_PERIOD_SLOTS {
@@ -412,7 +418,7 @@ pub fn get_liquidation_fee(
         slots_elapsed
             .safe_mul(LIQUIDATION_FEE_INCREASE_PER_SLOT.cast::<u64>()?)?
             .cast::<u32>()
-            .unwrap_or(u32::MAX)
+            .unwrap_or(u32::MAX),
     );
     Ok(liquidation_fee.min(max_liquidation_fee))
 }

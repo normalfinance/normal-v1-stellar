@@ -1,7 +1,7 @@
-use soroban_sdk::{log, Env};
+use soroban_sdk::{ log, Env };
 
-use crate::error::{ErrorCode, NormalResult};
-// use crate::math::bn::{U192, U256};
+use crate::error::{ ErrorCode, NormalResult };
+use crate::math::bn::{ U192, U256 };
 use crate::math::ceil_div::CheckedCeilDiv;
 use crate::math::floor_div::CheckedFloorDiv;
 
@@ -79,8 +79,8 @@ macro_rules! checked_impl {
     };
 }
 
-// checked_impl!(U256);
-// checked_impl!(U192);
+checked_impl!(U256);
+checked_impl!(U192);
 checked_impl!(u128);
 checked_impl!(u64);
 checked_impl!(u32);
@@ -124,17 +124,14 @@ div_floor_impl!(i32);
 #[cfg(test)]
 mod test {
     use crate::error::ErrorCode;
-    use crate::math::safe_math::{SafeDivFloor, SafeMath};
+    use crate::math::safe_math::{ SafeDivFloor, SafeMath };
     use soroban_sdk::Env;
 
     #[test]
     fn safe_add() {
         let env = Env::default();
         assert_eq!((1_u128).safe_add(1, &env).unwrap(), 2);
-        assert_eq!(
-            (1_u128).safe_add(u128::MAX, &env),
-            Err(ErrorCode::MathError)
-        );
+        assert_eq!((1_u128).safe_add(u128::MAX, &env), Err(ErrorCode::MathError));
     }
 
     #[test]
@@ -149,10 +146,7 @@ mod test {
         let env = Env::default();
         assert_eq!((8_u128).safe_mul(80, &env).unwrap(), 640);
         assert_eq!((1_u128).safe_mul(1, &env).unwrap(), 1);
-        assert_eq!(
-            (2_u128).safe_mul(u128::MAX, &env),
-            Err(ErrorCode::MathError)
-        );
+        assert_eq!((2_u128).safe_mul(u128::MAX, &env), Err(ErrorCode::MathError));
     }
 
     #[test]

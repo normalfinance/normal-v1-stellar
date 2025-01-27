@@ -6,11 +6,13 @@ test: build
 	cargo test
 
 build:
-	stellar contract build
-	@ls -l target/wasm32-unknown-unknown/release/*.wasm
+	cargo build --target wasm32-unknown-unknown --release
 
 fmt:
 	cargo fmt --all
+
+clippy: build
+	cargo clippy --tests -- -D warnings
 
 clean:
 	cargo clean

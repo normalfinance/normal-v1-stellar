@@ -13,6 +13,8 @@ testutils = ["soroban-sdk/testutils"]
 [dependencies]
 soroban-sdk = { workspace = true }
 soroban-decimal = { workspace = true }
+uint = { version = "0.9.1", default-features = false }
+num-traits = "0.2"
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

@@ -212,3 +212,31 @@ impl TickArrayType for TickArray {
         Ok(())
     }
 }
+
+
+pub fn get_tick_arrays(env: &Env, key: &Address) -> PositionInfo {
+    let position_info = match env.storage().persistent().get::<_, PositionInfo>(key) {
+        Some(info) => info,
+        None =>
+            PositionInfo {
+                positions: Vec::new(env),
+            },
+    };
+    env.storage()
+        .persistent()
+        .has(&key)
+        .then(|| {
+            env.storage()
+                .persistent()
+                .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        });
+
+    position_info
+}
+
+pub fn save_position_info(env: &Env, key: &Address, position_info: &PositionInfo) {
+    env.storage().persistent().set(key, position_info);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+}

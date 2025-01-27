@@ -1,16 +1,9 @@
 use normal::{
-    constants::{ INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD },
-    error::{ ErrorCode, NormalResult },
+    constants::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD},
+    error::{ErrorCode, NormalResult},
 };
 use soroban_sdk::{
-    contracttype,
-    log,
-    panic_with_error,
-    symbol_short,
-    Address,
-    Env,
-    String,
-    Symbol,
+    contracttype, log, panic_with_error, symbol_short, Address, Env, String, Symbol,
 };
 
 pub const ADMIN: Symbol = symbol_short!("ADMIN");
@@ -26,16 +19,14 @@ pub enum DataKey {
 }
 
 pub fn is_admin(env: &Env, address: Address) {
-    let admin_addr = env
-        .storage()
-        .instance()
-        .get(&ADMIN)
-        .unwrap_or_else(|| {
-            log!(env, "Factory: Admin not set");
-            panic_with_error!(&env, ErrorCode::AdminNotSet)
-        });
+    let admin_addr = env.storage().instance().get(&ADMIN).unwrap_or_else(|| {
+        log!(env, "Factory: Admin not set");
+        panic_with_error!(&env, ErrorCode::AdminNotSet)
+    });
 
-    env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
     if admin_addr != address {
         return Err(ErrorCode::NotAuthorized);
@@ -43,16 +34,14 @@ pub fn is_admin(env: &Env, address: Address) {
 }
 
 pub fn is_governor(env: &Env, address: Address) {
-    let governor_addr = env
-        .storage()
-        .instance()
-        .get(&GOVERNOR)
-        .unwrap_or_else(|| {
-            log!(env, "Market: Governor not set");
-            panic_with_error!(&env, ContractError::GovernorNotSet)
-        });
+    let governor_addr = env.storage().instance().get(&GOVERNOR).unwrap_or_else(|| {
+        log!(env, "Market: Governor not set");
+        panic_with_error!(&env, ContractError::GovernorNotSet)
+    });
 
-    env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
     if governor_addr != address {
         return Err(ErrorCode::NotAuthorized);
@@ -328,34 +317,34 @@ impl SynthMarket {
     pub fn get_max_confidence_interval_multiplier(self) -> u64 {
         // assuming validity_guard_rails max confidence pct is 2%
         match self.synth_tier {
-            SynthTier::A => 1, // 2%
-            SynthTier::B => 1, // 2%
-            SynthTier::C => 2, // 4%
-            SynthTier::Speculative => 10, // 20%
+            SynthTier::A => 1,                  // 2%
+            SynthTier::B => 1,                  // 2%
+            SynthTier::C => 2,                  // 4%
+            SynthTier::Speculative => 10,       // 20%
             SynthTier::HighlySpeculative => 50, // 100%
-            SynthTier::Isolated => 50, // 100%
+            SynthTier::Isolated => 50,          // 100%
         }
     }
 
     pub fn get_sanitize_clamp_denominator(self) -> Option<i64> {
         match self.synth_tier {
-            SynthTier::A => Some(10_i64), // 10%
-            SynthTier::B => Some(5_i64), // 20%
-            SynthTier::C => Some(2_i64), // 50%
-            SynthTier::Speculative => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
+            SynthTier::A => Some(10_i64),         // 10%
+            SynthTier::B => Some(5_i64),          // 20%
+            SynthTier::C => Some(2_i64),          // 50%
+            SynthTier::Speculative => None,       // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
             SynthTier::HighlySpeculative => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
-            SynthTier::Isolated => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
+            SynthTier::Isolated => None,          // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
         }
     }
 
     pub fn get_auction_end_min_max_divisors(self) -> (u64, u64) {
         match self.synth_tier {
-            SynthTier::A => (1000, 50), // 10 bps, 2%
-            SynthTier::B => (1000, 20), // 10 bps, 5%
-            SynthTier::C => (500, 20), // 50 bps, 5%
-            SynthTier::Speculative => (100, 10), // 1%, 10%
+            SynthTier::A => (1000, 50),              // 10 bps, 2%
+            SynthTier::B => (1000, 20),              // 10 bps, 5%
+            SynthTier::C => (500, 20),               // 50 bps, 5%
+            SynthTier::Speculative => (100, 10),     // 1%, 10%
             SynthTier::HighlySpeculative => (50, 5), // 2%, 20%
-            SynthTier::Isolated => (50, 5), // 2%, 20%
+            SynthTier::Isolated => (50, 5),          // 2%, 20%
         }
     }
 
@@ -387,7 +376,7 @@ impl SynthMarket {
             size,
             self.imf_factor,
             default_margin_ratio,
-            MARGIN_PRECISION_U128
+            MARGIN_PRECISION_U128,
         )?;
 
         let margin_ratio = default_margin_ratio.max(size_adj_margin_ratio);
@@ -396,12 +385,13 @@ impl SynthMarket {
     }
 
     pub fn get_max_liquidation_fee(&self) -> u32 {
-        let max_liquidation_fee = self.liquidator_fee
+        let max_liquidation_fee = self
+            .liquidator_fee
             .safe_mul(MAX_LIQUIDATION_MULTIPLIER)?
             .min(
                 self.margin_ratio_maintenance
                     .safe_mul(LIQUIDATION_FEE_PRECISION)?
-                    .safe_div(MARGIN_PRECISION)?
+                    .safe_div(MARGIN_PRECISION)?,
             );
         max_liquidation_fee
     }
@@ -412,7 +402,10 @@ impl SynthMarket {
             .safe_sub(self.amm.historical_oracle_data.last_oracle_price_twap_5min)?
             .safe_mul(PERCENTAGE_PRECISION_I64)?
             .safe_div(
-                self.amm.historical_oracle_data.last_oracle_price_twap_5min.min(oracle_price)
+                self.amm
+                    .historical_oracle_data
+                    .last_oracle_price_twap_5min
+                    .min(oracle_price),
             )?
             .unsigned_abs();
 
@@ -435,20 +428,18 @@ impl SynthMarket {
             return Ok(false);
         }
 
-        let min_price = oracle_price.min(
-            self.amm.historical_oracle_data.last_oracle_price_twap_5min
-        );
+        let min_price =
+            oracle_price.min(self.amm.historical_oracle_data.last_oracle_price_twap_5min);
 
-        let std_limit = (
-            match self.contract_tier {
-                ContractTier::A => min_price / 50, // 200 bps
-                ContractTier::B => min_price / 50, // 200 bps
-                ContractTier::C => min_price / 20, // 500 bps
-                ContractTier::Speculative => min_price / 10, // 1000 bps
-                ContractTier::HighlySpeculative => min_price / 10, // 1000 bps
-                ContractTier::Isolated => min_price / 10, // 1000 bps
-            }
-        ).unsigned_abs();
+        let std_limit = (match self.contract_tier {
+            ContractTier::A => min_price / 50,                 // 200 bps
+            ContractTier::B => min_price / 50,                 // 200 bps
+            ContractTier::C => min_price / 20,                 // 500 bps
+            ContractTier::Speculative => min_price / 10,       // 1000 bps
+            ContractTier::HighlySpeculative => min_price / 10, // 1000 bps
+            ContractTier::Isolated => min_price / 10,          // 1000 bps
+        })
+        .unsigned_abs();
 
         if self.amm.oracle_std.max(self.amm.mark_std) >= std_limit {
             msg!(
@@ -464,7 +455,8 @@ impl SynthMarket {
     }
 
     pub fn get_open_interest(&self) -> u128 {
-        self.amm.base_asset_amount_long
+        self.amm
+            .base_asset_amount_long
             .abs()
             .max(self.amm.base_asset_amount_short.abs())
             .unsigned_abs()
@@ -472,10 +464,14 @@ impl SynthMarket {
 }
 
 pub fn save_market(env: &Env, market: SynthMarket) {
-    env.storage().persistent().set(&DataKey::SynthMarket, &market);
     env.storage()
         .persistent()
-        .extend_ttl(&DataKey::SynthMarket, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        .set(&DataKey::SynthMarket, &market);
+    env.storage().persistent().extend_ttl(
+        &DataKey::SynthMarket,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn get_market(env: &Env) -> SynthMarket {
@@ -485,9 +481,11 @@ pub fn get_market(env: &Env) -> SynthMarket {
         .get(&DataKey::SynthMarket)
         .expect("SynthMarket not set");
 
-    env.storage()
-        .persistent()
-        .extend_ttl(&DataKey::SynthMarket, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &DataKey::SynthMarket,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 
     market
 }
@@ -580,8 +578,8 @@ impl Position {
     }
 
     pub fn is_being_liquidated(&self) -> bool {
-        self.status & ((PositionStatus::BeingLiquidated as u8) | (PositionStatus::Bankrupt as u8)) >
-            0
+        self.status & ((PositionStatus::BeingLiquidated as u8) | (PositionStatus::Bankrupt as u8))
+            > 0
     }
 
     pub fn is_bankrupt(&self) -> bool {
@@ -605,7 +603,7 @@ impl Position {
         &mut self,
         amount: u64,
         price: i64,
-        precision: u128
+        precision: u128,
     ) -> NormalResult {
         let value = self.get_deposit_value(amount, price, precision);
         self.total_deposits = self.total_deposits.saturating_add(value);
@@ -617,7 +615,7 @@ impl Position {
         &mut self,
         amount: u64,
         price: i64,
-        precision: u128
+        precision: u128,
     ) -> NormalResult {
         let value = amount
             .cast::<u128>()?
@@ -675,7 +673,7 @@ impl Position {
         &mut self,
 
         context: MarginContext,
-        now: i64
+        now: i64,
     ) -> NormalResult<MarginCalculation> {
         let margin_calculation =
             calculate_margin_requirement_and_total_collateral_and_liability_info(self, context)?;
@@ -689,15 +687,13 @@ impl Position {
         margin_requirement_type: MarginRequirementType,
         withdraw_market_index: u32,
         withdraw_amount: u128,
-        now: i64
+        now: i64,
     ) -> NormalResult<bool> {
         let strict = margin_requirement_type == MarginRequirementType::Initial;
         let context = MarginContext::standard(margin_requirement_type).strict(strict);
 
-        let calculation = calculate_margin_requirement_and_total_collateral_and_liability_info(
-            self,
-            context
-        )?;
+        let calculation =
+            calculate_margin_requirement_and_total_collateral_and_liability_info(self, context)?;
 
         if calculation.margin_requirement > 0 || calculation.get_num_of_liabilities()? > 0 {
             validate!(
@@ -724,22 +720,20 @@ impl Position {
 pub fn get_position(env: &Env, key: &Address) -> Position {
     let position_info = match env.storage().persistent().get::<_, Position>(key) {
         Some(position) => position,
-        None =>
-            Position {
-                stakes: Vec::new(env),
-                reward_debt: 0u128,
-                last_reward_time: 0u64,
-                total_stake: 0i128,
-            },
+        None => Position {
+            stakes: Vec::new(env),
+            reward_debt: 0u128,
+            last_reward_time: 0u64,
+            total_stake: 0i128,
+        },
     };
-    env.storage()
-        .persistent()
-        .has(&key)
-        .then(|| {
-            env.storage()
-                .persistent()
-                .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
-        });
+    env.storage().persistent().has(&key).then(|| {
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
+    });
 
     position_info
 }

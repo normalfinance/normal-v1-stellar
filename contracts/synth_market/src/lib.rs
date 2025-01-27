@@ -2,11 +2,11 @@
 
 mod constants;
 mod contract;
+mod controller;
 mod events;
+mod math;
 mod storage;
 mod synth_market;
-mod controller;
-mod math;
 
 pub mod token_contract {
     soroban_sdk::contractimport!(

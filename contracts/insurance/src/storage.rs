@@ -1,11 +1,10 @@
 use normal::{
-    constants::{ PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD },
+    constants::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
     error::NormalResult,
-    safe_decrement,
-    safe_increment,
+    safe_decrement, safe_increment,
     types::OrderDirection,
 };
-use soroban_sdk::{ contracttype, symbol_short, Address, Env, Symbol, Vec };
+use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol, Vec};
 
 // ################################################################
 
@@ -92,7 +91,7 @@ pub struct InsuranceFund {
     pub shares_base: u128, // exponent for lp shares (for rebasing)
     pub last_revenue_settle_ts: u64,
     pub total_factor: u32, // percentage of interest for total insurance
-    pub user_factor: u32, // percentage of interest for user staked insurance
+    pub user_factor: u32,  // percentage of interest for user staked insurance
 }
 
 impl InsuranceFund {
@@ -102,10 +101,14 @@ impl InsuranceFund {
 }
 
 pub fn save_insurance_fund(env: &Env, insurance_fund: InsuranceFund) {
-    env.storage().persistent().set(&DataKey::InsuranceFund, &insurance_fund);
     env.storage()
         .persistent()
-        .extend_ttl(&DataKey::InsuranceFund, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        .set(&DataKey::InsuranceFund, &insurance_fund);
+    env.storage().persistent().extend_ttl(
+        &DataKey::InsuranceFund,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn get_insurance_fund(env: &Env) -> InsuranceFund {
@@ -115,9 +118,11 @@ pub fn get_insurance_fund(env: &Env) -> InsuranceFund {
         .get(&DataKey::InsuranceFund)
         .expect("Config not set");
 
-    env.storage()
-        .persistent()
-        .extend_ttl(&DataKey::InsuranceFund, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &DataKey::InsuranceFund,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 
     insurance_fund
 }
@@ -148,17 +153,25 @@ pub struct Config {
 
 pub fn save_config(env: &Env, config: Config) {
     env.storage().persistent().set(&DataKey::Config, &config);
-    env.storage()
-        .persistent()
-        .extend_ttl(&DataKey::Config, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &DataKey::Config,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn get_config(env: &Env) -> Config {
-    let config = env.storage().persistent().get(&DataKey::Config).expect("Config not set");
-
-    env.storage()
+    let config = env
+        .storage()
         .persistent()
-        .extend_ttl(&DataKey::Config, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        .get(&DataKey::Config)
+        .expect("Config not set");
+
+    env.storage().persistent().extend_ttl(
+        &DataKey::Config,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 
     config
 }
@@ -181,7 +194,7 @@ pub struct Stake {
     pub authority: Address,
     if_shares: u128,
     pub last_withdraw_request_shares: u128, // get zero as 0 when not in escrow
-    pub if_base: u128, // exponent for if_shares decimal places (for rebase)
+    pub if_base: u128,                      // exponent for if_shares decimal places (for rebase)
     pub last_valid_ts: u64,
     pub last_withdraw_request_value: u64,
     pub last_withdraw_request_ts: u64,
@@ -226,7 +239,7 @@ impl Stake {
     pub fn increase_if_shares(
         &mut self,
         delta: u128,
-        insurance_fund: &InsuranceFund
+        insurance_fund: &InsuranceFund,
     ) -> NormalResult {
         self.validate_base(insurance_fund)?;
         safe_increment!(self.if_shares, delta);
@@ -236,7 +249,7 @@ impl Stake {
     pub fn decrease_if_shares(
         &mut self,
         delta: u128,
-        insurance_fund: &InsuranceFund
+        insurance_fund: &InsuranceFund,
     ) -> NormalResult {
         self.validate_base(insurance_fund)?;
         safe_decrement!(self.if_shares, delta);
@@ -246,7 +259,7 @@ impl Stake {
     pub fn update_if_shares(
         &mut self,
         new_shares: u128,
-        insurance_fund: &InsuranceFund
+        insurance_fund: &InsuranceFund,
     ) -> NormalResult {
         self.validate_base(insurance_fund)?;
         self.if_shares = new_shares;
@@ -260,23 +273,24 @@ pub fn get_stake(env: &Env, key: &Address) -> Stake {
         Some(stake) => stake,
         None => Stake::new(key, env.ledger().timestamp()),
     };
-    env.storage()
-        .persistent()
-        .has(&key)
-        .then(|| {
-            env.storage()
-                .persistent()
-                .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
-        });
+    env.storage().persistent().has(&key).then(|| {
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
+    });
 
     stake_info
 }
 
 pub fn save_stake(env: &Env, key: &Address, stake_info: &Stake) {
     env.storage().persistent().set(key, stake_info);
-    env.storage()
-        .persistent()
-        .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 // ################################################################
@@ -299,19 +313,20 @@ pub mod utils {
     use super::*;
 
     pub fn is_initialized(env: &Env) -> bool {
-        env.storage().persistent().get(&DataKey::Initialized).unwrap_or(false)
+        env.storage()
+            .persistent()
+            .get(&DataKey::Initialized)
+            .unwrap_or(false)
     }
 
     pub fn set_initialized(env: &Env) {
         env.storage().persistent().set(&DataKey::Initialized, &true);
 
-        env.storage()
-            .persistent()
-            .extend_ttl(
-                &DataKey::Initialized,
-                PERSISTENT_LIFETIME_THRESHOLD,
-                PERSISTENT_BUMP_AMOUNT
-            );
+        env.storage().persistent().extend_ttl(
+            &DataKey::Initialized,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
     }
 
     pub fn is_admin(env: &Env) {
@@ -327,7 +342,7 @@ pub mod utils {
         admin: Address,
         decimals: u32,
         name: String,
-        symbol: String
+        symbol: String,
     ) -> Address {
         let mut salt = Bytes::new(env);
         salt.append(&governor.clone().to_xdr(env));
@@ -348,8 +363,7 @@ pub mod utils {
     pub fn burn_shares(e: &Env, share_token: &Address, amount: i128) {
         let total = get_total_shares(env);
 
-        token_contract::Client
-            ::new(env, share_token)
+        token_contract::Client::new(env, share_token)
             .burn(&env.current_contract_address(), &amount);
 
         save_total_shares(e, total - amount);

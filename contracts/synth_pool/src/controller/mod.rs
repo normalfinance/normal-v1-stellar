@@ -1,5 +1,5 @@
 mod amm;
-mod liquidity;
+pub mod liquidity;
 mod position;
 mod swap;
 mod tick;
