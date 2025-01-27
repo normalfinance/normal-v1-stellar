@@ -1,9 +1,9 @@
-use normal::error::ErrorCode;
-use soroban_sdk::Vec;
+use normal::error::{ErrorCode, NormalResult};
+use soroban_sdk::{Env, Vec};
 
 use crate::{
-    errors::ErrorCode,
-    tick::{Tick, TickUpdate, TICK_ARRAY_SIZE},
+    errors::{ErrorCode, ErrorCode},
+    tick::{Tick, TickUpdate, MAX_TICK_INDEX, MIN_TICK_INDEX, TICK_ARRAY_SIZE},
     tick_array::TickArray,
 };
 
@@ -14,8 +14,9 @@ pub struct SwapTickSequence {
 }
 
 impl SwapTickSequence {
-    pub fn new(ta0: TickArray, ta1: Option<TickArray>, ta2: Option<TickArray>) -> Self {
+    pub fn new(env: &Env, ta0: TickArray, ta1: Option<TickArray>, ta2: Option<TickArray>) -> Self {
         Self::new_with_proxy(
+            env,
             ProxiedTickArray::new_initialized(ta0),
             ta1.map(ProxiedTickArray::new_initialized),
             ta2.map(ProxiedTickArray::new_initialized),
@@ -23,19 +24,22 @@ impl SwapTickSequence {
     }
 
     pub(crate) fn new_with_proxy(
+        env: &Env,
         ta0: ProxiedTickArray,
         ta1: Option<ProxiedTickArray>,
         ta2: Option<ProxiedTickArray>,
     ) -> Self {
-        let mut vec = Vec::with_capacity(3);
-        vec.push(ta0);
+        // let mut vec = Vec::with_capacity(3);
+        let mut _vec = Vec::new(env);
+        // vec.push(ta0);
+        _vec.append(ta0);
         if let Some(ta1) = ta1 {
-            vec.push(ta1);
+            _vec.append(ta1);
         }
         if let Some(ta2) = ta2 {
-            vec.push(ta2);
+            _vec.append(ta2);
         }
-        Self { arrays: vec }
+        Self { arrays: _vec }
     }
 
     /// Get the Tick object at the given tick-index & tick-spacing
@@ -54,11 +58,11 @@ impl SwapTickSequence {
         array_index: usize,
         tick_index: i32,
         tick_spacing: u16,
-    ) -> Result<&Tick> {
+    ) -> NormalResult<&Tick> {
         let array = self.arrays.get(array_index);
         match array {
             Some(array) => array.get_tick(tick_index, tick_spacing),
-            _ => Err(ErrorCode::TickArrayIndexOutofBounds.into()),
+            _ => Err(ErrorCode::TickArrayIndexOutofBounds),
         }
     }
 
@@ -79,7 +83,7 @@ impl SwapTickSequence {
         tick_index: i32,
         tick_spacing: u16,
         update: &TickUpdate,
-    ) -> Result<()> {
+    ) -> NormalResult<()> {
         let array = self.arrays.get_mut(array_index);
         match array {
             Some(array) => {
@@ -95,7 +99,7 @@ impl SwapTickSequence {
         array_index: usize,
         tick_index: i32,
         tick_spacing: u16,
-    ) -> Result<isize> {
+    ) -> NormalResult<isize> {
         let array = self.arrays.get(array_index);
         match array {
             Some(array) => array.tick_offset(tick_index, tick_spacing),
@@ -123,7 +127,7 @@ impl SwapTickSequence {
         tick_spacing: u16,
         a_to_b: bool,
         start_array_index: usize,
-    ) -> Result<(usize, i32)> {
+    ) -> NormalResult<(usize, i32)> {
         let ticks_in_array = TICK_ARRAY_SIZE * (tick_spacing as i32);
         let mut search_index = tick_index;
         let mut array_index = start_array_index;
@@ -134,7 +138,7 @@ impl SwapTickSequence {
             let next_array = match self.arrays.get(array_index) {
                 Some(array) => array,
                 None => {
-                    return Err(ErrorCode::TickArraySequenceInvalidIndex.into());
+                    return Err(ErrorCode::TickArraySequenceInvalidIndex);
                 }
             };
 

@@ -5,23 +5,28 @@ use soroban_sdk::{
 
 use crate::{
     controller,
+    errors::ErrorCode,
     events::SynthPoolEvents,
-    math::bit_math::checked_mul_shift_right,
-    pool::SynthPoolTrait,
-    position::{get_position_by_ts, get_positions, Position, PositionUpdate},
-    reward::{calculate_collect_reward, RewardInfo},
+    math::{
+        bit_math::checked_mul_shift_right,
+        liquidity_math::convert_to_liquidity_delta,
+        tick_math::{MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64},
+    },
+    pool::PoolTrait,
+    position::{get_position_by_ts, Position, PositionUpdate},
+    reward::{calculate_collect_reward, get_reward_by_token, RewardInfo},
     storage::{
-        get_pool, save_config, save_default_slippage_bps,
+        get_pool, save_pool,
         utils::{self, get_admin_old, is_initialized, set_initialized},
-        Pool, SynthPoolParams,
+        Pool, PoolParams,
     },
     tick::Tick,
-    tick_array::TickArray,
+    tick_array::{TickArray, TickArrayType},
     token_contract,
-    utils::{sparse_swap::SparseSwapTickSequenceBuilder, swap_utils::update_and_swap_amm},
+    utils::{self, sparse_swap::SparseSwapTickSequenceBuilder, swap_utils::update_and_swap_amm},
 };
 use normal::{
-    constants::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD},
+    constants::{DAY_IN_SECONDS, INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD},
     error::ErrorCode,
     oracle::get_oracle_price,
     utils::{convert_i128_to_u128, is_approx_ratio},
@@ -51,17 +56,15 @@ contractmeta!(
 pub struct SynthPool;
 
 #[contractimpl]
-impl SynthPoolTrait for SynthPool {
+impl PoolTrait for SynthPool {
     #[allow(clippy::too_many_arguments)]
     fn initialize(
         env: Env,
         token_wasm_hash: BytesN<32>,
-        params: SynthPoolParams,
+        params: PoolParams,
         share_token_decimals: u32,
         share_token_name: String,
         share_token_symbol: String,
-        default_slippage_bps: i64,
-        max_allowed_fee_bps: i64,
     ) {
         if is_initialized(&env) {
             log!(
@@ -74,11 +77,8 @@ impl SynthPoolTrait for SynthPool {
         validate_bps!(
             params.fee_rate,
             params.protocol_fee_rate,
-            max_allowed_slippage_bps,
-            max_allowed_spread_bps,
-            max_allowed_variance_bps,
-            default_slippage_bps,
-            max_allowed_fee_bps
+            params.max_allowed_slippage_bps,
+            params.max_allowed_variance_bps
         );
 
         if params.token_a >= params.token_b {
@@ -86,7 +86,7 @@ impl SynthPoolTrait for SynthPool {
         }
 
         if !(MIN_SQRT_PRICE_X64..=MAX_SQRT_PRICE_X64).contains(&params.sqrt_price) {
-            return Err(ErrorCode::SqrtPriceOutOfBounds.into());
+            return Err(ErrorCode::SqrtPriceOutOfBounds);
         }
 
         // deploy and initialize token contract
@@ -101,48 +101,40 @@ impl SynthPoolTrait for SynthPool {
             share_token_symbol,
         );
 
-        let config = Config {
+        let pool = Pool {
             token_a: params.token_a.clone(),
             token_b: params.token_b.clone(),
             share_token: share_token_address,
 
-            tick_arrays: Vec::new(&env),
-            sqrt_price: initial_sqrt_price,
+            tick_current_index: 0,
+            sqrt_price: params.initial_sqrt_price,
             liquidity: 0,
-            tick_spacing,
+            tick_spacing: params.tick_spacing,
 
-            positions: Vec::new(&env),
+            fee_rate: params.fee_rate,
+            protocol_fee_rate: params.protocol_fee_rate,
+            protocol_fee_owed_a: 0,
+            protocol_fee_owed_b: 0,
+            fee_growth_global_a: 0,
+            fee_growth_global_b: 0,
 
-            fee_rate,
-            protocol_fee_rate,
-            protocol_fee_owed_synthetic: 0,
-            protocol_fee_owed_quote: 0,
-            fee_growth_global_synthetic: 0,
-            fee_growth_global_quote: 0,
-
-            max_allowed_slippage_bps,
-            max_allowed_spread_bps,
-            max_allowed_variance_bps,
+            max_allowed_slippage_bps: params.max_allowed_slippage_bps,
+            max_allowed_variance_bps: params.max_allowed_variance_bps,
 
             reward_last_updated_timestamp: 0,
             reward_infos: Vec::new(&env),
         };
 
-        save_config(&env, config);
-        save_default_slippage_bps(&env, default_slippage_bps);
+        save_pool(&env, pool);
 
-        SynthPoolEvents::initialize(&env, index_id, from, amount);
+        // SynthPoolEvents::initialize(&env, from, amount);
     }
 
     fn initialize_tick_array(env: Env, start_tick_index: i32) {
         let pool = get_pool(&env);
 
-        if !Tick::check_is_valid_start_tick(start_tick_index, &pool.tick_spacing) {
-            return Err(ErrorCode::InvalidStartTick.into());
-        }
-
-        // tick_array.market = &ctx.accounts.markets.key();
-        tick_array.start_tick_index = start_tick_index;
+        // TODO:
+        TickArray::initialize(&mut self, &pool, start_tick_index);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -214,16 +206,16 @@ impl SynthPoolTrait for SynthPool {
         );
         log!(
             &env,
-            "amm.historical_oracle_data.last_oracle_price_twap: {:?} -> {:?}",
-            amm.historical_oracle_data.last_oracle_price_twap,
-            amm.last_mark_price_twap.cast::<i64>()?
+            "pool.historical_oracle_data.last_oracle_price_twap: {:?} -> {:?}",
+            pool.historical_oracle_data.last_oracle_price_twap,
+            pool.last_mark_price_twap.cast::<i64>()?
         );
 
         log!(
             &env,
-            "amm.historical_oracle_data.last_oracle_price_twap_ts: {:?} -> {:?}",
-            amm.historical_oracle_data.last_oracle_price_twap_ts,
-            amm.last_mark_price_twap_ts
+            "pool.historical_oracle_data.last_oracle_price_twap_ts: {:?} -> {:?}",
+            pool.historical_oracle_data.last_oracle_price_twap_ts,
+            pool.last_mark_price_twap_ts
         );
 
         pool.historical_oracle_data.last_oracle_price_twap =
@@ -247,7 +239,7 @@ impl SynthPoolTrait for SynthPool {
             market.market_index
         );
         // let price_oracle = &ctx.accounts.oracle;
-        let oracle_twap = pool.get_oracle_twap(price_oracle, clock.slot)?;
+        let oracle_twap = pool.get_oracle_twap(&price_oracle, now)?;
 
         if let Some(oracle_twap) = oracle_twap {
             let oracle_mark_gap_before = pool
@@ -255,7 +247,7 @@ impl SynthPoolTrait for SynthPool {
                 .cast::<i64>()?
                 .safe_sub(pool.historical_oracle_data.last_oracle_price_twap)?;
 
-            let oracle_mark_gap_after = amm
+            let oracle_mark_gap_after = pool
                 .last_mark_price_twap
                 .cast::<i64>()?
                 .safe_sub(oracle_twap)?;
@@ -265,96 +257,102 @@ impl SynthPoolTrait for SynthPool {
             {
                 log!(
                     &env,
-                    "amm.historical_oracle_data.last_oracle_price_twap {} -> {}",
-                    amm.historical_oracle_data.last_oracle_price_twap,
-                    amm.last_mark_price_twap.cast::<i64>()?
+                    "pool.historical_oracle_data.last_oracle_price_twap {} -> {}",
+                    pool.historical_oracle_data.last_oracle_price_twap,
+                    pool.last_mark_price_twap.cast::<i64>()?
                 );
                 log!(
                     &env,
-                    "amm.historical_oracle_data.last_oracle_price_twap_ts {} -> {}",
-                    amm.historical_oracle_data.last_oracle_price_twap_ts,
+                    "pool.historical_oracle_data.last_oracle_price_twap_ts {} -> {}",
+                    pool.historical_oracle_data.last_oracle_price_twap_ts,
                     now
                 );
-                amm.historical_oracle_data.last_oracle_price_twap =
-                    amm.last_mark_price_twap.cast::<i64>()?;
-                amm.historical_oracle_data.last_oracle_price_twap_ts = now;
+                pool.historical_oracle_data.last_oracle_price_twap =
+                    pool.last_mark_price_twap.cast::<i64>()?;
+                pool.historical_oracle_data.last_oracle_price_twap_ts = now;
             } else if oracle_mark_gap_after.unsigned_abs() <= oracle_mark_gap_before.unsigned_abs()
             {
                 log!(
                     &env,
-                    "amm.historical_oracle_data.last_oracle_price_twap {} -> {}",
-                    amm.historical_oracle_data.last_oracle_price_twap,
+                    "pool.historical_oracle_data.last_oracle_price_twap {} -> {}",
+                    pool.historical_oracle_data.last_oracle_price_twap,
                     oracle_twap
                 );
                 log!(
                     &env,
-                    "amm.historical_oracle_data.last_oracle_price_twap_ts {} -> {}",
-                    amm.historical_oracle_data.last_oracle_price_twap_ts,
+                    "pool.historical_oracle_data.last_oracle_price_twap_ts {} -> {}",
+                    pool.historical_oracle_data.last_oracle_price_twap_ts,
                     now
                 );
-                amm.historical_oracle_data.last_oracle_price_twap = oracle_twap;
-                amm.historical_oracle_data.last_oracle_price_twap_ts = now;
+                pool.historical_oracle_data.last_oracle_price_twap = oracle_twap;
+                pool.historical_oracle_data.last_oracle_price_twap_ts = now;
             } else {
-                return Err(ErrorCode::PriceBandsBreached.into());
+                return Err(ErrorCode::PriceBandsBreached);
             }
         } else {
-            return Err(ErrorCode::InvalidOracle.into());
+            return Err(ErrorCode::InvalidOracle);
         }
     }
 
-    fn initialize_reward(env: Env, token_reward: Address) {
+    fn initialize_reward(
+        env: Env,
+        sender: Address,
+        reward_token: Address,
+        emissions_per_second_x64: u128,
+    ) {
+        sender.require_auth();
+
         let pool = &mut get_pool(&env);
+        let now = env.ledger().timestamp();
 
-        let index: usize = reward_index as usize;
-
-        if index >= NUM_REWARDS {
-            return Err(ErrorCode::InvalidRewardIndex.into());
+        // ensure token isn't already a reward
+        if get_reward_by_token(&pool, reward_token) {
+            return Err(ErrorCode::AdminNotSet);
         }
 
-        let lowest_index = match pool.reward_infos.iter().position(|r| !r.initialized()) {
-            Some(lowest_index) => lowest_index,
-            None => {
-                return Err(ErrorCode::InvalidRewardIndex.into());
-            }
+        let reward = RewardInfo {
+            token: reward_token,
+            authority: sender,
+            emissions_per_second_x64,
+            growth_global_x64: 0,
         };
 
-        if lowest_index != index {
-            return Err(ErrorCode::InvalidRewardIndex.into());
-        }
-
-        pool.reward_infos[index].mint = ctx.accounts.reward_mint.key();
-        pool.reward_infos[index].vault = ctx.accounts.reward_vault.key();
-
-        // let reward = AMMRewardInfo {
-        //     token: token_reward,
-        //     emissions_per_second_x64: 0,
-        //     growth_global_x64: 0,
-        // };
+        pool.reward_infos.append(reward);
     }
 
-    fn set_reward_emissions(env: Env, reward_index: u8, emissions_per_second_x64: u128) {
-        // let reward = get_reward_by_id(&env, id);
-
-        // ...
-
+    fn set_reward_emissions(
+        env: Env,
+        sender: Address,
+        reward_token: Address,
+        emissions_per_second_x64: u128,
+    ) {
         let pool = get_pool(&env);
+        let reward = get_reward_by_token(&pool, reward_timestamp);
         // let reward_vault = &ctx.accounts.reward_vault;
+
+        // if reward
 
         let emissions_per_day = checked_mul_shift_right(DAY_IN_SECONDS, emissions_per_second_x64)?;
         if reward_vault.amount < emissions_per_day {
-            return Err(ErrorCode::RewardVaultAmountInsufficient.into());
+            return Err(ErrorCode::RewardVaultAmountInsufficient);
         }
 
         let timestamp = env.ledger().timestamp();
-        let next_reward_infos = controller::amm::next_amm_reward_infos(pool, timestamp)?;
+        let next_reward_infos = controller::pool::next_amm_reward_infos(&pool, timestamp)?;
 
-        let index: usize = reward_index as usize;
-
-        if index >= NUM_REWARDS {
-            return Err(ErrorCode::InvalidRewardIndex.into());
-        }
         pool.update_rewards(next_reward_infos, timestamp);
         pool.reward_infos[index].emissions_per_second_x64 = emissions_per_second_x64;
+    }
+
+    fn set_reward_authority(
+        env: Env,
+        sender: Address,
+        reward_token: Address,
+        new_reward_authority: Address,
+    ) {
+        let pool = get_pool(&env);
+
+        pool.update_reward_authority(reward_token, new_reward_authority);
     }
 
     // ################################################################
@@ -365,7 +363,7 @@ impl SynthPoolTrait for SynthPool {
         sender.require_auth();
         // TODO: ensure DAO or keeper
 
-        let pool = get_pool(&env);
+        let mut pool = get_pool(&env);
 
         pool.transfer_a(env.current_contract_address(), to, pool.protocol_fee_owed_a);
         pool.transfer_a(env.current_contract_address(), to, pool.protocol_fee_owed_b);
@@ -380,14 +378,14 @@ impl SynthPoolTrait for SynthPool {
     fn create_position(env: Env, tick_lower_index: i32, tick_upper_index: i32) {
         let pool = get_pool(&env);
 
-        Position::open_position(&pool, tick_lower_index, tick_upper_index)?;
+        Position::open_position(&env, &pool, tick_lower_index, tick_upper_index)?;
 
-        mint_position_token(
-            market,
-            position_mint,
-            &ctx.accounts.position_token_account,
-            &ctx.accounts.token_program,
-        )?;
+        // mint_position_token(
+        //     market,
+        //     position_mint,
+        //     &ctx.accounts.position_token_account,
+        //     &ctx.accounts.token_program,
+        // )?;
 
         SynthPoolEvents::CreatePosition();
     }
@@ -401,24 +399,19 @@ impl SynthPoolTrait for SynthPool {
     }
 
     fn close_position(env: Env, sender: Address, position_ts: u64) {
-        verify_position_authority(
-            &ctx.accounts.position_token_account,
-            &ctx.accounts.position_authority,
-        )?;
-
         let position = get_position_by_ts(&env, &sender, position_ts);
 
         if !Position::is_position_empty(&position) {
-            return Err(ErrorCode::ClosePositionNotEmpty.into());
+            return Err(ErrorCode::ClosePositionNotEmpty);
         }
 
-        burn_and_close_user_position_token(
-            &ctx.accounts.position_authority,
-            &ctx.accounts.receiver,
-            &ctx.accounts.position_mint,
-            &ctx.accounts.position_token_account,
-            &ctx.accounts.token_program,
-        );
+        // burn_and_close_user_position_token(
+        //     &ctx.accounts.position_authority,
+        //     &ctx.accounts.receiver,
+        //     &ctx.accounts.position_mint,
+        //     &ctx.accounts.position_token_account,
+        //     &ctx.accounts.token_program,
+        // );
 
         SynthPoolEvents::ClosePosition();
     }
@@ -437,7 +430,7 @@ impl SynthPoolTrait for SynthPool {
         sender.require_auth();
 
         if liquidity_amount == 0 {
-            return Err(ErrorCode::LiquidityZero.into());
+            return Err(ErrorCode::LiquidityZero);
         }
         let liquidity_delta = convert_to_liquidity_delta(liquidity_amount, true)?;
         let timestamp = env.ledger().timestamp();
@@ -446,6 +439,7 @@ impl SynthPoolTrait for SynthPool {
         let position = get_position_by_ts(&env, &sender, position_ts);
 
         let update = controller::liquidity::calculate_modify_liquidity(
+            &env,
             &pool,
             &position,
             &tick_array_lower,
@@ -471,7 +465,7 @@ impl SynthPoolTrait for SynthPool {
         )?;
 
         if delta_a > token_max_a || delta_b > token_max_b {
-            return Err(ErrorCode::TokenMaxExceeded.into());
+            return Err(ErrorCode::TokenMaxExceeded);
         }
 
         let token_a_client = token_contract::Client::new(&env, &pool.token_a);
@@ -482,19 +476,14 @@ impl SynthPoolTrait for SynthPool {
 
         // mint token
 
-        SynthPoolEvents::add_liquidity(&env, to, amount_a, amount_b);
+        // SynthPoolEvents::add_liquidity(&env, to, amount_a, amount_b);
     }
 
     fn collect_fees(env: Env, sender: Address, to: Option<Address>, position_ts: u64) {
         sender.require_auth();
 
-        // verify_position_authority_interface(
-        //     &ctx.accounts.position_token_account,
-        //     &ctx.accounts.position_authority
-        // )?;
-
         let pool = get_pool(&env);
-        let position = get_position_by_ts(&env, user, position_ts);
+        let mut position = get_position_by_ts(&env, &sender, position_ts);
 
         // Store the fees owed to use as transfer amounts.
         let fee_owed_a = position.fee_owed_a;
@@ -510,7 +499,7 @@ impl SynthPoolTrait for SynthPool {
         pool.transfer_a(env.current_contract_address(), recipient, fee_owed_a);
         pool.transfer_b(env.current_contract_address(), recipient, fee_owed_b);
 
-        SynthPoolEvents::collect_fees(&env, to, amount);
+        // SynthPoolEvents::collect_fees(&env, to, amount);
     }
 
     fn decrease_liquidity(
@@ -522,11 +511,11 @@ impl SynthPoolTrait for SynthPool {
         token_max_b: u64,
         tick_array_lower: TickArray,
         tick_array_upper: TickArray,
-    ) -> (i128, i128) {
+    ) {
         sender.require_auth();
 
         if liquidity_amount == 0 {
-            return Err(ErrorCode::LiquidityZero.into());
+            return Err(ErrorCode::LiquidityZero);
         }
         let liquidity_delta = convert_to_liquidity_delta(liquidity_amount, true)?;
         let timestamp = env.ledger().timestamp();
@@ -535,6 +524,7 @@ impl SynthPoolTrait for SynthPool {
         let position = get_position_by_ts(&env, &sender, position_ts);
 
         let update = controller::liquidity::calculate_modify_liquidity(
+            &env,
             &pool,
             &position,
             &tick_array_lower,
@@ -544,23 +534,23 @@ impl SynthPoolTrait for SynthPool {
         )?;
 
         controller::liquidity::sync_modify_liquidity_values(
-            &mut ctx.accounts.amm,
-            &mut ctx.accounts.position,
-            &ctx.accounts.tick_array_lower,
-            &ctx.accounts.tick_array_upper,
+            &mut pool,
+            &mut position,
+            &tick_array_lower,
+            &tick_array_upper,
             update,
             timestamp,
         )?;
 
         let (delta_a, delta_b) = controller::liquidity::calculate_liquidity_token_deltas(
-            ctx.accounts.amm.tick_current_index,
-            ctx.accounts.amm.sqrt_price,
-            &ctx.accounts.position,
+            pool.tick_current_index,
+            pool.sqrt_price,
+            &position,
             liquidity_delta,
         )?;
 
         if delta_a < token_max_a || delta_b < token_max_b {
-            return Err(ErrorCode::TokenMinSubceeded.into());
+            return Err(ErrorCode::TokenMinSubceeded);
         }
 
         let token_a_client = token_contract::Client::new(&env, &pool.token_a);
@@ -569,9 +559,7 @@ impl SynthPoolTrait for SynthPool {
         token_a_client.transfer(&env.current_contract_address(), &sender, &delta_a);
         token_b_client.transfer(&env.current_contract_address(), &sender, &delta_b);
 
-        SynthPoolEvents::remove_liquidity(&env, to, out_a, out_b);
-
-        (out_a, out_b)
+        // SynthPoolEvents::remove_liquidity(&env, to, out_a, out_b);
     }
 
     fn swap(
@@ -595,18 +583,22 @@ impl SynthPoolTrait for SynthPool {
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let timestamp = env.ledger().timestamp();
-        let config = get_pool(&env);
+        let pool = get_pool(&env);
+
+        controller::pool::update_pool_price(&env, &pool);
 
         let builder = SparseSwapTickSequenceBuilder::try_from(
-            env,
+            &env,
+            &pool,
             a_to_b,
             vec![tick_array_0, tick_array_1, tick_array_2],
             None,
         )?;
-        let mut swap_tick_sequence = builder.build()?;
+        let mut swap_tick_sequence = builder.build(&env)?;
 
         let swap_update = controller::swap::swap(
             &env,
+            &pool,
             &mut swap_tick_sequence,
             amount,
             sqrt_price_limit,
@@ -619,55 +611,41 @@ impl SynthPoolTrait for SynthPool {
             if (a_to_b && other_amount_threshold > swap_update.amount_quote)
                 || (!a_to_b && other_amount_threshold > swap_update.amount_synthetic)
             {
-                return Err(ErrorCode::AmountOutBelowMinimum.into());
+                return Err(ErrorCode::AmountOutBelowMinimum);
             }
         } else if (a_to_b && other_amount_threshold < swap_update.amount_synthetic)
             || (!a_to_b && other_amount_threshold < swap_update.amount_quote)
         {
-            return Err(ErrorCode::AmountInAboveMaximum.into());
+            return Err(ErrorCode::AmountInAboveMaximum);
         }
 
-        // TODO: check price range and update oracle price by pulling/pushing collateral from Synth Market
+        update_and_swap_amm(&env, &pool, sender, swap_update, a_to_b, timestamp);
 
-        update_and_swap_amm(
-            &env,
-            sender,
-            config.token_a,
-            config.token_b,
-            swap_update,
-            a_to_b,
-            timestamp,
-        );
-
-        SynthPoolEvents::swap(&env, to, buy_a, out, in_max);
+        // SynthPoolEvents::swap(&env, to, buy_a, out, in_max);
     }
 
-    fn collect_reward(env: Env, sender: Address, to: Address, position_ts: u64) {
+    fn collect_reward(env: Env, sender: Address, to: Option<Address>, reward_token: Address) {
         sender.require_auth();
 
-        // verify_position_authority_interface(
-        //     &ctx.accounts.position_token_account,
-        //     &ctx.accounts.position_authority
-        // )?;
-
-        let index = reward_index as usize;
-
-        let position = &mut get_position_by_ts(&env, key, position_ts);
+        let position = &mut get_position_by_ts(&env, &sender, position_ts);
         let (transfer_amount, updated_amount_owed) = calculate_collect_reward(
             position.reward_infos[index],
-            ctx.accounts.reward_vault.amount,
+            0, //ctx.accounts.reward_vault.amount,
         );
 
         position.update_reward_owed(index, updated_amount_owed);
 
-        // pool.tr
-        // transfer_from_vault_to_owner(
-        //     &ctx.accounts.market,
-        //     &ctx.accounts.reward_vault,
-        //     &ctx.accounts.reward_owner_account,
-        //     &ctx.accounts.token_program,
-        //     transfer_amount
-        // )
+        let recipient = match to {
+            Some(to_address) => to_address, // Use the provided `to` address
+            None => sender,                 // Otherwise use the sender address
+        };
+
+        let token_client = token_contract::Client::new(&env, &reward_token);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &recipient,
+            &transfer_amount,
+        );
     }
 
     // Queries
@@ -678,27 +656,5 @@ impl SynthPoolTrait for SynthPool {
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         get_pool(&env).share_token
-    }
-
-    fn query_pool_info(env: Env) -> PoolResponse {
-        env.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-        let config = get_pool(&env);
-
-        PoolResponse {
-            asset_a: Asset {
-                address: config.token_a,
-                amount: utils::get_pool_balance_a(&env),
-            },
-            asset_b: Asset {
-                address: config.token_b,
-                amount: utils::get_pool_balance_b(&env),
-            },
-            asset_lp_share: Asset {
-                address: config.share_token,
-                amount: utils::get_total_shares(&env),
-            },
-        }
     }
 }

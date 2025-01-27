@@ -1,4 +1,3 @@
-use core::fmt;
 use soroban_decimal::Decimal;
 
 pub fn is_approx_ratio(a: Decimal, b: Decimal, tolerance: Decimal) -> bool {

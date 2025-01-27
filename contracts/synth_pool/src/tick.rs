@@ -1,16 +1,19 @@
-use normal::error::ErrorCode;
+use normal::error::{ErrorCode, NormalResult};
 use soroban_sdk::{contracttype, Vec};
 
-use crate::{errors::ErrorCode, tick_array::TickArrayType};
+use crate::{
+    errors::{ErrorCode, ErrorCode},
+    tick_array::TickArrayType,
+};
 
 // Max & min tick index based on sqrt(1.0001) & max.min price of 2^64
-pub(crate) const MAX_TICK_INDEX: i32 = 443636;
-pub(crate) const MIN_TICK_INDEX: i32 = -443636;
+pub const MAX_TICK_INDEX: i32 = 443636;
+pub const MIN_TICK_INDEX: i32 = -443636;
 
 // We have two consts because most of our code uses it as a i32. However,
 // for us to use it in tick array declarations, anchor requires it to be a usize.
-pub(crate) const TICK_ARRAY_SIZE: i32 = 88;
-pub(crate) const TICK_ARRAY_SIZE_USIZE: usize = 88;
+pub const TICK_ARRAY_SIZE: i32 = 88;
+pub const TICK_ARRAY_SIZE_USIZE: usize = 88;
 
 #[contracttype]
 #[derive(Default, Debug, PartialEq)]
@@ -166,9 +169,9 @@ impl TickArrayType for ZeroedTickArray {
         tick_index: i32,
         tick_spacing: u16,
         a_to_b: bool,
-    ) -> Result<Option<i32>> {
+    ) -> NormalResult<Option<i32>> {
         if !self.in_search_range(tick_index, tick_spacing, !a_to_b) {
-            return Err(ErrorCode::InvalidTickArraySequence.into());
+            return Err(ErrorCode::InvalidTickArraySequence);
         }
 
         self.tick_offset(tick_index, tick_spacing)?;
@@ -177,15 +180,15 @@ impl TickArrayType for ZeroedTickArray {
         Ok(None)
     }
 
-    fn get_tick(&self, tick_index: i32, tick_spacing: u16) -> Result<&Tick> {
+    fn get_tick(&self, tick_index: i32, tick_spacing: u16) -> Result<&Tick, ErrorCode> {
         if !self.check_in_array_bounds(tick_index, tick_spacing)
             || !Tick::check_is_usable_tick(tick_index, tick_spacing)
         {
-            return Err(ErrorCode::TickNotFound.into());
+            return Err(ErrorCode::TickNotFound);
         }
         let offset = self.tick_offset(tick_index, tick_spacing)?;
         if offset < 0 {
-            return Err(ErrorCode::TickNotFound.into());
+            return Err(ErrorCode::TickNotFound);
         }
 
         // always return the zeroed tick
@@ -197,7 +200,7 @@ impl TickArrayType for ZeroedTickArray {
         _tick_index: i32,
         _tick_spacing: u16,
         _update: &TickUpdate,
-    ) -> Result<()> {
+    ) -> NormalResult<()> {
         panic!("ZeroedTickArray must not be updated");
     }
 }

@@ -8,3 +8,4 @@ pub mod helpers;
 pub mod oracle;
 pub mod safe_math;
 pub mod safe_unwrap;
+pub mod vec_dequeue;

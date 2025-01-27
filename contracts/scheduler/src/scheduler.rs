@@ -88,11 +88,11 @@ pub trait SchedulerTrait {
     //                             QUERIES
     // ################################################################
 
-    fn query_schedules(env: Env) -> Vec<Address>;
+    // fn query_schedules(env: Env) -> Vec<Address>;
 
-    fn query_schedule_details(env: Env, index_address: Address) -> Schedule;
+    // fn query_schedule_details(env: Env, index_address: Address) -> Schedule;
 
-    fn query_all_schedules_details(env: Env) -> Vec<Schedule>;
+    // fn query_all_schedules_details(env: Env) -> Vec<Schedule>;
 
-    fn query_for_schedules_by_address(env: Env, user: Address) -> Vec<Address>;
+    // fn query_for_schedules_by_address(env: Env, user: Address) -> Vec<Address>;
 }

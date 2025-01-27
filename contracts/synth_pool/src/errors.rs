@@ -6,12 +6,12 @@ use soroban_sdk::contracterror;
 pub enum ErrorCode {
     InvalidEnum = 6000,
     InvalidStartTick = 6001,
-    TickArrayExistInPool = 6002,
+    // TickArrayExistInPool = 6002,
     TickArrayIndexOutofBounds = 6003,
     InvalidTickSpacing = 6004,
     ClosePositionNotEmpty = 6005,
 
-    DivideByZero = 6006,
+    DivideByZero = 6006, // duplicates
     NumberCastError = 6007,
     NumberDownCastError = 6008,
 
@@ -61,29 +61,18 @@ pub enum ErrorCode {
     AmountRemainingOverflow = 6040,
 
     InvalidIntermediaryMint = 6041,
-    DuplicateTwoHopPool = 6042,
-
-    InvalidBundleIndex = 6043,
-    BundledPositionAlreadyOpened = 6044,
-    BundledPositionAlreadyClosed = 6045,
-    PositionBundleNotDeletable = 6046,
 
     UnsupportedTokenMint = 6047,
 
     RemainingAccountsInvalidSlice = 6048,
     RemainingAccountsInsufficient = 6049,
-    // NoExtraAccountsForTrz = 12,
 
-    // IntermediateTokenAmountMismatch = 6051,
+    TransferFeeCalculationError = 6052,
 
-    // TransferFeeCalculationError = 6052,
+    FullRangeOnlyPool = 6054,
 
-    // RemainingAccountsDuplicatedAccountsType = 6053,
+    TooManySupplementalTickArrays = 6055,
+    DifferentPoolTickArrayAccount = 6056,
 
-    // FullRangeOnlyPool = 6054,
-
-    // TooManySupplementalTickArrays = 6055,
-    // DifferentWhirlpoolTickArrayAccount = 6056,
-
-    // PartialFillError = 6057,
+    PartialFillError = 6057,
 }

@@ -6,6 +6,8 @@
 
 // use crate::errors::ErrorCode;
 
+use crate::errors::ErrorCode;
+
 const NUM_WORDS: usize = 4;
 
 #[derive(Copy, Clone, Debug)]

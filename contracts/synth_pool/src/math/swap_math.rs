@@ -1,7 +1,7 @@
-use crate::math::*;
-use normal::error::ErrorCode;
+use crate::{errors::ErrorCode, math::*};
+use bit_math::{checked_mul_div, checked_mul_div_round_up};
 use soroban_sdk::contracttype;
-use token_math::AmountDeltaU64;
+use token_math::{get_next_sqrt_price, AmountDeltaU64};
 
 use super::token_math::{get_amount_delta_quote, get_amount_delta_synthetic, FEE_RATE_MUL_VALUE};
 

@@ -13,7 +13,9 @@ doctest = false
 [dependencies]
 soroban-sdk = { workspace = true }
 num-integer = { workspace = true }
+soroban-decimal = { workspace = true }
 normal = { workspace = true }
+bytemuck = { version = "1.4.0" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

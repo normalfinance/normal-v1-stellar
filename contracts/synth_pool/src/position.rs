@@ -1,10 +1,12 @@
-use normal::constants::MAX_REWARDS;
-use normal::error::ErrorCode;
+use normal::{
+    constants::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
+    error::ErrorCode,
+};
 use soroban_sdk::{contracttype, Address, Env, Vec};
 
 use crate::{
-    contract::SynthPool, errors::ErrorCode, math::FULL_RANGE_ONLY_TICK_SPACING_THRESHOLD,
-    reward::PositionRewardInfo, storage::Config, tick::Tick,
+    contract::SynthPool, math::tick_math::FULL_RANGE_ONLY_TICK_SPACING_THRESHOLD,
+    reward::PositionRewardInfo, storage::Pool, tick::Tick,
 };
 
 #[contracttype]
@@ -42,8 +44,8 @@ impl Position {
     pub fn is_position_empty(position: &Position) -> bool {
         let fees_not_owed = position.fee_owed_a == 0 && position.fee_owed_b == 0;
         let mut rewards_not_owed = true;
-        for i in 0..MAX_REWARDS {
-            rewards_not_owed = rewards_not_owed && position.reward_infos[i].amount_owed == 0;
+        for (i, reward_info) in position.reward_infos.iter().enumerate() {
+            rewards_not_owed = rewards_not_owed && reward_info.amount_owed == 0;
         }
         position.liquidity == 0 && fees_not_owed && rewards_not_owed
     }
@@ -59,15 +61,15 @@ impl Position {
 
     pub fn open_position(
         &mut self,
-        pool: &Config,
+        pool: &Pool,
         tick_lower_index: i32,
         tick_upper_index: i32,
-    ) -> Result<()> {
+    ) -> Result<(), ErrorCode> {
         if !Tick::check_is_usable_tick(tick_lower_index, pool.tick_spacing)
             || !Tick::check_is_usable_tick(tick_upper_index, pool.tick_spacing)
             || tick_lower_index >= tick_upper_index
         {
-            return Err(ErrorCode::InvalidTickIndex.into());
+            return Err(ErrorCode::InvalidTickIndex);
         }
 
         // On tick spacing >= 2^15, should only be able to open full range positions
@@ -77,7 +79,7 @@ impl Position {
             if tick_lower_index != full_range_lower_index
                 || tick_upper_index != full_range_upper_index
             {
-                return Err(ErrorCode::FullRangeOnlyPool.into());
+                return Err(ErrorCode::FullRangeOnlyPool);
             }
         }
 

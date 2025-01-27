@@ -1,5 +1,3 @@
-#![no_std]
-
 use crate::math::bn::{U192, U256};
 use num_traits::{One, Zero};
 

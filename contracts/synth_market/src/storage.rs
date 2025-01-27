@@ -492,30 +492,6 @@ pub fn get_market(env: &Env) -> SynthMarket {
 
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Debug, Eq)]
-pub enum SynthTier {
-    /// max insurance capped at A level
-    A,
-    /// max insurance capped at B level
-    B,
-    /// max insurance capped at C level
-    C,
-    /// no insurance
-    Speculative,
-    /// no insurance, another tranches below
-    HighlySpeculative,
-    /// no insurance, only single position allowed
-    Isolated,
-}
-
-impl SynthTier {
-    pub fn is_as_safe_as_synth(&self, other: &SynthTier) -> bool {
-        // Synth Tier A safest
-        self <= other
-    }
-}
-
-#[contracttype]
-#[derive(Clone, Copy, PartialEq, Debug, Eq)]
 pub enum Operation {
     Create,
     Deposit,

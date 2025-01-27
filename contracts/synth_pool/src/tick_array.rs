@@ -1,7 +1,13 @@
-use soroban_sdk::contracttype;
+use normal::{
+    constants::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
+    error::{ErrorCode, NormalResult},
+};
+use soroban_sdk::{contracttype, Address, Env, Vec};
 
 use crate::{
-    errors::ErrorCode,
+    errors::{ErrorCode, ErrorCode},
+    position::PositionInfo,
+    storage::Pool,
     tick::{
         Tick, TickUpdate, MAX_TICK_INDEX, MIN_TICK_INDEX, TICK_ARRAY_SIZE, TICK_ARRAY_SIZE_USIZE,
     },
@@ -15,16 +21,16 @@ pub trait TickArrayType {
         tick_index: i32,
         tick_spacing: u16,
         a_to_b: bool,
-    ) -> Result<Option<i32>>;
+    ) -> NormalResult<Option<i32>>;
 
-    fn get_tick(&self, tick_index: i32, tick_spacing: u16) -> Result<&Tick>;
+    fn get_tick(&self, tick_index: i32, tick_spacing: u16) -> NormalResult<&Tick>;
 
     fn update_tick(
         &mut self,
         tick_index: i32,
         tick_spacing: u16,
         update: &TickUpdate,
-    ) -> Result<()>;
+    ) -> NormalResult<()>;
 
     /// Checks that this array holds the next tick index for the current tick index, given the pool's tick spacing & search direction.
     ///
@@ -60,9 +66,9 @@ pub trait TickArrayType {
         self.start_tick_index() + TICK_ARRAY_SIZE * (tick_spacing as i32) > MAX_TICK_INDEX
     }
 
-    fn tick_offset(&self, tick_index: i32, tick_spacing: u16) -> Result<isize> {
+    fn tick_offset(&self, tick_index: i32, tick_spacing: u16) -> Result<isize, ErrorCode> {
         if tick_spacing == 0 {
-            return Err(ErrorCode::InvalidTickSpacing.into());
+            return Err(ErrorCode::InvalidTickSpacing);
         }
 
         Ok(get_offset(
@@ -91,15 +97,37 @@ fn get_offset(tick_index: i32, start_tick_index: i32, tick_spacing: u16) -> isiz
 #[repr(C, packed)]
 pub struct TickArray {
     pub start_tick_index: i32,
-    pub ticks: [Tick; TICK_ARRAY_SIZE_USIZE],
+    pub ticks: Vec<Tick>, // [Tick; TICK_ARRAY_SIZE_USIZE],
+    pub pool: Address,
 }
 
 impl TickArray {
     pub fn default() -> Self {
         TickArray {
+            pool: 0,
             ticks: [Tick::default(); TICK_ARRAY_SIZE_USIZE],
             start_tick_index: 0,
         }
+    }
+}
+
+impl TickArray {
+    /// Initialize the TickArray object
+    ///
+    /// # Parameters
+    /// - `whirlpool` - the tick index the desired Tick object is stored in
+    /// - `start_tick_index` - A u8 integer of the tick spacing for this whirlpool
+    ///
+    /// # Errors
+    /// - `InvalidStartTick`: - The provided start-tick-index is not an initializable tick index in this Whirlpool w/ this tick-spacing.
+    pub fn initialize(&mut self, pool: &Pool, start_tick_index: i32) -> Result<()> {
+        if !Tick::check_is_valid_start_tick(start_tick_index, pool.tick_spacing) {
+            return Err(ErrorCode::InvalidStartTick);
+        }
+
+        self.pool = pool;
+        self.start_tick_index = start_tick_index;
+        Ok(())
     }
 }
 
@@ -126,9 +154,9 @@ impl TickArrayType for TickArray {
         tick_index: i32,
         tick_spacing: u16,
         a_to_b: bool,
-    ) -> Result<Option<i32>> {
+    ) -> NormalResult<Option<i32>> {
         if !self.in_search_range(tick_index, tick_spacing, !a_to_b) {
-            return Err(ErrorCode::InvalidTickArraySequence.into());
+            return Err(ErrorCode::InvalidTickArraySequence);
         }
 
         let mut curr_offset = match self.tick_offset(tick_index, tick_spacing) {
@@ -171,15 +199,15 @@ impl TickArrayType for TickArray {
     /// # Returns
     /// - `&Tick`: A reference to the desired Tick object
     /// - `TickNotFound`: - The provided tick-index is not an initializable tick index in this amm w/ this tick-spacing.
-    fn get_tick(&self, tick_index: i32, tick_spacing: u16) -> Result<&Tick> {
+    fn get_tick(&self, tick_index: i32, tick_spacing: u16) -> Result<&Tick, ErrorCode> {
         if !self.check_in_array_bounds(tick_index, tick_spacing)
             || !Tick::check_is_usable_tick(tick_index, tick_spacing)
         {
-            return Err(ErrorCode::TickNotFound.into());
+            return Err(ErrorCode::TickNotFound);
         }
         let offset = self.tick_offset(tick_index, tick_spacing)?;
         if offset < 0 {
-            return Err(ErrorCode::TickNotFound.into());
+            return Err(ErrorCode::TickNotFound);
         }
         Ok(&self.ticks[offset as usize])
     }
@@ -198,17 +226,21 @@ impl TickArrayType for TickArray {
         tick_index: i32,
         tick_spacing: u16,
         update: &TickUpdate,
-    ) -> Result<()> {
+    ) -> Result<(), ErrorCode> {
         if !self.check_in_array_bounds(tick_index, tick_spacing)
             || !Tick::check_is_usable_tick(tick_index, tick_spacing)
         {
-            return Err(ErrorCode::TickNotFound.into());
+            return Err(ErrorCode::TickNotFound);
         }
         let offset = self.tick_offset(tick_index, tick_spacing)?;
         if offset < 0 {
-            return Err(ErrorCode::TickNotFound.into());
+            return Err(ErrorCode::TickNotFound);
         }
-        self.ticks.get_mut(offset as usize).unwrap().update(update);
+        // self.ticks
+        //     .get_mut(offset as usize)
+        //     .unwrap()
+        //     .update(update);
+        self.ticks.get(offset).unwrap().update(update);
         Ok(())
     }
 }

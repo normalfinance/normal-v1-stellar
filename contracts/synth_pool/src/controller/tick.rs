@@ -1,4 +1,4 @@
-use normal::error::ErrorCode;
+use soroban_sdk::{Env, Vec};
 
 use crate::{
     errors::ErrorCode,
@@ -11,7 +11,7 @@ pub fn next_tick_cross_update(
     tick: &Tick,
     fee_growth_global_synthetic: u128,
     fee_growth_global_quote: u128,
-    reward_infos: &[RewardInfo; NUM_REWARDS],
+    reward_infos: &Vec<RewardInfo>,
 ) -> Result<TickUpdate, ErrorCode> {
     let mut update = TickUpdate::from(tick);
 
@@ -33,12 +33,13 @@ pub fn next_tick_cross_update(
 
 #[allow(clippy::too_many_arguments)]
 pub fn next_tick_modify_liquidity_update(
+    env: &Env,
     tick: &Tick,
     tick_index: i32,
     tick_current_index: i32,
     fee_growth_global_synthetic: u128,
     fee_growth_global_quote: u128,
-    reward_infos: &[RewardInfo; NUM_REWARDS],
+    reward_infos: &Vec<RewardInfo>,
     liquidity_delta: i128,
     is_upper_tick: bool,
 ) -> Result<TickUpdate, ErrorCode> {
@@ -62,10 +63,10 @@ pub fn next_tick_modify_liquidity_update(
                 (
                     fee_growth_global_synthetic,
                     fee_growth_global_quote,
-                    RewardInfo::to_reward_growths(reward_infos),
+                    RewardInfo::to_reward_growths(env, reward_infos),
                 )
             } else {
-                (0, 0, [0; NUM_REWARDS])
+                (0, 0, [0])
             }
         } else {
             (
@@ -149,25 +150,26 @@ pub fn next_fee_growths_inside(
 // Calculates the reward growths inside of tick_lower and tick_upper based on their positions
 // relative to tick_current_index. An uninitialized reward will always have a reward growth of zero.
 pub fn next_reward_growths_inside(
+    env: &Env,
     tick_current_index: i32,
     tick_lower: &Tick,
     tick_lower_index: i32,
     tick_upper: &Tick,
     tick_upper_index: i32,
-    reward_infos: &[RewardInfo; NUM_REWARDS],
-) -> [u128; NUM_REWARDS] {
-    let mut reward_growths_inside = [0; NUM_REWARDS];
+    reward_infos: &Vec<RewardInfo>,
+) -> Vec<u128> {
+    let mut reward_growths_inside: Vec<u128> = Vec::new(env);
 
-    for i in 0..NUM_REWARDS {
-        if !reward_infos[i].initialized() {
+    for (i, reward_info) in reward_infos.iter().enumerate() {
+        if !reward_info.initialized() {
             continue;
         }
 
         // By convention, assume all prior growth happened below the tick
         let reward_growths_below = if !tick_lower.initialized {
-            reward_infos[i].growth_global_x64
+            reward_info.growth_global_x64
         } else if tick_current_index < tick_lower_index {
-            reward_infos[i]
+            reward_info
                 .growth_global_x64
                 .wrapping_sub(tick_lower.reward_growths_outside[i])
         } else {
@@ -180,15 +182,20 @@ pub fn next_reward_growths_inside(
         } else if tick_current_index < tick_upper_index {
             tick_upper.reward_growths_outside[i]
         } else {
-            reward_infos[i]
+            reward_info
                 .growth_global_x64
                 .wrapping_sub(tick_upper.reward_growths_outside[i])
         };
 
-        reward_growths_inside[i] = reward_infos[i]
-            .growth_global_x64
-            .wrapping_sub(reward_growths_below)
-            .wrapping_sub(reward_growths_above);
+        // reward_growths_inside[i] = reward_info.growth_global_x64
+        //     .wrapping_sub(reward_growths_below)
+        //     .wrapping_sub(reward_growths_above);
+        reward_growths_inside.append(
+            reward_info
+                .growth_global_x64
+                .wrapping_sub(reward_growths_below)
+                .wrapping_sub(reward_growths_above),
+        );
     }
 
     reward_growths_inside

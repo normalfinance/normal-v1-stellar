@@ -1,8 +1,12 @@
+use crate::errors::ErrorCode;
+use crate::math::tick_math::tick_index_from_sqrt_price;
+use crate::math::token_math::PROTOCOL_FEE_RATE_MUL_VALUE;
+use crate::storage::Pool;
+use crate::tick::TICK_ARRAY_SIZE;
 use crate::{controller, math};
-use normal::error::ErrorCode;
-use soroban_sdk::{log, Env, Vec};
+use normal::error::{ErrorCode, NormalResult};
+use soroban_sdk::{contracttype, log, Env, Vec};
 
-use crate::{controller, math};
 use crate::{
     math::{
         MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64, NO_EXPLICIT_SQRT_PRICE_LIMIT,
@@ -28,13 +32,14 @@ pub struct PostSwapUpdate {
 
 pub fn swap(
     env: &Env,
+    pool: &Pool,
     swap_tick_sequence: &mut SwapTickSequence,
     amount: u64,
     sqrt_price_limit: u128,
     amount_specified_is_input: bool,
     a_to_b: bool,
     timestamp: u64,
-) -> Result<PostSwapUpdate> {
+) -> NormalResult<PostSwapUpdate> {
     let adjusted_sqrt_price_limit = if sqrt_price_limit == NO_EXPLICIT_SQRT_PRICE_LIMIT {
         if a_to_b {
             MIN_SQRT_PRICE_X64
@@ -46,40 +51,40 @@ pub fn swap(
     };
 
     if !(MIN_SQRT_PRICE_X64..=MAX_SQRT_PRICE_X64).contains(&adjusted_sqrt_price_limit) {
-        return Err(ErrorCode::SqrtPriceOutOfBounds.into());
+        return Err(ErrorCode::SqrtPriceOutOfBounds);
     }
 
-    if (a_to_b && adjusted_sqrt_price_limit > amm.sqrt_price)
-        || (!a_to_b && adjusted_sqrt_price_limit < amm.sqrt_price)
+    if (a_to_b && adjusted_sqrt_price_limit > pool.sqrt_price)
+        || (!a_to_b && adjusted_sqrt_price_limit < pool.sqrt_price)
     {
-        return Err(ErrorCode::InvalidSqrtPriceLimitDirection.into());
+        return Err(ErrorCode::InvalidSqrtPriceLimitDirection);
     }
 
     if amount == 0 {
-        return Err(ErrorCode::ZeroTradableAmount.into());
+        return Err(ErrorCode::ZeroTradableAmount);
     }
 
-    if a_to_b && adjusted_sqrt_price_limit > amm.historical_oracle_data.last_oracle_price_twap_5min
+    if a_to_b && adjusted_sqrt_price_limit > pool.historical_oracle_data.last_oracle_price_twap_5min
     {
         // TODO: apply penalty
     }
 
-    let tick_spacing = amm.tick_spacing;
-    let fee_rate = amm.fee_rate;
-    let protocol_fee_rate = amm.protocol_fee_rate;
-    let next_reward_infos = controller::amm::next_amm_reward_infos(amm, timestamp)?;
+    let tick_spacing = pool.tick_spacing;
+    let fee_rate = pool.fee_rate;
+    let protocol_fee_rate = pool.protocol_fee_rate;
+    let next_reward_infos = controller::pool::next_amm_reward_infos(pool, timestamp)?;
 
     let mut amount_remaining: u64 = amount;
     let mut amount_calculated: u64 = 0;
-    let mut curr_sqrt_price = amm.sqrt_price;
-    let mut curr_tick_index = amm.tick_current_index;
-    let mut curr_liquidity = amm.liquidity;
+    let mut curr_sqrt_price = pool.sqrt_price;
+    let mut curr_tick_index = pool.tick_current_index;
+    let mut curr_liquidity = pool.liquidity;
     let mut curr_protocol_fee: u64 = 0;
     let mut curr_array_index: usize = 0;
     let mut curr_fee_growth_global_input = if a_to_b {
-        amm.fee_growth_global_synthetic
+        pool.fee_growth_global_synthetic
     } else {
-        amm.fee_growth_global_quote
+        pool.fee_growth_global_quote
     };
 
     while amount_remaining > 0 && adjusted_sqrt_price_limit != curr_sqrt_price {
@@ -145,10 +150,10 @@ pub fn swap(
 
             if next_tick_initialized {
                 let (fee_growth_global_synthetic, fee_growth_global_quote) = if a_to_b {
-                    (curr_fee_growth_global_input, amm.fee_growth_global_quote)
+                    (curr_fee_growth_global_input, pool.fee_growth_global_quote)
                 } else {
                     (
-                        amm.fee_growth_global_synthetic,
+                        pool.fee_growth_global_synthetic,
                         curr_fee_growth_global_input,
                     )
                 };
@@ -207,7 +212,7 @@ pub fn swap(
         && !amount_specified_is_input
         && sqrt_price_limit == NO_EXPLICIT_SQRT_PRICE_LIMIT
     {
-        return Err(ErrorCode::PartialFillError.into());
+        return Err(ErrorCode::PartialFillError);
     }
 
     let (amount_synthetic, amount_quote) = if a_to_b == amount_specified_is_input {
@@ -217,9 +222,9 @@ pub fn swap(
     };
 
     let fee_growth = if a_to_b {
-        curr_fee_growth_global_input - amm.fee_growth_global_synthetic
+        curr_fee_growth_global_input - pool.fee_growth_global_synthetic
     } else {
-        curr_fee_growth_global_input - amm.fee_growth_global_quote
+        curr_fee_growth_global_input - pool.fee_growth_global_quote
     };
 
     // Log delta in fee growth to track pool usage over time with off-chain analytics
@@ -272,8 +277,8 @@ fn calculate_update(
     liquidity: u128,
     fee_growth_global_synthetic: u128,
     fee_growth_global_quote: u128,
-    reward_infos: &[RewardInfo; NUM_REWARDS],
-) -> Result<(TickUpdate, u128)> {
+    reward_infos: &Vec<RewardInfo>,
+) -> NormalResult<(TickUpdate, u128)> {
     // Use updated fee_growth for crossing tick
     // Use -liquidity_net if going left, +liquidity_net going right
     let signed_liquidity_net = if a_to_b {
@@ -290,7 +295,8 @@ fn calculate_update(
     )?;
 
     // Update the global liquidity to reflect the new current tick
-    let next_liquidity = math::amm::add_liquidity_delta(liquidity, signed_liquidity_net)?;
+    let next_liquidity =
+        math::liquidity_math::add_liquidity_delta(liquidity, signed_liquidity_net)?;
 
     Ok((update, next_liquidity))
 }
@@ -300,7 +306,7 @@ fn get_next_sqrt_prices(
     sqrt_price_limit: u128,
     a_to_b: bool,
 ) -> (u128, u128) {
-    let next_tick_price = math::amm::sqrt_price_from_tick_index(next_tick_index);
+    let next_tick_price = math::tick_math::sqrt_price_from_tick_index(next_tick_index);
     let next_sqrt_price_limit = if a_to_b {
         sqrt_price_limit.max(next_tick_price)
     } else {

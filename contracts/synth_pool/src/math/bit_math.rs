@@ -1,7 +1,3 @@
-// use crate::errors::ErrorCode;
-
-use normal::error::ErrorCode;
-
 use super::U256Muldiv;
 
 pub const Q64_RESOLUTION: u8 = 64;

@@ -30,7 +30,7 @@ impl SchedulerEvents {
     ) {
         let topics = (Symbol::new(&e, "new_schedule"), schedule_id, creator);
         e.events()
-            .publish(topics, (title, desc, action, vote_start, vote_end));
+            .publish(topics, (amm_id, params));
     }
 
     /// Emitted when a user makes a deposit

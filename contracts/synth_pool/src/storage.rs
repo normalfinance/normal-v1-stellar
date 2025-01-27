@@ -1,14 +1,21 @@
 use normal::{
-    constants::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
-    error::NormalResult,
+    constants::{
+        BID_ASK_SPREAD_PRECISION, PERCENTAGE_PRECISION_I64, PERCENTAGE_PRECISION_U64,
+        PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD, PRICE_PRECISION,
+    },
+    error::{ErrorCode, NormalResult},
     oracle::OracleSource,
+    types::SynthTier,
 };
 use soroban_sdk::{
-    contracttype, symbol_short, xdr::ToXdr, Address, Bytes, BytesN, ConversionError, Env, Symbol,
-    TryFromVal, Val,
+    contracttype, log, xdr::ToXdr, Address, Bytes, BytesN, ConversionError, Env, TryFromVal, Val,
+    Vec,
 };
 
-use crate::{reward::RewardInfo, token_contract};
+use crate::{
+    reward::{get_reward_by_token, RewardInfo},
+    token_contract,
+};
 use soroban_decimal::Decimal;
 
 #[derive(Clone, Copy)]
@@ -32,18 +39,17 @@ impl TryFromVal<Env, DataKey> for Val {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PoolParams {
-    pub admin: Address,
     pub tick_spacing: u32,
     pub initial_sqrt_price: u128,
     pub fee_rate: u32,
     pub protocol_fee_rate: u32,
     pub max_allowed_slippage_bps: i64,
-    pub default_slippage_bps: i64,
-    pub max_allowed_spread_bps: i64,
+    pub max_allowed_variance_bps: i64,
 }
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[repr(C)]
 pub struct Pool {
     /// The synth token
     pub token_a: Address,
@@ -51,7 +57,6 @@ pub struct Pool {
     pub token_b: Address,
     /// The LP token representing liquidity ownership in the pool
     pub share_token: Address,
-
     ///
     pub tick_spacing: u32,
     ///
@@ -74,8 +79,6 @@ pub struct Pool {
     pub protocol_fee_owed_b: u64,
     /// The maximum amount of slippage (in bps) that is tolerated during providing liquidity
     pub max_allowed_slippage_bps: i64,
-    /// The maximum amount of spread (in bps) that is tolerated during swap
-    pub max_allowed_spread_bps: i64,
     /// the maximum percent the pool price can deviate above or below the oracle twap
     pub max_allowed_variance_bps: i64,
     /// The last time rewards were updated
@@ -110,7 +113,7 @@ impl Pool {
     /// - `reward_last_updated_timestamp` - The timestamp when the rewards were last updated
     pub fn update_rewards(
         &mut self,
-        reward_infos: [RewardInfo; NUM_REWARDS],
+        reward_infos: Vec<RewardInfo>,
         reward_last_updated_timestamp: u64,
     ) {
         self.reward_last_updated_timestamp = reward_last_updated_timestamp;
@@ -119,12 +122,35 @@ impl Pool {
 
     pub fn update_rewards_and_liquidity(
         &mut self,
-        reward_infos: [RewardInfo; NUM_REWARDS],
+        reward_infos: Vec<RewardInfo>,
         liquidity: u128,
         reward_last_updated_timestamp: u64,
     ) {
         self.update_rewards(reward_infos, reward_last_updated_timestamp);
         self.liquidity = liquidity;
+    }
+
+    /// Update the reward authority at the specified Whirlpool reward index.
+    pub fn update_reward_authority(
+        &mut self,
+        reward_token: Address,
+        authority: Address,
+    ) -> NormalResult<()> {
+        let mut reward = get_reward_by_token(&self.reward_infos, reward_token);
+        reward.authority = authority;
+
+        Ok(())
+    }
+
+    pub fn update_emissions(
+        &mut self,
+        index: usize,
+        reward_infos: Vec<RewardInfo>,
+        timestamp: u64,
+        emissions_per_second_x64: u128,
+    ) {
+        self.update_rewards(reward_infos, timestamp);
+        self.reward_infos[index].emissions_per_second_x64 = emissions_per_second_x64;
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -134,7 +160,7 @@ impl Pool {
         tick_index: i32,
         sqrt_price: u128,
         fee_growth_global: u128,
-        reward_infos: [RewardInfo; NUM_REWARDS],
+        reward_infos: Vec<RewardInfo>,
         protocol_fee: u64,
         is_token_fee_in_a: bool,
         reward_last_updated_timestamp: u64,
@@ -155,15 +181,43 @@ impl Pool {
         }
     }
 
+    pub fn update_fee_rate(&mut self, fee_rate: u16) -> NormalResult<()> {
+        if fee_rate > MAX_FEE_RATE {
+            return Err(ErrorCode::FeeRateMaxExceeded);
+        }
+        self.fee_rate = fee_rate;
+
+        Ok(())
+    }
+
+    pub fn update_protocol_fee_rate(&mut self, protocol_fee_rate: u16) -> NormalResult<()> {
+        if protocol_fee_rate > MAX_PROTOCOL_FEE_RATE {
+            return Err(ErrorCode::ProtocolFeeRateMaxExceeded);
+        }
+        self.protocol_fee_rate = protocol_fee_rate;
+
+        Ok(())
+    }
+
     pub fn reset_protocol_fees_owed(&mut self) {
         self.protocol_fee_owed_a = 0;
         self.protocol_fee_owed_b = 0;
     }
 
+    pub fn get_oracle_price_deviance(self, env: &Env) -> i128 {
+        let oracle_price = self.get_oracle_twap(price_oracle, now)?;
+
+        let price_diff = self.sqrt_price.safe_sub(oracle_price, env);
+
+        price_diff
+    }
+
+    pub fn get_liquidity_delta_for_price_impact(&self, price_impact: i64) -> NormalResult<i128> {}
+
     pub fn get_oracle_twap(&self, price_oracle: &Address, now: u64) -> NormalResult<Option<i64>> {
         match self.oracle_source {
-            OracleSource::Band => Ok(Some(self.get_band_twap(price_oracle, 1, false)?)),
-            OracleSource::Reflector => Ok(Some(self.get_band_twap(price_oracle, 1, false)?)),
+            OracleSource::Band => Ok(Some(self.get_band_twap(price_oracle, 1)?)),
+            OracleSource::Reflector => Ok(Some(self.get_band_twap(price_oracle, 1)?)),
             OracleSource::QuoteAsset => {
                 log!(&env, "Can't get oracle twap for quote asset");
                 Err(ErrorCode::DefaultError)
@@ -171,12 +225,7 @@ impl Pool {
         }
     }
 
-    pub fn get_band_twap(
-        &self,
-        price_oracle: &Address,
-        multiple: u128,
-        is_pull_oracle: bool,
-    ) -> NormalResult<i64> {
+    pub fn get_band_twap(&self, price_oracle: &Address, multiple: u128) -> NormalResult<i64> {
         let mut pyth_price_data: &[u8] = &price_oracle
             .try_borrow_data()
             .or(Err(ErrorCode::UnableToLoadOracle))?;
@@ -185,21 +234,13 @@ impl Pool {
         let oracle_twap: i64;
         let oracle_exponent: i32;
 
-        if is_pull_oracle {
-            let price_message =
-                pyth_solana_receiver_sdk::price_update::PriceUpdateV2::try_deserialize(
-                    &mut pyth_price_data,
-                )
-                .or(Err(crate::error::ErrorCode::UnableToLoadOracle))?;
-            oracle_price = price_message.price_message.price;
-            oracle_twap = price_message.price_message.ema_price;
-            oracle_exponent = price_message.price_message.exponent;
-        } else {
-            let price_data = pyth_client::cast::<pyth_client::Price>(pyth_price_data);
-            oracle_price = price_data.agg.price;
-            oracle_twap = price_data.twap.val;
-            oracle_exponent = price_data.expo;
-        }
+        let price_message = pyth_solana_receiver_sdk::price_update::PriceUpdateV2::try_deserialize(
+            &mut pyth_price_data,
+        )
+        .or(Err(crate::error::ErrorCode::UnableToLoadOracle))?;
+        oracle_price = price_message.price_message.price;
+        oracle_twap = price_message.price_message.ema_price;
+        oracle_exponent = price_message.price_message.exponent;
 
         assert!(oracle_twap > oracle_price / 10);
 
@@ -256,7 +297,7 @@ impl Pool {
         Ok(self.last_oracle_valid && current_slot == self.last_update_slot)
     }
 
-    pub fn is_price_divergence_ok(&self, oracle_price: i64) -> NormalResult<bool> {
+    pub fn is_price_divergence_ok(&self, env: &Env, oracle_price: i64) -> NormalResult<bool> {
         let oracle_divergence = oracle_price
             .safe_sub(self.historical_oracle_data.last_oracle_price_twap_5min)?
             .safe_mul(PERCENTAGE_PRECISION_I64)?
@@ -268,16 +309,17 @@ impl Pool {
             .unsigned_abs();
 
         let oracle_divergence_limit = match self.synthetic_tier {
-            SyntheticTier::A => PERCENTAGE_PRECISION_U64 / 200, // 50 bps
-            SyntheticTier::B => PERCENTAGE_PRECISION_U64 / 200, // 50 bps
-            SyntheticTier::C => PERCENTAGE_PRECISION_U64 / 100, // 100 bps
-            SyntheticTier::Speculative => PERCENTAGE_PRECISION_U64 / 40, // 250 bps
-            SyntheticTier::HighlySpeculative => PERCENTAGE_PRECISION_U64 / 40, // 250 bps
-            SyntheticTier::Isolated => PERCENTAGE_PRECISION_U64 / 40, // 250 bps
+            SynthTier::A => PERCENTAGE_PRECISION_U64 / 200, // 50 bps
+            SynthTier::B => PERCENTAGE_PRECISION_U64 / 200, // 50 bps
+            SynthTier::C => PERCENTAGE_PRECISION_U64 / 100, // 100 bps
+            SynthTier::Speculative => PERCENTAGE_PRECISION_U64 / 40, // 250 bps
+            SynthTier::HighlySpeculative => PERCENTAGE_PRECISION_U64 / 40, // 250 bps
+            SynthTier::Isolated => PERCENTAGE_PRECISION_U64 / 40, // 250 bps
         };
 
         if oracle_divergence >= oracle_divergence_limit {
-            msg!(
+            log!(
+                env,
                 "market_index={} price divergence too large to safely settle pnl: {} >= {}",
                 self.market_index,
                 oracle_divergence,
@@ -289,17 +331,18 @@ impl Pool {
         let min_price = oracle_price.min(self.historical_oracle_data.last_oracle_price_twap_5min);
 
         let std_limit = (match self.synthetic_tier {
-            SyntheticTier::A => min_price / 50,                 // 200 bps
-            SyntheticTier::B => min_price / 50,                 // 200 bps
-            SyntheticTier::C => min_price / 20,                 // 500 bps
-            SyntheticTier::Speculative => min_price / 10,       // 1000 bps
-            SyntheticTier::HighlySpeculative => min_price / 10, // 1000 bps
-            SyntheticTier::Isolated => min_price / 10,          // 1000 bps
+            SynthTier::A => min_price / 50,                 // 200 bps
+            SynthTier::B => min_price / 50,                 // 200 bps
+            SynthTier::C => min_price / 20,                 // 500 bps
+            SynthTier::Speculative => min_price / 10,       // 1000 bps
+            SynthTier::HighlySpeculative => min_price / 10, // 1000 bps
+            SynthTier::Isolated => min_price / 10,          // 1000 bps
         })
         .unsigned_abs();
 
         if self.oracle_std.max(self.mark_std) >= std_limit {
-            msg!(
+            log!(
+                env,
                 "market_index={} std too large to safely settle pnl: {} >= {}",
                 self.market_index,
                 self.oracle_std.max(self.mark_std),
@@ -314,23 +357,23 @@ impl Pool {
     pub fn get_max_confidence_interval_multiplier(self) -> NormalResult<u64> {
         // assuming validity_guard_rails max confidence pct is 2%
         Ok(match self.synthetic_tier {
-            SyntheticTier::A => 1,                  // 2%
-            SyntheticTier::B => 1,                  // 2%
-            SyntheticTier::C => 2,                  // 4%
-            SyntheticTier::Speculative => 10,       // 20%
-            SyntheticTier::HighlySpeculative => 50, // 100%
-            SyntheticTier::Isolated => 50,          // 100%
+            SynthTier::A => 1,                  // 2%
+            SynthTier::B => 1,                  // 2%
+            SynthTier::C => 2,                  // 4%
+            SynthTier::Speculative => 10,       // 20%
+            SynthTier::HighlySpeculative => 50, // 100%
+            SynthTier::Isolated => 50,          // 100%
         })
     }
 
     pub fn get_sanitize_clamp_denominator(self) -> NormalResult<Option<i64>> {
         Ok(match self.synthetic_tier {
-            SyntheticTier::A => Some(10_i64),         // 10%
-            SyntheticTier::B => Some(5_i64),          // 20%
-            SyntheticTier::C => Some(2_i64),          // 50%
-            SyntheticTier::Speculative => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
-            SyntheticTier::HighlySpeculative => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
-            SyntheticTier::Isolated => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
+            SynthTier::A => Some(10_i64),         // 10%
+            SynthTier::B => Some(5_i64),          // 20%
+            SynthTier::C => Some(2_i64),          // 50%
+            SynthTier::Speculative => None,       // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
+            SynthTier::HighlySpeculative => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
+            SynthTier::Isolated => None,          // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
         })
     }
 }
@@ -357,7 +400,6 @@ pub fn save_pool(env: &Env, pool: Pool) {
 // ...
 
 pub mod utils {
-    use normal::constants::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
     use soroban_sdk::String;
 
     use super::*;
@@ -385,54 +427,40 @@ pub mod utils {
     // ...
 
     pub fn mint_shares(e: &Env, share_token: &Address, to: &Address, amount: i128) {
-        let total = get_total_shares(e);
+        // let total = get_total_shares(e);
 
-        token_contract::Client::new(e, share_token).mint(to, &amount);
+        // token_contract::Client::new(e, share_token).mint(to, &amount);
 
-        save_total_shares(e, total + amount);
+        // save_total_shares(e, total + amount);
     }
 
     pub fn burn_shares(e: &Env, share_token: &Address, amount: i128) {
-        let total = get_total_shares(e);
+        // let total = get_total_shares(e);
 
-        token_contract::Client::new(e, share_token).burn(&e.current_contract_address(), &amount);
+        // token_contract::Client::new(e, share_token).burn(&e.current_contract_address(), &amount);
 
-        save_total_shares(e, total - amount);
+        // save_total_shares(e, total - amount);
     }
 
     // ...
 
-    pub fn get_total_shares(e: &Env) -> i128 {
-        let total_shares = e.storage().persistent().get(&DataKey::TotalShares).unwrap();
-        e.storage().persistent().extend_ttl(
-            &DataKey::TotalShares,
-            PERSISTENT_LIFETIME_THRESHOLD,
-            PERSISTENT_BUMP_AMOUNT,
-        );
+    // pub fn get_pool_balance_a(e: &Env) -> i128 {
+    //     let balance_a = e.storage().persistent().get(&DataKey::ReserveA).unwrap();
+    //     e.storage()
+    //         .persistent()
+    //         .extend_ttl(&DataKey::ReserveA, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 
-        total_shares
-    }
-    pub fn get_pool_balance_a(e: &Env) -> i128 {
-        let balance_a = e.storage().persistent().get(&DataKey::ReserveA).unwrap();
-        e.storage().persistent().extend_ttl(
-            &DataKey::ReserveA,
-            PERSISTENT_LIFETIME_THRESHOLD,
-            PERSISTENT_BUMP_AMOUNT,
-        );
+    //     balance_a
+    // }
 
-        balance_a
-    }
+    // pub fn get_pool_balance_b(e: &Env) -> i128 {
+    //     let balance_b = e.storage().persistent().get(&DataKey::ReserveB).unwrap();
+    //     e.storage()
+    //         .persistent()
+    //         .extend_ttl(&DataKey::ReserveB, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 
-    pub fn get_pool_balance_b(e: &Env) -> i128 {
-        let balance_b = e.storage().persistent().get(&DataKey::ReserveB).unwrap();
-        e.storage().persistent().extend_ttl(
-            &DataKey::ReserveB,
-            PERSISTENT_LIFETIME_THRESHOLD,
-            PERSISTENT_BUMP_AMOUNT,
-        );
-
-        balance_b
-    }
+    //     balance_b
+    // }
 
     pub fn get_balance(e: &Env, contract: &Address) -> i128 {
         token_contract::Client::new(e, contract).balance(&e.current_contract_address())

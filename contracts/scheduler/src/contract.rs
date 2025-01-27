@@ -5,15 +5,14 @@ use normal::{
     validate_bps,
 };
 use soroban_sdk::{
-    contract, contractimpl, contractmeta, log, panic_with_error, Address, Env, Symbol, Vec,
+    contract, contractimpl, contractmeta, log, panic_with_error, vec, Address, Env, Symbol, Vec
 };
 
 use crate::{
     events::SchedulerEvents,
     scheduler::SchedulerTrait,
     storage::{
-        get_config, is_initialized, save_config, save_schedules, set_initialized, Asset, Config,
-        DataKey, Schedule, ScheduleType,
+        get_config, is_initialized, save_config, save_schedules, set_initialized, utils, Asset, Config, DataKey, Schedule, ScheduleType
     },
     token_contract,
 };
@@ -51,7 +50,7 @@ impl SchedulerTrait for Scheduler {
                 &env,
                 "Scheduler: Initialize: there must be at least one keeper account able to execute schedule orders."
             );
-            panic_with_error!(&env, ErrorCode::KeeperAccountsEmpty);
+            // panic_with_error!(&env, ErrorCode::KeeperAccountsEmpty);
         }
 
         set_initialized(&env);
@@ -278,7 +277,7 @@ impl SchedulerTrait for Scheduler {
 
         save_schedules(&env, &user, &schedules);
 
-        SchedulerEvents::create_schedule(&env, user, schedule);
+        // SchedulerEvents::create_schedule(&env, user, schedule);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -297,6 +296,7 @@ impl SchedulerTrait for Scheduler {
         user.require_auth();
         // env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
+        // let schedule = get_sche
         // TODO: confirm users owns schedule on schedule_timestamp
         // ...
         if user != schedule.creator {
@@ -342,7 +342,7 @@ impl SchedulerTrait for Scheduler {
 
         remove_schedule(&env, &mut stakes.stakes, stake_amount, schedule_timestamp);
 
-        SchedulerEvents::delete_schedule(&env, user, schedule_timestamp);
+        // SchedulerEvents::delete_schedule(&env, user, schedule_timestamp);
     }
 
     // ################################################################
@@ -425,7 +425,7 @@ impl SchedulerTrait for Scheduler {
         schedule.total_fees_paid += protocol_fee_amount + keeper_fee_amount;
         schedule.last_order_ts = env.ledger().timestamp();
 
-        SchedulerEvents::order_execution(&env, sender, user, schedule_timestamp);
+        // SchedulerEvents::order_execution(&env, sender, user, schedule_timestamp);
     }
 
     fn collect_keeper_fees(env: Env, keeper: Address, to: Option<Address>) {
@@ -457,24 +457,24 @@ impl SchedulerTrait for Scheduler {
 
     // Queries
 
-    fn query_schedules(env: Env) -> Vec<Address> {
-        env.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-        // get_lp_vec(&env)
-    }
+    // fn query_schedules(env: Env) -> Vec<Address> {
+    //     env.storage()
+    //         .instance()
+    //         .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    //     // get_lp_vec(&env)
+    // }
 
-    fn query_pool_details(env: Env, pool_address: Address) -> LiquidityPoolInfo {
-        env.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-        // let pool_response: LiquidityPoolInfo = env.invoke_contract(
-        //     &pool_address,
-        //     &Symbol::new(&env, "query_pool_info_for_factory"),
-        //     Vec::new(&env),
-        // );
-        // pool_response
-    }
+    // fn query_pool_details(env: Env, pool_address: Address) -> LiquidityPoolInfo {
+    //     env.storage()
+    //         .instance()
+    //         .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    //     // let pool_response: LiquidityPoolInfo = env.invoke_contract(
+    //     //     &pool_address,
+    //     //     &Symbol::new(&env, "query_pool_info_for_factory"),
+    //     //     Vec::new(&env),
+    //     // );
+    //     // pool_response
+    // }
 }
 
 // Function to remove a schedule from the vector
@@ -489,33 +489,33 @@ fn remove_schedule(env: &Env, schedules: &mut Vec<Schedule>, stake: i128, schedu
     } else {
         // Schedule not found, return an error
         log!(&env, "Schedule: Remove schedule: Schedule not found");
-        panic_with_error!(&env, ContractError::StakeNotFound);
+        // panic_with_error!(&env, ContractError::StakeNotFound);
     }
 }
 
 fn validate_target_info(env: Env, schedule_type: &ScheduleType, target_contract_address: Address) {
     match schedule_type {
         ScheduleType::Asset => {
-            let amm_response: SimulateSwapResponse = env.invoke_contract(
-                &target_contract_address,
-                &Symbol::new(&env, "simulate_swap"),
-                Vec::new(&env), // TODO: update args OR use health_ping call instead
-            );
-            assert!(
-                amm_response.ask_amount.is_some(),
-                "Scheduler: Create Schedule: Invalid AMM response"
-            )
+            // let amm_response: SimulateSwapResponse = env.invoke_contract(
+            //     &target_contract_address,
+            //     &Symbol::new(&env, "simulate_swap"),
+            //     Vec::new(&env), // TODO: update args OR use health_ping call instead
+            // );
+            // assert!(
+            //     amm_response.ask_amount.is_some(),
+            //     "Scheduler: Create Schedule: Invalid AMM response"
+            // )
         }
         ScheduleType::Index => {
-            let index_response: SimulateMintResponse = env.invoke_contract(
-                &target_contract_address,
-                &Symbol::new(&env, "simulate_mint"),
-                Vec::new(&env), // TODO: update args OR use health_ping call instead
-            );
-            assert!(
-                index_response.mint_amount.is_some(),
-                "Scheduler: Create Schedule: Invalid Index response"
-            )
+            // let index_response: SimulateMintResponse = env.invoke_contract(
+            //     &target_contract_address,
+            //     &Symbol::new(&env, "simulate_mint"),
+            //     Vec::new(&env), // TODO: update args OR use health_ping call instead
+            // );
+            // assert!(
+            //     index_response.mint_amount.is_some(),
+            //     "Scheduler: Create Schedule: Invalid Index response"
+            // )
         }
     }
 }

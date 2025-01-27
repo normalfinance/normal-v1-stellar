@@ -1,9 +1,10 @@
-use crate::math::{Q64_MASK, Q64_RESOLUTION};
-use normal::error::ErrorCode;
+use soroban_sdk::contracttype;
+
+use crate::errors::ErrorCode;
 
 use super::{
-    div_round_up_if, div_round_up_if_u256, mul_u256, U256Muldiv, MAX_SQRT_PRICE_X64,
-    MIN_SQRT_PRICE_X64,
+    bit_math::Q64_MASK, div_round_up_if, div_round_up_if_u256, mul_u256, U256Muldiv,
+    MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64,
 };
 
 // Fee rate is represented as hundredths of a basis point.

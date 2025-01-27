@@ -1,4 +1,4 @@
-use normal::error::ErrorCode;
+use crate::errors::ErrorCode;
 
 // Adds a signed liquidity delta to a given integer liquidity amount.
 // Errors on overflow or underflow.

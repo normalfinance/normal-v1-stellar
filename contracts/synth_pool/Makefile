@@ -6,9 +6,7 @@ test: build # because of token dependency
 	cargo test
 
 build:
-	$(MAKE) -C ../token build || break;
-	$(MAKE) -C ../synth_market_factory build || break;
-	$(MAKE) -C ../synth_market build || break;
+
 	cargo build --target wasm32-unknown-unknown --release
 
 lint: fmt clippy
