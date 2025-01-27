@@ -8,7 +8,6 @@ pub enum ContractError {
     Std = 0,
     VestingNotFoundForAddress = 1,
     AllowanceNotFoundForGivenPair = 2,
-    MinterNotFound = 3,
     NoBalanceFoundForAddress = 4,
     NoConfigFound = 5,
     NoAdminFound = 6,
