@@ -1,13 +1,10 @@
 [package]
-name = "votes"
-version = "0.1.0"
-authors = [
-    "Script3 Ltd. <gm@script3.io>",
-    "Joshua Blew <joshua@normalfinance.io>",
-]
-license = "MIT"
-edition = "2021"
-publish = false
+name = "normal-votes"
+version = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
