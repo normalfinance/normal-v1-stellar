@@ -11,7 +11,6 @@ crate-type = ["cdylib"]
 
 [features]
 testutils = ["soroban-sdk/testutils"]
-upgrade = []
 
 [dependencies]
 soroban-decimal = { workspace = true }
