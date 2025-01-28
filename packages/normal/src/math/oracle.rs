@@ -7,11 +7,11 @@ use crate::math::safe_math::SafeMath;
 use crate::{
     constants::BID_ASK_SPREAD_PRECISION,
     error::{ErrorCode, NormalResult},
-    oracle::{OracleGuardRails, OraclePriceData, ValidityGuardRails},
+    oracle::{OraclePriceData, ValidityGuardRails},
 };
 
 // use crate::
-use super::amm::is_oracle_mark_too_divergent;
+// use super::amm::is_oracle_mark_too_divergent;
 
 // ordered by "severity"
 #[contracttype]
@@ -110,13 +110,12 @@ pub fn is_oracle_valid_for_action(
     Ok(is_ok)
 }
 
-pub fn block_operation(
-    env: Env,
-    market_name: String,
-    oracle_price_data: &OraclePriceData,
-    guard_rails: &OracleGuardRails,
-    reserve_price: u64,
-    now: u64,
+pub fn block_operation(// env: Env,
+    // market_name: String,
+    // oracle_price_data: &OraclePriceData,
+    // guard_rails: &OracleGuardRails,
+    // reserve_price: u64,
+    // now: u64,
 ) -> NormalResult<bool> {
     // let OracleStatus {
     //     oracle_validity,
@@ -148,12 +147,12 @@ pub struct OracleStatus {
 }
 
 pub fn get_oracle_status(
-    env: Env,
-    market_name: String,
+    // env: Env,
+    // market_name: String,
     // pool: &SynthPool,
     oracle_price_data: &OraclePriceData,
-    guard_rails: &OracleGuardRails,
-    reserve_price: u64,
+    // guard_rails: &OracleGuardRails,
+    // reserve_price: u64,
 ) -> NormalResult<OracleStatus> {
     // let oracle_validity = oracle_validity(
     //     env,

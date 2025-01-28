@@ -133,6 +133,7 @@ pub fn is_auction_complete(
 
 // From orders.math
 
+#[allow(clippy::unnecessary_lazy_evaluations)]
 pub fn standardize_price(
     env: &Env,
     price: u64,

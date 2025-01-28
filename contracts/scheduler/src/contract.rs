@@ -1,20 +1,21 @@
 use normal::{
     constants::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD},
     error::{ErrorCode, NormalResult},
-    types::OrderDirection,
+    math::{casting::Cast, safe_math::SafeMath},
     validate_bps,
 };
 use soroban_sdk::{
-    contract, contractimpl, contractmeta, log, panic_with_error, vec, Address, Env, Symbol, Vec
+    contract, contractimpl, contractmeta, log, panic_with_error, Address, Env, Map, Vec,
 };
 
 use crate::{
     events::SchedulerEvents,
+    msg::{ConfigResponse, ScheduledResponse},
     scheduler::SchedulerTrait,
     storage::{
-        get_config, is_initialized, save_config, save_schedules, set_initialized, utils, Asset, Config, DataKey, Schedule, ScheduleType
+        get_config, get_keeper, get_schedules, save_config, save_keeper, save_schedules, utils,
+        Config, Schedule, ScheduleParams, ScheduleType,
     },
-    token_contract,
 };
 
 contractmeta!(
@@ -33,11 +34,10 @@ impl SchedulerTrait for Scheduler {
         admin: Address,
         synth_market_factory_address: Address,
         index_factory_address: Address,
-        keeper_accounts: Vec<Address>,
         protocol_fee_bps: i64,
         keeper_fee_bps: i64,
     ) {
-        if is_initialized(&env) {
+        if utils::is_initialized(&env) {
             log!(
                 &env,
                 "Scheduler: Initialize: initializing contract twice is not allowed"
@@ -45,27 +45,21 @@ impl SchedulerTrait for Scheduler {
             panic_with_error!(&env, ErrorCode::AlreadyInitialized);
         }
 
-        if keeper_accounts.is_empty() {
-            log!(
-                &env,
-                "Scheduler: Initialize: there must be at least one keeper account able to execute schedule orders."
-            );
-            // panic_with_error!(&env, ErrorCode::KeeperAccountsEmpty);
-        }
+        utils::set_initialized(&env);
 
-        set_initialized(&env);
+        validate_bps!(protocol_fee_bps, keeper_fee_bps);
 
-        save_config(
-            &env,
-            Config {
-                admin: admin.clone(),
-                synth_market_factory_address,
-                index_factory_address,
-                keeper_accounts,
-                protocol_fee_bps,
-                keeper_fee_bps,
-            },
-        );
+        let config = Config {
+            synth_market_factory_address,
+            index_factory_address,
+            keepers: Vec::new(&env),
+            protocol_fee_bps,
+            keeper_fee_bps,
+            protocol_fees_to_collect: Map::new(&env),
+        };
+        save_config(&env, config);
+
+        utils::save_admin(&env, &admin);
 
         SchedulerEvents::initialize(&env, admin);
     }
@@ -73,25 +67,17 @@ impl SchedulerTrait for Scheduler {
     #[allow(clippy::too_many_arguments)]
     fn update_config(
         env: Env,
-        new_admin: Option<Address>,
+        sender: Address,
         synth_market_factory_address: Option<Address>,
         index_factory_address: Option<Address>,
-        protocol_fee_bps: Option<u64>,
-        keeper_fee_bps: Option<u64>,
+        protocol_fee_bps: Option<i64>,
+        keeper_fee_bps: Option<i64>,
     ) {
-        let admin: Address = utils::get_admin_old(&env);
-        admin.require_auth();
-        env.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-
-        // TODO: do we need manual admin check here?
+        sender.require_auth();
+        utils::is_admin(&env, sender);
 
         let mut config = get_config(&env);
 
-        if let Some(new_admin) = new_admin {
-            utils::save_admin_old(&env, new_admin);
-        }
         if let Some(synth_market_factory_address) = synth_market_factory_address {
             config.synth_market_factory_address = synth_market_factory_address;
         }
@@ -110,249 +96,61 @@ impl SchedulerTrait for Scheduler {
         save_config(&env, config);
     }
 
-    fn update_keeper_accounts(
-        env: Env,
-        sender: Address,
-        to_add: Vec<Address>,
-        to_remove: Vec<Address>,
-    ) {
+    fn update_keepers(env: Env, sender: Address, to_add: Vec<Address>, to_remove: Vec<Address>) {
         sender.require_auth();
+        utils::is_admin(&env, sender);
+
         env.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let config = get_config(&env);
 
-        if config.admin != sender {
-            log!(
-                &env,
-                "Scheduler: Update keeper accounts: You are not authorized!"
-            );
-            panic_with_error!(&env, ErrorCode::NotAuthorized);
-        }
-
-        let mut keeper_accounts = config.keeper_accounts;
+        let mut keepers = config.keepers;
 
         to_add.into_iter().for_each(|addr| {
-            if !keeper_accounts.contains(addr.clone()) {
-                keeper_accounts.push_back(addr);
+            if !keepers.contains(addr.clone()) {
+                keepers.push_back(addr);
             }
         });
 
         to_remove.into_iter().for_each(|addr| {
-            if let Some(id) = keeper_accounts.iter().position(|x| x == addr) {
-                keeper_accounts.remove(id as u32);
+            if let Some(id) = keepers.iter().position(|x| x == addr) {
+                keepers.remove(id as u32);
             }
         });
 
-        save_config(
-            &env,
-            Config {
-                keeper_accounts,
-                ..config
-            },
-        )
+        save_config(&env, Config { keepers, ..config })
     }
 
     fn collect_protocol_fees(env: Env, sender: Address, to: Address) {
         sender.require_auth();
+        utils::is_admin(&env, sender);
 
         let config = get_config(&env);
 
-        if config.admin != sender {
-            log!(
-                &env,
-                "Scheduler: Collect protocol fees: You are not authorized!"
-            );
-            panic_with_error!(&env, ErrorCode::NotAuthorized);
+        for (address, amount) in config.protocol_fees_to_collect.iter() {
+            utils::transfer_token(&env, &address, &env.current_contract_address(), &to, amount);
+            // TODO: set fee to collect to zero
         }
-
-        utils::transfer_tokens(
-            &env,
-            _,
-            &env.current_contract_address(),
-            &to,
-            &config.fees_to_collect,
-        );
-
-        config.fees_to_collect = 0;
-    }
-
-    // ################################################################
-    //                             USER
-    // ################################################################
-
-    fn deposit(env: Env, user: Address, asset: Asset, amount: i128) {
-        if asset.amount <= 0 {
-            panic!("Amount must be positive");
-        }
-
-        user.require_auth();
-
-        match asset.address {
-            // Handle XLM deposits
-            None => {
-                env.pay(&user, &env.current_contract_address(), asset.amount); // Transfer XLM to the contract
-            }
-            // Handle token deposits
-            Some(token_address) => {
-                let token_client = token_contract::Client::new(&env, &token_address);
-                token_client.transfer(&user, &env.current_contract_address(), &asset.amount);
-            }
-        }
-
-        // Update the user's balance for the given asset
-        let key = DataKey::Balance(user.clone(), asset.address.clone());
-        let current_balance: i128 = env.storage().get(&key).unwrap_or(0);
-        env.storage().set(&key, current_balance + asset.amount);
-
-        SchedulerEvents::deposit(&env, user, asset.address, asset.amount);
-    }
-
-    fn withdraw(env: Env, user: Address, asset: Asset, amount: i128) {
-        if amount <= 0 {
-            panic!("Amount must be positive");
-        }
-
-        user.require_auth();
-
-        // Check user balance
-        let key = DataKey::Balance(user.clone(), asset.clone());
-        let current_balance: i128 = env.storage().get(&key).unwrap_or(0);
-
-        if amount > current_balance {
-            return Err(ErrorCode::InsufficientFunds);
-        }
-
-        match asset {
-            // Handle XLM withdrawals
-            None => {
-                env.pay(&env.current_contract_address(), &user, amount); // Transfer XLM to the user
-            }
-            // Handle token withdrawals
-            Some(token_address) => {
-                let token_client = token_contract::Client::new(&env, &token_address);
-                token_client.transfer(&env.current_contract_address(), &user, &amount);
-            }
-        }
-
-        // Update the user's balance for the given asset
-        env.storage().set(&key, current_balance - amount);
-
-        SchedulerEvents::withdraw(&env, user, asset, amount);
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn create_schedule(
-        env: Env,
-        user: Address,
-        schedule_type: ScheduleType,
-        target_contract_address: Address,
-        base_asset_amount_per_interval: u64,
-        direction: OrderDirection,
-        active: bool,
-        interval_seconds: u64,
-        min_price: Option<u32>,
-        max_price: Option<u32>,
-    ) {
-        user.require_auth();
-
-        // Make sure target_contract_address exists
-        validate_target_info(&schedule_type, &target_contract_address);
-
-        let mut schedules = get_schedules(&env, &user);
-
-        let schedule = Schedule {
-            schedule_type,
-            target_contract_address: target_contract_address.clone(),
-            base_asset_amount_per_interval,
-            direction,
-            active,
-            interval_seconds,
-            min_price,
-            max_price,
-            schedule_timestamp: env.ledger().timestamp(),
-        };
-        schedules.push_back(schedule);
-
-        save_schedules(&env, &user, &schedules);
-
-        // SchedulerEvents::create_schedule(&env, user, schedule);
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn update_schedule(
-        env: Env,
-        user: Address,
-        schedule_timestamp: u64,
-        base_asset_amount_per_interval: Option<u64>,
-        direction: Option<OrderDirection>,
-        active: Option<bool>,
-        interval_seconds: Option<u64>,
-        total_orders: Option<u32>,
-        min_price: Option<u32>,
-        max_price: Option<u32>,
-    ) {
-        user.require_auth();
-        // env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-
-        // let schedule = get_sche
-        // TODO: confirm users owns schedule on schedule_timestamp
-        // ...
-        if user != schedule.creator {
-            return Err(ErrorCode::InvalidScheduleOwner);
-        }
-
-        let mut schedule = get_schedule(&env, user, schedule_timestamp);
-
-        if let Some(base_asset_amount_per_interval) = base_asset_amount_per_interval {
-            schedule.base_asset_amount_per_interval = base_asset_amount_per_interval;
-        }
-        if let Some(direction) = direction {
-            schedule.direction = direction;
-        }
-        if let Some(active) = active {
-            schedule.active = active;
-        }
-        if let Some(interval_seconds) = interval_seconds {
-            schedule.interval_seconds = interval_seconds;
-        }
-        if let Some(total_orders) = total_orders {
-            schedule.total_orders = total_orders;
-        }
-        if let Some(min_price) = min_price {
-            schedule.min_price = min_price;
-        }
-        if let Some(max_price) = max_price {
-            schedule.max_price = max_price;
-        }
-        schedule.last_updated_ts = env.ledger().timestamp();
-
-        save_schedules(&env, &user, schedule);
-    }
-
-    fn delete_schedule(env: Env, user: Address, schedule_timestamp: u64) {
-        user.require_auth();
-
-        let mut schedule = get_schedule(&env, user, schedule_timestamp);
-
-        if user != schedule.creator {
-            return Err(ErrorCode::InvalidScheduleOwner);
-        }
-
-        remove_schedule(&env, &mut stakes.stakes, stake_amount, schedule_timestamp);
-
-        // SchedulerEvents::delete_schedule(&env, user, schedule_timestamp);
     }
 
     // ################################################################
     //                             KEEPER
     // ################################################################
 
-    fn execute_schedule(env: Env, sender: Address, user: Address, schedule_timestamp: u64) {
+    fn execute_schedule(
+        env: Env,
+        sender: Address,
+        user: Address,
+        schedule_timestamp: u64,
+    ) -> NormalResult {
         sender.require_auth();
 
-        if !get_config(&env).keeper_accounts.contains(sender) {
+        let config = get_config(&env);
+        let now = env.ledger().timestamp();
+
+        if !config.keepers.contains(sender.clone()) {
             log!(
                 &env,
                 "Scheduler: Execute Schedule: You are not authorized to execute schedule orders!"
@@ -360,129 +158,277 @@ impl SchedulerTrait for Scheduler {
             panic_with_error!(&env, ErrorCode::NotAuthorized);
         }
 
-        // TODO: how do we error if no schedule is found
-        let mut schedule = get_schedule_by_timestamp(&env, &user, &schedule_timestamp)
-            .ok_or("Schedule not found")?;
+        let schedules = get_schedules(&env, &user);
+
+        let mut target_schedule = match schedules
+            .schedules
+            .iter()
+            .find(|s| s.schedule_timestamp == schedule_timestamp)
+        {
+            Some(schedule) => schedule,
+            None => panic_with_error!(&env, ErrorCode::AdminNotSet), // TODO:
+        };
 
         // TODO: Validate the schedule needs to be executed
 
+        // TODO: Compute protocol and keeper fee
+        let protocol_fee: u64 = 0;
+        let keeper_fee: u64 = 0;
+
         // Calculate order amount
-        let price = 0; // TODO: get the price
-        let order_quote_asset_amount = schedule.base_asset_amount_per_interval * price;
+        let order_quote_asset_amount = calculate_order_amount(&env, &target_schedule)?;
 
         // Validate available balance compared to order amount
-        let key = DataKey::Balance(user.clone(), schedule.asset.clone());
-        let current_balance: i128 = env.storage().get(&key).unwrap_or(0);
+        let current_balance = schedules
+            .balances
+            .get(target_schedule.clone().quote_asset)
+            .unwrap_or(0);
 
         if order_quote_asset_amount > current_balance {
-            return Err(ErrorCode::InsufficientFunds);
+            panic_with_error!(&env, ErrorCode::InsufficientFunds);
         }
 
         // Execute the order
-        match schedule.schedule_type {
+        match target_schedule.schedule_type {
             ScheduleType::Asset => {
-                let amm_response: SwapResponse = env.invoke_contract(
-                    &schedule.target_contract_address,
-                    &Symbol::new(&env, "swap"),
-                    vec![
-                        &env,
-                        user.into_val(&env),
-                        amount,
-                        other_amount_threshold,
-                        sqrt_price_limit,
-                        amount_specified_is_input,
-                        a_to_b,
-                    ],
-                );
-                assert!(
-                    amm_response.ask_amount.is_some(),
-                    "Scheduler: Create Schedule: Invalid AMM response"
-                );
+                // TODO:
+                // let amm_response: SwapResponse = env.invoke_contract(
+                //     &target_schedule.target_contract_address,
+                //     &Symbol::new(&env, "swap"),
+                //     vec![
+                //         &env,
+                //         user.into_val(&env),
+                //         amount,
+                //         other_amount_threshold,
+                //         sqrt_price_limit,
+                //         amount_specified_is_input,
+                //         a_to_b
+                //     ]
+                // );
+                // assert!(
+                //     amm_response.ask_amount.is_some(),
+                //     "Scheduler: Create Schedule: Invalid AMM response"
+                // );
             }
             ScheduleType::Index => {
-                let index_response: MintResponse = env.invoke_contract(
-                    &schedule.target_contract_address,
-                    &Symbol::new(&env, "mint"),
-                    vec![&env, user.into_val(&env), amount],
-                );
-                assert!(
-                    index_response.mint_amount.is_some(),
-                    "Scheduler: Create Schedule: Invalid Index response"
-                );
+                // TODO:
+                // let index_response: MintResponse = env.invoke_contract(
+                //     &target_schedule.target_contract_address,
+                //     &Symbol::new(&env, "mint"),
+                //     vec![&env, user.into_val(&env), amount]
+                // );
+                // assert!(
+                //     index_response.mint_amount.is_some(),
+                //     "Scheduler: Create Schedule: Invalid Index response"
+                // );
             }
         }
 
-        // Collect protocol and keeper fees
-        let token_client = token_contract::Client::new(&env, &token_address);
-
-        // token_client.transfer(&env.current_contract_address(), &contract, &protocol_fee_amount);
-        token_client.transfer(&env.current_contract_address(), &keeper, &keeper_fee_amount);
-
-        // Update the Schedule
-        // TODO: do we need checked/safe add here?
-        schedule.executed_orders += 1;
-        schedule.total_executed += order_quote_asset_amount;
-        schedule.total_fees_paid += protocol_fee_amount + keeper_fee_amount;
-        schedule.last_order_ts = env.ledger().timestamp();
-
-        // SchedulerEvents::order_execution(&env, sender, user, schedule_timestamp);
-    }
-
-    fn collect_keeper_fees(env: Env, keeper: Address, to: Option<Address>) {
-        keeper.require_auth();
-
-        let mut keeper_info = get_keeper_info(&env, &keeper);
-
-        let recipient_address = match to {
-            Some(to_address) => to_address, // Use the provided `to` address
-            None => keeper,                 // Otherwise use the keeper address
+        // Update protocol and keeper fees
+        let mut keeper = get_keeper(&env, &sender);
+        // let keeper_fee_before = keeper.fees_owed.get(target_schedule.quote_asset);
+        let keeper_fee_before = match keeper.fees_owed.get(target_schedule.clone().quote_asset) {
+            Some(bal) => bal,
+            None => panic_with_error!(&env, ErrorCode::AdminNotSet), // TODO:
         };
 
-        for asset in keeper_info.fees_owed {
-            utils::transfer_tokens(
-                &env,
-                &asset.address,
-                &env.current_contract_address(),
-                &recipient_address,
-                &asset.amount,
-            );
-            asset.amount = 0; // TODO: is this the correct way to zero this?
-        }
+        keeper.fees_owed.set(
+            target_schedule.clone().quote_asset,
+            keeper_fee_before.safe_add(keeper_fee.cast::<i128>(&env)?, &env)?,
+        );
 
-        // Update keeper fees
-        keeper_info.last_fee_collection_time = env.ledger().timestamp();
+        // ...
 
-        save_keeper_info(&env, &keeper, &keeper_info);
+        // Update the Schedule
+        target_schedule.executed_orders += 1;
+        target_schedule.total_executed = target_schedule
+            .total_executed
+            .safe_add(order_quote_asset_amount, &env)?;
+        target_schedule.total_fees_paid = target_schedule
+            .total_fees_paid
+            .safe_add(protocol_fee, &env)?
+            .safe_add(keeper_fee, &env)?;
+        target_schedule.last_order_ts = now;
+
+        save_schedules(&env, &sender, &schedules);
+
+        SchedulerEvents::order_execution(&env, sender, user, schedule_timestamp);
+
+        Ok(())
     }
 
-    // Queries
+    fn collect_keeper_fees(env: Env, sender: Address) {
+        sender.require_auth();
 
-    // fn query_schedules(env: Env) -> Vec<Address> {
-    //     env.storage()
-    //         .instance()
-    //         .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-    //     // get_lp_vec(&env)
-    // }
+        let mut keeper = get_keeper(&env, &sender);
 
-    // fn query_pool_details(env: Env, pool_address: Address) -> LiquidityPoolInfo {
-    //     env.storage()
-    //         .instance()
-    //         .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-    //     // let pool_response: LiquidityPoolInfo = env.invoke_contract(
-    //     //     &pool_address,
-    //     //     &Symbol::new(&env, "query_pool_info_for_factory"),
-    //     //     Vec::new(&env),
-    //     // );
-    //     // pool_response
-    // }
+        for (address, amount) in keeper.fees_owed.iter() {
+            utils::transfer_token(
+                &env,
+                &address,
+                &env.current_contract_address(),
+                &sender,
+                amount,
+            );
+            // TODO: set fee to collect to zero
+        }
+
+        keeper.last_fee_collection_time = env.ledger().timestamp();
+
+        save_keeper(&env, &sender, &keeper);
+    }
+
+    // ################################################################
+    //                             USER
+    // ################################################################
+
+    fn deposit(env: Env, sender: Address, asset: Address, amount: i128) {
+        utils::check_nonnegative_amount(amount);
+        sender.require_auth();
+
+        let mut schedules = get_schedules(&env, &sender);
+        let current_balance = schedules.balances.get(asset.clone()).unwrap_or(0);
+
+        utils::transfer_token(
+            &env,
+            &asset.clone(),
+            &sender,
+            &env.current_contract_address(),
+            amount,
+        );
+
+        schedules
+            .balances
+            .set(asset.clone(), current_balance + amount);
+
+        SchedulerEvents::deposit(&env, sender, asset, amount);
+    }
+
+    fn withdraw(env: Env, sender: Address, asset: Address, amount: i128) {
+        utils::check_nonnegative_amount(amount);
+        sender.require_auth();
+
+        let mut schedules = get_schedules(&env, &sender);
+        let current_balance = schedules.balances.get(asset.clone()).unwrap_or(0);
+
+        if amount > current_balance {
+            // return Err(ErrorCode::InsufficientFunds);
+            panic_with_error!(&env, ErrorCode::InsufficientFunds);
+        }
+
+        utils::transfer_token(
+            &env,
+            &asset.clone(),
+            &env.current_contract_address(),
+            &sender,
+            amount,
+        );
+
+        schedules
+            .balances
+            .set(asset.clone(), current_balance - amount);
+
+        SchedulerEvents::withdrawal(&env, sender, asset, amount);
+    }
+
+    fn create_schedule(env: Env, sender: Address, params: ScheduleParams) {
+        sender.require_auth();
+
+        // TODO: Make sure target_contract_address exists
+
+        let now = env.ledger().timestamp();
+        let mut schedules = get_schedules(&env, &sender);
+
+        let schedule = Schedule {
+            schedule_type: params.schedule_type,
+            quote_asset: params.quote_asset.clone(),
+            target_contract_address: params.target_contract_address.clone(),
+            base_asset_amount_per_interval: params.base_asset_amount_per_interval,
+            direction: params.direction,
+            interval_seconds: params.interval_seconds,
+            min_price: params.min_price,
+            max_price: params.max_price,
+            schedule_timestamp: env.ledger().timestamp(),
+            total_orders: 0,
+            executed_orders: 0,
+            total_executed: 0,
+            total_fees_paid: 0,
+            last_updated_ts: now,
+            last_order_ts: 0,
+        };
+        schedules.schedules.push_back(schedule);
+
+        save_schedules(&env, &sender, &schedules);
+
+        SchedulerEvents::new_schedule(
+            &env,
+            sender,
+            now,
+            params.schedule_type,
+            params.quote_asset,
+            params.target_contract_address,
+        );
+    }
+
+    fn delete_schedule(env: Env, sender: Address, schedule_timestamp: u64) {
+        sender.require_auth();
+
+        let mut schedules = get_schedules(&env, &sender);
+
+        remove_schedule(&env, &mut schedules.schedules, schedule_timestamp);
+
+        save_schedules(&env, &sender, &schedules);
+
+        SchedulerEvents::delete_schedule(&env, sender, schedule_timestamp);
+    }
+
+    // ################################################################
+    //                             QUERIES
+    // ################################################################
+
+    fn query_config(env: Env) -> ConfigResponse {
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        ConfigResponse {
+            config: get_config(&env),
+        }
+    }
+
+    fn query_admin(env: Env) -> Address {
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        utils::get_admin(&env)
+    }
+
+    fn query_scheduled(env: Env, address: Address) -> ScheduledResponse {
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        let schedules = get_schedules(&env, &address);
+        ScheduledResponse {
+            schedules: schedules.schedules,
+        }
+    }
+}
+
+fn calculate_order_amount(env: &Env, schedule: &Schedule) -> NormalResult<i128> {
+    let price: i128 = 0; // TODO: get the price
+    let order_quote_asset_amount: i128 = schedule
+        .base_asset_amount_per_interval
+        .cast::<i128>(env)?
+        .safe_mul(price, env)?;
+
+    Ok(order_quote_asset_amount)
 }
 
 // Function to remove a schedule from the vector
-fn remove_schedule(env: &Env, schedules: &mut Vec<Schedule>, stake: i128, schedule_timestamp: u64) {
+fn remove_schedule(env: &Env, schedules: &mut Vec<Schedule>, schedule_timestamp: u64) {
     // Find the index of the stake that matches the given stake and schedule_timestamp
     if let Some(index) = schedules
         .iter()
-        .position(|s| s.stake == stake && s.schedule_timestamp == schedule_timestamp)
+        .position(|s| s.schedule_timestamp == schedule_timestamp)
     {
         // Remove the stake at the found index
         schedules.remove(index as u32);
@@ -493,29 +439,29 @@ fn remove_schedule(env: &Env, schedules: &mut Vec<Schedule>, stake: i128, schedu
     }
 }
 
-fn validate_target_info(env: Env, schedule_type: &ScheduleType, target_contract_address: Address) {
-    match schedule_type {
-        ScheduleType::Asset => {
-            // let amm_response: SimulateSwapResponse = env.invoke_contract(
-            //     &target_contract_address,
-            //     &Symbol::new(&env, "simulate_swap"),
-            //     Vec::new(&env), // TODO: update args OR use health_ping call instead
-            // );
-            // assert!(
-            //     amm_response.ask_amount.is_some(),
-            //     "Scheduler: Create Schedule: Invalid AMM response"
-            // )
-        }
-        ScheduleType::Index => {
-            // let index_response: SimulateMintResponse = env.invoke_contract(
-            //     &target_contract_address,
-            //     &Symbol::new(&env, "simulate_mint"),
-            //     Vec::new(&env), // TODO: update args OR use health_ping call instead
-            // );
-            // assert!(
-            //     index_response.mint_amount.is_some(),
-            //     "Scheduler: Create Schedule: Invalid Index response"
-            // )
-        }
-    }
-}
+// fn validate_target_info(env: Env, schedule_type: &ScheduleType, target_contract_address: Address) {
+//     match schedule_type {
+//         ScheduleType::Asset => {
+//             // let amm_response: SimulateSwapResponse = env.invoke_contract(
+//             //     &target_contract_address,
+//             //     &Symbol::new(&env, "simulate_swap"),
+//             //     Vec::new(&env), // TODO: update args OR use health_ping call instead
+//             // );
+//             // assert!(
+//             //     amm_response.ask_amount.is_some(),
+//             //     "Scheduler: Create Schedule: Invalid AMM response"
+//             // )
+//         }
+//         ScheduleType::Index => {
+//             // let index_response: SimulateMintResponse = env.invoke_contract(
+//             //     &target_contract_address,
+//             //     &Symbol::new(&env, "simulate_mint"),
+//             //     Vec::new(&env), // TODO: update args OR use health_ping call instead
+//             // );
+//             // assert!(
+//             //     index_response.mint_amount.is_some(),
+//             //     "Scheduler: Create Schedule: Invalid Index response"
+//             // )
+//         }
+//     }
+// }

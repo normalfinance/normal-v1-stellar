@@ -24,6 +24,7 @@ pub enum ErrorCode {
     BnConversionError = 17,
     CastingFailure = 18,
     FailedUnwrap = 19,
+    InsufficientFunds = 20,
 
     // Governor Errors
 

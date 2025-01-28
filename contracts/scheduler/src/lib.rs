@@ -2,6 +2,7 @@
 
 mod contract;
 mod events;
+mod msg;
 mod scheduler;
 mod storage;
 
@@ -13,6 +14,18 @@ pub mod token_contract {
         file = "../../target/wasm32-unknown-unknown/release/soroban_token_contract.wasm"
     );
 }
+
+// pub mod index_token {
+//     soroban_sdk::contractimport!(
+//         file = "../contract_a/target/wasm32-unknown-unknown/release/soroban_cross_contract_a_contract.wasm"
+//     );
+// }
+
+// pub mod synth_pool {
+//     soroban_sdk::contractimport!(
+//         file = "../contract_a/target/wasm32-unknown-unknown/release/soroban_cross_contract_a_contract.wasm"
+//     );
+// }
 
 #[cfg(test)]
 mod tests;

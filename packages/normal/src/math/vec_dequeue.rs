@@ -30,14 +30,14 @@ impl VecDeque {
 
     // Pop from the back
     pub fn pop_back(&mut self) {
-        if self.data.len() > 0 {
-            let last_index = self.data.len() - 1;
-            let new_data = self.data.slice(0..last_index);
-            let last_element = self.data.get(last_index).unwrap();
-            (Self { data: new_data }, Some(last_element));
-        } else {
-            self.clone();
-        }
+        // if !self.data.is_empty() {
+        //     let last_index = self.data.len() - 1;
+        //     let new_data = self.data.slice(0..last_index);
+        //     let last_element = self.data.get(last_index).unwrap();
+        //     (Self { data: new_data }, Some(last_element));
+        // } else {
+        //     self.clone();
+        // }
     }
 
     // Pop from the front

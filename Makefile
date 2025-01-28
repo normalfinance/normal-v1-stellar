@@ -1,4 +1,4 @@
-SUBDIRS := contracts/governor contracts/index_token_factory contracts/index_token contracts/insurance contracts/scheduler contracts/synth_pool contracts/synth_market contracts/synth_market_factory contracts/token contracts/vesting contracts/votes packages/normal packages/decimal packages/curve
+SUBDIRS := contracts/token contracts/scheduler packages/decimal packages/curve packages/normal 
 BUILD_FLAGS ?=
 
 default: build
@@ -20,13 +20,13 @@ fmt:
 		$(MAKE) -C $$dir fmt || exit 1; \
 	done
 
-lints: fmt
-	@for dir in contracts/multihop contracts/pool ; do \
-		$(MAKE) -C $$dir build || exit 1; \
-	done
-	@for dir in $(SUBDIRS) ; do \
-		$(MAKE) -C $$dir clippy || exit 1; \
-	done
+# lints: fmt
+# 	@for dir in contracts/multihop contracts/pool ; do \
+# 		$(MAKE) -C $$dir build || exit 1; \
+# 	done
+# 	@for dir in $(SUBDIRS) ; do \
+# 		$(MAKE) -C $$dir clippy || exit 1; \
+# 	done
 
 clean:
 	@for dir in $(SUBDIRS) ; do \

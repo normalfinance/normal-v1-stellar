@@ -4,6 +4,7 @@ use crate::error::{self, NormalResult};
 
 use super::{bn::U192, casting::Cast, safe_math::SafeMath};
 
+#[allow(clippy::unnecessary_lazy_evaluations)]
 pub fn standardize_value_with_remainder_i128(
     env: &Env,
     value: i128,
@@ -48,8 +49,8 @@ pub fn get_proportion_u128(
         value
     } else if value >= large_constant || numerator >= large_constant {
         let value = U192::from(value)
-            .safe_mul(U192::from(numerator), &env)?
-            .safe_div(U192::from(denominator), &env)?;
+            .safe_mul(U192::from(numerator), env)?
+            .safe_div(U192::from(denominator), env)?;
 
         value.cast::<u128>(env)?
     } else if numerator > denominator / 2 && denominator > numerator {

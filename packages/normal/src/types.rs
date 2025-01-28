@@ -77,9 +77,9 @@ pub enum OrderDirection {
     Sell,
 }
 
-#[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SynthMarketInitInfo {}
+// #[contracttype]
+// #[derive(Clone, Debug, PartialEq, Eq)]
+// pub struct SynthMarketInitInfo {}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
