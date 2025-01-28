@@ -32,6 +32,7 @@ pub enum ErrorCode {
 
     // Index Token Factory Errors
     IndexFactoryOperationPaused = 21,
+    IndexTokenNotFound = 22,
     // Insurance Errors
 
     // Scheduler Errors

@@ -54,4 +54,6 @@ pub trait IndexTokenTrait {
     // fn query_price(env: Env) -> i128;
 
     // fn query_nav(env: Env) -> i128;
+
+    // fn query_index_info_for_factory(env: Env) -> IndexInfo;
 }

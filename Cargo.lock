@@ -789,6 +789,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "normal-index-token-factory"
+version = "0.1.0"
+dependencies = [
+ "normal",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "normal-scheduler"
 version = "0.1.0"
 dependencies = [
