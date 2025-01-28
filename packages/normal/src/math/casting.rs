@@ -63,12 +63,14 @@ impl_cast!(u64, i64);
 impl_cast!(u64, u128);
 impl_cast!(u64, i128);
 impl_cast!(u32, u16);
+impl_cast!(u32, i128);
 impl_cast!(u128, u32);
 impl_cast!(u128, usize);
 
 impl_cast!(i128, i64);
 impl_cast!(i128, u128);
 impl_cast!(i64, i32);
+impl_cast!(i64, i128);
 impl_cast!(i64, u64);
 impl_cast!(i32, i16);
 impl_cast!(i32, i128);

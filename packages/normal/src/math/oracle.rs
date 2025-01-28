@@ -1,6 +1,6 @@
 use core::{cmp::max, fmt};
 
-use soroban_sdk::{contracttype, log, Env, String};
+use soroban_sdk::{contracttype, log, Address, Env};
 
 use crate::math::casting::Cast;
 use crate::math::safe_math::SafeMath;
@@ -188,8 +188,8 @@ pub fn get_oracle_status(
 }
 
 pub fn oracle_validity(
-    env: Env,
-    market_name: String,
+    env: &Env,
+    market_id: Address,
     last_oracle_twap: i64,
     oracle_price_data: &OraclePriceData,
     valid_oracle_guard_rails: &ValidityGuardRails,
@@ -208,17 +208,17 @@ pub fn oracle_validity(
 
     let is_oracle_price_too_volatile = oracle_price
         .max(last_oracle_twap)
-        .safe_div(last_oracle_twap.min(oracle_price).max(1), &env)?
+        .safe_div(last_oracle_twap.min(oracle_price).max(1), env)?
         .gt(&valid_oracle_guard_rails.too_volatile_ratio);
 
     let conf_pct_of_price = max(1, oracle_conf)
-        .safe_mul(BID_ASK_SPREAD_PRECISION, &env)?
-        .safe_div(oracle_price.cast(&env)?, &env)?;
+        .safe_mul(BID_ASK_SPREAD_PRECISION, env)?
+        .safe_div(oracle_price.cast(env)?, env)?;
 
     // TooUncertain
     let is_conf_too_large = conf_pct_of_price.gt(&valid_oracle_guard_rails
         .confidence_interval_max_size
-        .safe_mul(max_confidence_interval_multiplier, &env)?);
+        .safe_mul(max_confidence_interval_multiplier, env)?);
 
     let is_stale_for_amm = oracle_delay.gt(&valid_oracle_guard_rails.slots_before_stale_for_amm);
     let is_stale_for_margin =
@@ -243,25 +243,25 @@ pub fn oracle_validity(
     if log_validity {
         if !has_sufficient_data_points {
             log!(
-                &env,
+                env,
                 "Invalid {} {} Oracle: Insufficient Data Points",
-                market_name
+                market_id
             );
         }
 
         if is_oracle_price_nonpositive {
             log!(
-                &env,
+                env,
                 "Invalid {} {} Oracle: Non-positive (oracle_price <=0)",
-                market_name
+                market_id
             );
         }
 
         if is_oracle_price_too_volatile {
             log!(
-                &env,
+                env,
                 "Invalid {} {} Oracle: Too Volatile (last_oracle_price_twap={:?} vs oracle_price={:?})",
-                market_name,
+                market_id,
                 last_oracle_twap,
                 oracle_price
             );
@@ -269,18 +269,18 @@ pub fn oracle_validity(
 
         if is_conf_too_large {
             log!(
-                &env,
+                env,
                 "Invalid {} {} Oracle: Confidence Too Large (is_conf_too_large={:?})",
-                market_name,
+                market_id,
                 conf_pct_of_price
             );
         }
 
         if is_stale_for_amm || is_stale_for_margin {
             log!(
-                &env,
+                env,
                 "Invalid {} {} Oracle: Stale (oracle_delay={:?})",
-                market_name,
+                market_id,
                 oracle_delay
             );
         }
