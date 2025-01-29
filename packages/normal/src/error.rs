@@ -48,8 +48,7 @@ pub enum ErrorCode {
     IFWithdrawRequestTooSmall = 510,
     InvalidIFSharesDetected = 511,
     InsufficientIFShares = 512,
-    TryingToRemoveLiquidityTooFast= 513,
-
+    TryingToRemoveLiquidityTooFast = 513,
     // Scheduler Errors
 
     // Synth Market Errors

@@ -1,4 +1,4 @@
-use soroban_sdk::{ Address, Env };
+use soroban_sdk::{Address, Env};
 
 pub trait BufferTrait {
     // ################################################################

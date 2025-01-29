@@ -1,14 +1,5 @@
 use soroban_sdk::{
-    contract,
-    contractimpl,
-    contractmeta,
-    log,
-    panic_with_error,
-    Address,
-    BytesN,
-    Env,
-    String,
-    Vec,
+    contract, contractimpl, contractmeta, log, panic_with_error, Address, BytesN, Env, String, Vec,
 };
 
 use crate::{
@@ -18,31 +9,24 @@ use crate::{
     insurance_fund::InsuranceFundTrait,
     math,
     storage::{
-        get_buffer,
-        get_insurance_fund,
-        get_stake,
-        save_buffer,
-        save_insurance_fund,
-        utils,
-        Buffer,
-        InsuranceFund,
-        InsuranceFundOperation,
+        get_buffer, get_insurance_fund, get_stake, save_buffer, save_insurance_fund, utils, Buffer,
+        InsuranceFund, InsuranceFundOperation,
     },
     token_contract,
 };
 
 use normal::{
     constants::{
-        INSTANCE_BUMP_AMOUNT,
-        INSTANCE_LIFETIME_THRESHOLD,
-        ONE_MILLION_QUOTE,
-        THIRTEEN_DAY,
+        INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD, ONE_MILLION_QUOTE, THIRTEEN_DAY,
     },
-    error::{ ErrorCode, NormalResult },
+    error::{ErrorCode, NormalResult},
     validate,
 };
 
-contractmeta!(key = "Description", val = "Staking vault used to cover protocol debt");
+contractmeta!(
+    key = "Description",
+    val = "Staking vault used to cover protocol debt"
+);
 
 #[contract]
 pub struct Insurance;
@@ -65,10 +49,13 @@ impl InsuranceFundTrait for Insurance {
         share_token_decimals: u32,
         share_token_name: String,
         share_token_symbol: String,
-        max_buffer_balance: i128
+        max_buffer_balance: i128,
     ) {
         if utils::is_initialized(&env) {
-            log!(&env, "Insurance Fund: Initialize: initializing contract twice is not allowed");
+            log!(
+                &env,
+                "Insurance Fund: Initialize: initializing contract twice is not allowed"
+            );
             panic_with_error!(&env, ErrorCode::AlreadyInitialized);
         }
 
@@ -82,7 +69,7 @@ impl InsuranceFundTrait for Insurance {
             env.current_contract_address(),
             share_token_decimals,
             share_token_name,
-            share_token_symbol
+            share_token_symbol,
         );
 
         utils::save_admin(&env, &admin);
@@ -107,7 +94,7 @@ impl InsuranceFundTrait for Insurance {
         let buffer = Buffer {
             gov_token: gov_token.clone(),
             gov_token_pool: gov_token.clone(), // TODO:
-            quote_token: gov_token.clone(), // TODO:
+            quote_token: gov_token.clone(),    // TODO:
             auctions: Vec::new(&env),
             min_auction_duration: 3600,
             max_balance: max_buffer_balance,
@@ -121,7 +108,7 @@ impl InsuranceFundTrait for Insurance {
             env.ledger().timestamp(),
             admin,
             governor,
-            share_token_address
+            share_token_address,
         );
     }
 
@@ -159,8 +146,7 @@ impl InsuranceFundTrait for Insurance {
             "withdraw request in progress"
         )?;
 
-        let insurance_vault_amount = token_contract::Client
-            ::new(&env, &insurance_fund.stake_asset)
+        let insurance_vault_amount = token_contract::Client::new(&env, &insurance_fund.stake_asset)
             .balance(&env.current_contract_address());
 
         let _ = controller::stake::add_stake(
@@ -170,12 +156,14 @@ impl InsuranceFundTrait for Insurance {
             insurance_vault_amount,
             &mut stake,
             &mut insurance_fund,
-            now
+            now,
         );
 
-        token_contract::Client
-            ::new(&env, &insurance_fund.stake_asset)
-            .transfer(&sender, &env.current_contract_address(), &amount);
+        token_contract::Client::new(&env, &insurance_fund.stake_asset).transfer(
+            &sender,
+            &env.current_contract_address(),
+            &amount,
+        );
 
         Ok(())
     }
@@ -203,15 +191,14 @@ impl InsuranceFundTrait for Insurance {
             "Withdraw request is already in progress"
         )?;
 
-        let insurance_vault_amount = token_contract::Client
-            ::new(&env, &insurance_fund.stake_asset)
+        let insurance_vault_amount = token_contract::Client::new(&env, &insurance_fund.stake_asset)
             .balance(&env.current_contract_address());
 
         let n_shares = math::insurance::vault_amount_to_if_shares(
             &env,
             amount,
             insurance_fund.total_shares,
-            insurance_vault_amount
+            insurance_vault_amount,
         )?;
 
         validate!(
@@ -222,7 +209,12 @@ impl InsuranceFundTrait for Insurance {
         )?;
 
         let user_if_shares = stake.checked_if_shares(&env, &insurance_fund)?;
-        validate!(&env, user_if_shares >= n_shares, ErrorCode::InsufficientIFShares, "")?;
+        validate!(
+            &env,
+            user_if_shares >= n_shares,
+            ErrorCode::InsufficientIFShares,
+            ""
+        )?;
 
         let _ = controller::stake::request_remove_stake(
             &env,
@@ -231,7 +223,7 @@ impl InsuranceFundTrait for Insurance {
             insurance_vault_amount,
             &mut stake,
             &mut insurance_fund,
-            now
+            now,
         );
 
         Ok(())
@@ -251,8 +243,7 @@ impl InsuranceFundTrait for Insurance {
             "No withdraw request in progress"
         )?;
 
-        let insurance_vault_amount = token_contract::Client
-            ::new(&env, &insurance_fund.stake_asset)
+        let insurance_vault_amount = token_contract::Client::new(&env, &insurance_fund.stake_asset)
             .balance(&env.current_contract_address());
 
         let _ = controller::stake::cancel_request_remove_stake(
@@ -261,7 +252,7 @@ impl InsuranceFundTrait for Insurance {
             insurance_vault_amount,
             &mut insurance_fund,
             &mut stake,
-            now
+            now,
         );
 
         Ok(())
@@ -282,8 +273,7 @@ impl InsuranceFundTrait for Insurance {
 
         let mut stake = get_stake(&env, &sender);
 
-        let insurance_vault_amount = token_contract::Client
-            ::new(&env, &insurance_fund.stake_asset)
+        let insurance_vault_amount = token_contract::Client::new(&env, &insurance_fund.stake_asset)
             .balance(&env.current_contract_address());
 
         let amount = controller::stake::remove_stake(
@@ -292,12 +282,14 @@ impl InsuranceFundTrait for Insurance {
             insurance_vault_amount,
             &mut stake,
             &mut insurance_fund,
-            now
+            now,
         )?;
 
-        token_contract::Client
-            ::new(&env, &insurance_fund.stake_asset)
-            .transfer(&env.current_contract_address(), &sender, &amount);
+        token_contract::Client::new(&env, &insurance_fund.stake_asset).transfer(
+            &env.current_contract_address(),
+            &sender,
+            &amount,
+        );
 
         Ok(())
     }
@@ -307,7 +299,9 @@ impl InsuranceFundTrait for Insurance {
     // ################################################################
 
     fn query_insurance_fund(env: Env) -> InsuranceFund {
-        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         get_insurance_fund(&env)
     }
@@ -344,9 +338,11 @@ impl BufferTrait for Insurance {
 
         let buffer = get_buffer(&env);
 
-        token_contract::Client
-            ::new(&env, &buffer.gov_token)
-            .transfer(&sender, &env.current_contract_address(), &amount);
+        token_contract::Client::new(&env, &buffer.gov_token).transfer(
+            &sender,
+            &env.current_contract_address(),
+            &amount,
+        );
     }
 
     fn execute_buffer_buyback(env: Env, sender: Address, amount: i128) {
@@ -370,8 +366,7 @@ impl BufferTrait for Insurance {
         // );
 
         // Burn the tokens (to reduce price)
-        token_contract::Client
-            ::new(&env, &buffer.gov_token)
+        token_contract::Client::new(&env, &buffer.gov_token)
             .burn(&env.current_contract_address(), &amount);
     }
 
@@ -382,8 +377,7 @@ impl BufferTrait for Insurance {
         let buffer = get_buffer(&env);
 
         // Mint gov tokens
-        token_contract::Client
-            ::new(&env, &buffer.gov_token)
+        token_contract::Client::new(&env, &buffer.gov_token)
             .mint(&env.current_contract_address(), &amount);
 
         // let out_amount = match buffer.auction_location {

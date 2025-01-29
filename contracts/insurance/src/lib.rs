@@ -1,10 +1,10 @@
 #![no_std]
 
 mod buffer;
-mod insurance_fund;
 mod contract;
 mod controller;
 mod events;
+mod insurance_fund;
 mod interfaces;
 mod math;
 mod storage;
