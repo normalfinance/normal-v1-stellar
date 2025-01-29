@@ -824,6 +824,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "normal-vesting"
+version = "0.1.0"
+dependencies = [
+ "curve",
+ "normal",
+ "soroban-decimal",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "normal-votes"
 version = "0.1.0"
 dependencies = [
