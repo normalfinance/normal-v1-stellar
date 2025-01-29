@@ -1,6 +1,6 @@
 [package]
 name = "normal-insurance"
-authors = ["jblewnormal <joshua@normalfinance.io>"]
+authors = { workspace = true }
 version = { workspace = true }
 repository = { workspace = true }
 edition = { workspace = true }

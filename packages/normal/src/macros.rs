@@ -72,7 +72,7 @@ macro_rules! safe_increment {
     ($struct:expr, $value:expr) => {{
         $struct = $struct
             .checked_add($value)
-            .ok_or_else(|| error::ErrorCode::MathError)?
+            .ok_or_else(|| $crate::error::ErrorCode::MathError)?
     }};
 }
 
@@ -81,7 +81,7 @@ macro_rules! safe_decrement {
     ($struct:expr, $value:expr) => {{
         $struct = $struct
             .checked_sub($value)
-            .ok_or_else(|| error::ErrorCode::MathError)?
+            .ok_or_else(|| $crate::error::ErrorCode::MathError)?
     }};
 }
 

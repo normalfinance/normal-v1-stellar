@@ -797,6 +797,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "normal-insurance"
+version = "0.1.0"
+dependencies = [
+ "normal",
+ "num-integer",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "normal-scheduler"
 version = "0.1.0"
 dependencies = [
