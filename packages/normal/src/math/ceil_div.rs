@@ -1,4 +1,3 @@
-use crate::math::bn::{U192, U256};
 use num_traits::{One, Zero};
 
 pub trait CheckedCeilDiv: Sized {
@@ -51,15 +50,9 @@ macro_rules! checked_impl {
 //     };
 // }
 
-checked_impl!(U256);
-checked_impl!(U192);
 checked_impl!(u128);
 checked_impl!(u64);
 checked_impl!(u32);
-// checked_impl!(u16);
-// checked_impl!(u8);
 checked_impl!(i128);
 checked_impl!(i64);
 checked_impl!(i32);
-// checked_impl!(i16);
-// checked_impl!(i8);

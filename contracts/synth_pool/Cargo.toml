@@ -1,0 +1,21 @@
+[package]
+name = "normal-synth-pool"
+authors = ["jblewnormal <joshua@normalfinance.io>"]
+version = { workspace = true }
+repository = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+
+[lib]
+crate-type = ["cdylib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+num-integer = { workspace = true }
+soroban-decimal = { workspace = true }
+normal = { workspace = true }
+bytemuck = { version = "1.4.0" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
