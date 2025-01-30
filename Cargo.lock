@@ -819,23 +819,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "normal-market"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "normal",
+ "num-integer",
+ "soroban-decimal",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "normal-scheduler"
 version = "0.1.0"
 dependencies = [
  "itoa",
  "normal",
  "pretty_assertions",
- "soroban-decimal",
- "soroban-sdk",
-]
-
-[[package]]
-name = "normal-synth-pool"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "normal",
- "num-integer",
  "soroban-decimal",
  "soroban-sdk",
 ]

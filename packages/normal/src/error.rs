@@ -53,6 +53,10 @@ pub enum ErrorCode {
 
     // Synth Market Errors
 
+    RewardNotInitialized = 700,
+    InvalidRewardIndex= 701, 
+    RewardVaultAmountInsufficient= 702,
+
     // Synth Market Factory Errors
 
     // Toke Errors

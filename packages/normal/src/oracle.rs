@@ -1,13 +1,62 @@
 use crate::error::NormalResult;
 use crate::math::casting::Cast;
 use crate::math::safe_math::SafeMath;
-use crate::{
-    band_std_reference,
-    constants::{PERCENTAGE_PRECISION_U64, PRICE_PRECISION_I64},
-};
-use soroban_sdk::{contracttype, log, Address, Env, Symbol, Vec};
+use crate::{ band_std_reference, constants::{ PERCENTAGE_PRECISION_U64, PRICE_PRECISION_I64 } };
+use soroban_sdk::{ contracttype, log, Address, Env, Symbol, Vec };
 
-/// Oracles types
+#[contracttype]
+#[derive(Default, Clone, Copy, Eq, PartialEq, Debug)]
+pub struct HistoricalOracleData {
+    /// precision: PRICE_PRECISION
+    pub last_oracle_price: i64,
+    /// precision: PRICE_PRECISION
+    pub last_oracle_conf: u64,
+    /// number of slots since last update
+    pub last_oracle_delay: i64,
+    /// precision: PRICE_PRECISION
+    pub last_oracle_price_twap: i64,
+    /// precision: PRICE_PRECISION
+    pub last_oracle_price_twap_5min: i64,
+    /// unix_timestamp of last snapshot
+    pub last_oracle_price_twap_ts: i64,
+}
+
+impl HistoricalOracleData {
+    pub fn default_quote_oracle() -> Self {
+        HistoricalOracleData {
+            last_oracle_price: PRICE_PRECISION_I64,
+            last_oracle_conf: 0,
+            last_oracle_delay: 0,
+            last_oracle_price_twap: PRICE_PRECISION_I64,
+            last_oracle_price_twap_5min: PRICE_PRECISION_I64,
+            ..HistoricalOracleData::default()
+        }
+    }
+
+    pub fn default_price(price: i64) -> Self {
+        HistoricalOracleData {
+            last_oracle_price: price,
+            last_oracle_conf: 0,
+            last_oracle_delay: 10,
+            last_oracle_price_twap: price,
+            last_oracle_price_twap_5min: price,
+            ..HistoricalOracleData::default()
+        }
+    }
+
+    pub fn default_with_current_oracle(oracle_price_data: OraclePriceData) -> Self {
+        HistoricalOracleData {
+            last_oracle_price: oracle_price_data.price,
+            last_oracle_conf: oracle_price_data.confidence,
+            last_oracle_delay: oracle_price_data.delay,
+            last_oracle_price_twap: oracle_price_data.price,
+            last_oracle_price_twap_5min: oracle_price_data.price,
+            // last_oracle_price_twap_ts: now,
+            ..HistoricalOracleData::default()
+        }
+    }
+}
+
 #[contracttype]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum OracleSource {
@@ -30,17 +79,18 @@ pub fn get_oracle_price(
     oracle_source: &OracleSource,
     price_oracle_address: &Address,
     symbol_pair: (Symbol, Symbol),
-    now: u64,
+    now: u64
 ) -> NormalResult<OraclePriceData> {
     match oracle_source {
         OracleSource::Band => get_band_price(env, price_oracle_address, symbol_pair, now),
         // OracleSource::Reflector => get_reflector_price(),
-        OracleSource::QuoteAsset => Ok(OraclePriceData {
-            price: PRICE_PRECISION_I64,
-            confidence: 1,
-            delay: 0,
-            has_sufficient_data_points: true,
-        }),
+        OracleSource::QuoteAsset =>
+            Ok(OraclePriceData {
+                price: PRICE_PRECISION_I64,
+                confidence: 1,
+                delay: 0,
+                has_sufficient_data_points: true,
+            }),
     }
 }
 
@@ -48,7 +98,7 @@ pub fn is_oracle_too_divergent_with_twap_5min(
     env: &Env,
     oracle_price: i64,
     oracle_twap_5min: i64,
-    max_divergence: i64,
+    max_divergence: i64
 ) -> NormalResult<bool> {
     let percent_diff = oracle_price
         .safe_sub(oracle_twap_5min, env)?
@@ -74,7 +124,7 @@ fn get_band_price(
     env: &Env,
     oracle_contract_address: &Address,
     symbol_pair: (Symbol, Symbol),
-    now: u64, // multiple: u128,
+    now: u64 // multiple: u128,
 ) -> NormalResult<OraclePriceData> {
     let client = band_std_reference::Client::new(env, oracle_contract_address);
 
@@ -122,9 +172,7 @@ fn get_band_price(
     //     .safe_div(oracle_scale_div)?
     //     .cast::<u64>()?;
 
-    let oracle_delay: i64 = now
-        .cast::<i64>(env)?
-        .safe_sub(published_slot.cast(env)?, env)?;
+    let oracle_delay: i64 = now.cast::<i64>(env)?.safe_sub(published_slot.cast(env)?, env)?;
 
     Ok(OraclePriceData {
         price: oracle_price_scaled,
