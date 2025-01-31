@@ -1,17 +1,16 @@
-use normal::{
-    error::{ErrorCode, NormalResult},
-    math::{casting::Cast, safe_math::SafeMath},
-    validate,
-};
-use soroban_sdk::{log, Address, Env};
+use normal::{ math::{ casting::Cast, safe_math::SafeMath }, validate };
+use soroban_sdk::{ log, Address, Env };
 
 use crate::{
+    errors::{ Errors, NormalResult },
     events::InsuranceFundEvents,
     math::insurance::{
-        calculate_if_shares_lost, calculate_rebase_info, if_shares_to_vault_amount,
+        calculate_if_shares_lost,
+        calculate_rebase_info,
+        if_shares_to_vault_amount,
         vault_amount_to_if_shares,
     },
-    storage::{InsuranceFund, Stake, StakeAction},
+    storage::{ InsuranceFund, Stake, StakeAction },
 };
 
 pub fn add_stake(
@@ -21,12 +20,12 @@ pub fn add_stake(
     insurance_vault_amount: i128,
     stake: &mut Stake,
     insurance_fund: &mut InsuranceFund,
-    now: u64,
+    now: u64
 ) -> NormalResult {
     validate!(
         env,
         !(insurance_vault_amount == 0 && insurance_fund.total_shares != 0),
-        ErrorCode::InvalidIFForNewStakes,
+        Errors::InvalidIFForNewStakes,
         "Insurance Fund balance should be non-zero for new stakers to enter"
     )?;
 
@@ -41,7 +40,7 @@ pub fn add_stake(
         env,
         amount,
         insurance_fund.total_shares,
-        insurance_vault_amount,
+        insurance_vault_amount
     )?;
 
     // reset cost basis if no shares
@@ -71,7 +70,7 @@ pub fn add_stake(
         total_if_shares_before,
         if_shares_after,
         insurance_fund.total_shares,
-        insurance_fund.user_shares,
+        insurance_fund.user_shares
     );
 
     Ok(())
@@ -80,19 +79,24 @@ pub fn add_stake(
 pub fn apply_rebase_to_insurance_fund(
     env: &Env,
     insurance_vault_amount: i128,
-    insurance_fund: &mut InsuranceFund,
+    insurance_fund: &mut InsuranceFund
 ) -> NormalResult {
-    if insurance_vault_amount != 0
-        && insurance_vault_amount.cast::<u128>(env)? < insurance_fund.total_shares
+    if
+        insurance_vault_amount != 0 &&
+        insurance_vault_amount.cast::<u128>(env)? < insurance_fund.total_shares
     {
-        let (expo_diff, rebase_divisor) =
-            calculate_rebase_info(env, insurance_fund.total_shares, insurance_vault_amount)?;
+        let (expo_diff, rebase_divisor) = calculate_rebase_info(
+            env,
+            insurance_fund.total_shares,
+            insurance_vault_amount
+        )?;
 
         insurance_fund.total_shares = insurance_fund.total_shares.safe_div(rebase_divisor, env)?;
         insurance_fund.user_shares = insurance_fund.user_shares.safe_div(rebase_divisor, env)?;
-        insurance_fund.shares_base = insurance_fund
-            .shares_base
-            .safe_add(expo_diff.cast::<u128>(env)?, env)?;
+        insurance_fund.shares_base = insurance_fund.shares_base.safe_add(
+            expo_diff.cast::<u128>(env)?,
+            env
+        )?;
 
         log!(env, "rebasing insurance fund: expo_diff={}", expo_diff);
     }
@@ -107,13 +111,13 @@ pub fn apply_rebase_to_insurance_fund(
 pub fn apply_rebase_to_stake(
     env: &Env,
     stake: &mut Stake,
-    insurance_fund: &mut InsuranceFund,
+    insurance_fund: &mut InsuranceFund
 ) -> NormalResult {
     if insurance_fund.shares_base != stake.if_base {
         validate!(
             env,
             insurance_fund.shares_base > stake.if_base,
-            ErrorCode::InvalidIFRebase,
+            Errors::InvalidIFRebase,
             "Rebase expo out of bounds"
         )?;
 
@@ -133,17 +137,14 @@ pub fn apply_rebase_to_stake(
         let old_if_shares = stake.unchecked_if_shares();
         let new_if_shares = old_if_shares.safe_div(rebase_divisor, env)?;
 
-        log!(
-            env,
-            "rebasing insurance fund stake: shares -> {} ",
-            new_if_shares
-        );
+        log!(env, "rebasing insurance fund stake: shares -> {} ", new_if_shares);
 
         stake.update_if_shares(env, new_if_shares, insurance_fund)?;
 
-        stake.last_withdraw_request_shares = stake
-            .last_withdraw_request_shares
-            .safe_div(rebase_divisor, env)?;
+        stake.last_withdraw_request_shares = stake.last_withdraw_request_shares.safe_div(
+            rebase_divisor,
+            env
+        )?;
     }
 
     Ok(())
@@ -156,7 +157,7 @@ pub fn request_remove_stake(
     insurance_vault_amount: i128,
     stake: &mut Stake,
     insurance_fund: &mut InsuranceFund,
-    now: u64,
+    now: u64
 ) -> NormalResult {
     log!(env, "n_shares {}", n_shares);
     stake.last_withdraw_request_shares = n_shares;
@@ -171,15 +172,15 @@ pub fn request_remove_stake(
     validate!(
         env,
         stake.last_withdraw_request_shares <= stake.checked_if_shares(env, insurance_fund)?,
-        ErrorCode::InvalidInsuranceUnstakeSize,
+        Errors::InvalidInsuranceUnstakeSize,
         "last_withdraw_request_shares exceeds if_shares {} > {}" // stake.last_withdraw_request_shares,
-                                                                 // stake.checked_if_shares(insurance_fund)?
+        // stake.checked_if_shares(insurance_fund)?
     )?;
 
     validate!(
         env,
         stake.if_base == insurance_fund.shares_base,
-        ErrorCode::InvalidIFRebase,
+        Errors::InvalidIFRebase,
         "if stake base != spot market base"
     )?;
 
@@ -187,15 +188,14 @@ pub fn request_remove_stake(
         env,
         stake.last_withdraw_request_shares,
         insurance_fund.total_shares,
-        insurance_vault_amount,
-    )?
-    .min(insurance_vault_amount.saturating_sub(1));
+        insurance_vault_amount
+    )?.min(insurance_vault_amount.saturating_sub(1));
 
     validate!(
         env,
-        stake.last_withdraw_request_value == 0
-            || stake.last_withdraw_request_value < insurance_vault_amount,
-        ErrorCode::InvalidIFUnstakeSize,
+        stake.last_withdraw_request_value == 0 ||
+            stake.last_withdraw_request_value < insurance_vault_amount,
+        Errors::InvalidIFUnstakeSize,
         "Requested withdraw value is not below Insurance Fund balance"
     )?;
 
@@ -213,7 +213,7 @@ pub fn request_remove_stake(
         total_if_shares_before,
         if_shares_after,
         insurance_fund.total_shares,
-        insurance_fund.user_shares,
+        insurance_fund.user_shares
     );
 
     stake.last_withdraw_request_ts = now;
@@ -227,7 +227,7 @@ pub fn cancel_request_remove_stake(
     insurance_vault_amount: i128,
     insurance_fund: &mut InsuranceFund,
     stake: &mut Stake,
-    now: u64,
+    now: u64
 ) -> NormalResult {
     apply_rebase_to_insurance_fund(env, insurance_vault_amount, insurance_fund)?;
     apply_rebase_to_stake(env, stake, insurance_fund)?;
@@ -239,19 +239,23 @@ pub fn cancel_request_remove_stake(
     validate!(
         &env,
         stake.if_base == insurance_fund.shares_base,
-        ErrorCode::InvalidIFRebase,
+        Errors::InvalidIFRebase,
         "if stake base != spot market base"
     )?;
 
     validate!(
         &env,
         stake.last_withdraw_request_shares != 0,
-        ErrorCode::InvalidIFUnstakeCancel,
+        Errors::InvalidIFUnstakeCancel,
         "No withdraw request in progress"
     )?;
 
-    let if_shares_lost =
-        calculate_if_shares_lost(env, stake, insurance_fund, insurance_vault_amount)?;
+    let if_shares_lost = calculate_if_shares_lost(
+        env,
+        stake,
+        insurance_fund,
+        insurance_vault_amount
+    )?;
 
     stake.decrease_if_shares(env, if_shares_lost, insurance_fund)?;
 
@@ -273,7 +277,7 @@ pub fn cancel_request_remove_stake(
         total_if_shares_before,
         if_shares_after,
         insurance_fund.total_shares,
-        insurance_fund.user_shares,
+        insurance_fund.user_shares
     );
 
     stake.last_withdraw_request_shares = 0;
@@ -289,14 +293,14 @@ pub fn remove_stake(
     insurance_vault_amount: i128,
     stake: &mut Stake,
     insurance_fund: &mut InsuranceFund,
-    now: u64,
+    now: u64
 ) -> NormalResult<i128> {
     let time_since_withdraw_request = now.safe_sub(stake.last_withdraw_request_ts, env)?;
 
     validate!(
         env,
         time_since_withdraw_request >= insurance_fund.unstaking_period.cast::<u64>(env)?,
-        ErrorCode::TryingToRemoveLiquidityTooFast,
+        Errors::TryingToRemoveLiquidityTooFast,
         ""
     )?;
 
@@ -312,26 +316,25 @@ pub fn remove_stake(
     validate!(
         env,
         n_shares > 0,
-        ErrorCode::InvalidIFUnstake,
+        Errors::InvalidIFUnstake,
         "Must submit withdraw request and wait the escrow period"
     )?;
 
-    validate!(
-        env,
-        if_shares_before >= n_shares,
-        ErrorCode::InsufficientIFShares,
-        ""
-    )?;
+    validate!(env, if_shares_before >= n_shares, Errors::InsufficientIFShares, "")?;
 
     let amount = if_shares_to_vault_amount(
         env,
         n_shares,
         insurance_fund.total_shares,
-        insurance_vault_amount,
+        insurance_vault_amount
     )?;
 
-    let _if_shares_lost =
-        calculate_if_shares_lost(env, stake, insurance_fund, insurance_vault_amount)?;
+    let _if_shares_lost = calculate_if_shares_lost(
+        env,
+        stake,
+        insurance_fund,
+        insurance_vault_amount
+    )?;
 
     let withdraw_amount = amount.min(stake.last_withdraw_request_value);
 
@@ -362,7 +365,7 @@ pub fn remove_stake(
         total_if_shares_before,
         if_shares_after,
         insurance_fund.total_shares,
-        insurance_fund.user_shares,
+        insurance_fund.user_shares
     );
 
     Ok(withdraw_amount)

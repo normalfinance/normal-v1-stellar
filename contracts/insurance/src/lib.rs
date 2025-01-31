@@ -3,6 +3,7 @@
 mod buffer;
 mod contract;
 mod controller;
+pub mod errors;
 mod events;
 mod insurance_fund;
 mod interfaces;

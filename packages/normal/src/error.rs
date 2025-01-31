@@ -33,31 +33,7 @@ pub enum ErrorCode {
     // Index Token Factory Errors
     IndexFactoryOperationPaused = 21,
     IndexTokenNotFound = 22,
-
-    // Insurance Errors
-    NoIFWithdrawAvailable = 500,
-    InvalidIFUnstake = 501,
-    InvalidIFUnstakeSize = 502,
-    InvalidIFUnstakeCancel = 503,
-    InvalidIFForNewStakes = 504,
-    InvalidIFRebase = 505,
-    InvalidInsuranceUnstakeSize = 506,
-    InsuranceFundOperationPaused = 507,
-    IFWithdrawRequestInProgress = 508,
-    NoIFWithdrawRequestInProgress = 509,
-    IFWithdrawRequestTooSmall = 510,
-    InvalidIFSharesDetected = 511,
-    InsufficientIFShares = 512,
-    TryingToRemoveLiquidityTooFast = 513,
     // Scheduler Errors
-
-    // Synth Market Errors
-
-    RewardNotInitialized = 700,
-    InvalidRewardIndex= 701, 
-    RewardVaultAmountInsufficient= 702,
-
-    // Synth Market Factory Errors
 
     // Toke Errors
 

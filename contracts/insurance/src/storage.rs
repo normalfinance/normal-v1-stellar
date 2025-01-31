@@ -1,11 +1,13 @@
 use normal::{
     constants::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
-    error::{ErrorCode, NormalResult},
+    error::{ErrorCode},
     safe_decrement, safe_increment,
     types::OrderDirection,
     validate,
 };
 use soroban_sdk::{contracttype, log, Address, Env, Vec};
+
+use crate::errors::NormalResult;
 
 #[contracttype]
 #[derive(Clone, Debug)]

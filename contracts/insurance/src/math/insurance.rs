@@ -1,21 +1,16 @@
 use normal::{
-    error::{ErrorCode, NormalResult},
-    math::{
-        casting::Cast,
-        helpers::{get_proportion_u128, log10_iter},
-        safe_math::SafeMath,
-    },
+    math::{ casting::Cast, helpers::{ get_proportion_u128, log10_iter }, safe_math::SafeMath },
     validate,
 };
-use soroban_sdk::{log, Env};
+use soroban_sdk::{ log, Env };
 
-use crate::storage::{InsuranceFund, Stake};
+use crate::{ errors::{ Errors, NormalResult }, storage::{ InsuranceFund, Stake } };
 
 pub fn vault_amount_to_if_shares(
     env: &Env,
     amount: i128,
     total_if_shares: u128,
-    insurance_vault_amount: i128,
+    insurance_vault_amount: i128
 ) -> NormalResult<u128> {
     // relative to the entire pool + total amount minted
     let n_shares = if insurance_vault_amount > 0 {
@@ -25,14 +20,14 @@ pub fn vault_amount_to_if_shares(
             env,
             amount.cast::<u128>(env)?,
             total_if_shares,
-            insurance_vault_amount.cast::<u128>(env)?,
+            insurance_vault_amount.cast::<u128>(env)?
         )?
     } else {
         // must be case that total_if_shares == 0 for nice result for user
         validate!(
             env,
             total_if_shares == 0,
-            ErrorCode::InvalidIFSharesDetected,
+            Errors::InvalidIFSharesDetected,
             "assumes total_if_shares == 0"
         )?;
 
@@ -46,12 +41,12 @@ pub fn if_shares_to_vault_amount(
     env: &Env,
     n_shares: u128,
     total_if_shares: u128,
-    insurance_vault_amount: i128,
+    insurance_vault_amount: i128
 ) -> NormalResult<i128> {
     validate!(
         env,
         n_shares <= total_if_shares,
-        ErrorCode::InvalidIFSharesDetected,
+        Errors::InvalidIFSharesDetected,
         "n_shares({}) > total_if_shares({})",
         n_shares,
         total_if_shares
@@ -62,9 +57,8 @@ pub fn if_shares_to_vault_amount(
             env,
             insurance_vault_amount as u128,
             n_shares,
-            total_if_shares,
-        )?
-        .cast::<i128>(env)?
+            total_if_shares
+        )?.cast::<i128>(env)?
     } else {
         0
     };
@@ -75,7 +69,7 @@ pub fn if_shares_to_vault_amount(
 pub fn calculate_rebase_info(
     env: &Env,
     total_if_shares: u128,
-    insurance_vault_amount: i128,
+    insurance_vault_amount: i128
 ) -> NormalResult<(u32, u128)> {
     let rebase_divisor_full = total_if_shares
         .safe_div(10, env)?
@@ -91,7 +85,7 @@ pub fn calculate_if_shares_lost(
     env: &Env,
     stake: &Stake,
     insurance_fund: &InsuranceFund,
-    insurance_vault_amount: i128,
+    insurance_vault_amount: i128
 ) -> NormalResult<u128> {
     let n_shares = stake.last_withdraw_request_shares;
 
@@ -99,7 +93,7 @@ pub fn calculate_if_shares_lost(
         env,
         n_shares,
         insurance_fund.total_shares,
-        insurance_vault_amount,
+        insurance_vault_amount
     )?;
 
     let if_shares_lost = if amount > stake.last_withdraw_request_value {
@@ -107,13 +101,13 @@ pub fn calculate_if_shares_lost(
             env,
             stake.last_withdraw_request_value,
             insurance_fund.total_shares.safe_sub(n_shares, env)?,
-            insurance_vault_amount.safe_sub(stake.last_withdraw_request_value, env)?,
+            insurance_vault_amount.safe_sub(stake.last_withdraw_request_value, env)?
         )?;
 
         validate!(
             env,
             new_n_shares <= n_shares,
-            ErrorCode::InvalidIFSharesDetected,
+            Errors::InvalidIFSharesDetected,
             "Issue calculating delta if_shares after canceling request {} < {}",
             new_n_shares,
             n_shares
