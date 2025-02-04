@@ -1,12 +1,10 @@
 use soroban_sdk::contracterror;
 
-pub type NormalResult<T = ()> = core::result::Result<T, ErrorCode>;
-
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum ErrorCode {
-    AlreadyInitialized = 1,
+    AlreadyInitialized = 100,
     NotAuthorized = 2,
     AdminNotSet = 3,
     TransferAmountTooSmallAfterFees = 4,
@@ -24,24 +22,7 @@ pub enum ErrorCode {
     BnConversionError = 17,
     CastingFailure = 18,
     FailedUnwrap = 19,
-
-    // Governor Errors
-
-    // Index Token Errors
-
-    // Index Token Factory Errors
-    IndexFactoryOperationPaused = 21,
-    // Insurance Errors
-
-    // Scheduler Errors
-
-    // Synth Market Errors
-
-    // Synth Market Factory Errors
-
-    // Toke Errors
-
-    // Vesting Errors
-
-    // Vote Errors
+    InsufficientFunds = 20,
 }
+
+pub type NormalResult<T = ()> = core::result::Result<T, ErrorCode>;

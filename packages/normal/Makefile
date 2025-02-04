@@ -6,7 +6,7 @@ test:
 	cargo test
 
 build:
-	cargo build --target wasm32-unknown-unknown --release
+	cargo build --target wasm32-unknown-unknown --release --profile release-with-logs
 
 lint: fmt clippy
 

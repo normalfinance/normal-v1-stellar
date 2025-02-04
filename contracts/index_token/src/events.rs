@@ -11,35 +11,37 @@ impl IndexTokenEvents {
     ///
     /// - topics - `["initialize", admin: Address]`
     /// - data - `[name: String, symbol: String]`
-    pub fn initialize(e: &Env, admin: Address, name: String, symbol: String) {
-        let topics = (Symbol::new(&e, "initialize"), admin);
-        e.events().publish(topics, (name, symbol));
+    #[allow(dead_code)]
+    pub fn initialize(env: &Env, admin: Address, name: String, symbol: String) {
+        let topics = (Symbol::new(env, "initialize"), admin);
+        env.events().publish(topics, (name, symbol));
     }
 
     /// Emitted when index tokens are minted
     ///
     /// - topics - `["mint", minter: Address]`
-    /// - data - `[amount: i128, to: Address]`
-    pub fn mint(e: &Env, minter: Address, amount: i128, to: Address) {
-        let topics = (Symbol::new(&e, "mint"), minter);
-        e.events().publish(topics, (amount, to));
+    /// - data - `[amount: i128]`
+    pub fn mint(env: &Env, minter: Address, amount: i128) {
+        let topics = (Symbol::new(env, "mint"), minter);
+        env.events().publish(topics, amount);
     }
 
     /// Emitted when index tokens are redeemed
     ///
     /// - topics - `["redeem", redeemer: Address]`
     /// - data - `[amount: i128]`
-    pub fn redeem(e: &Env, redeemer: Address, amount: i128) {
-        let topics = (Symbol::new(&e, "redeem"), redeemer);
-        e.events().publish(topics, amount);
+    #[allow(dead_code)]
+    pub fn redeem(env: &Env, redeemer: Address, amount: i128) {
+        let topics = (Symbol::new(env, "redeem"), redeemer);
+        env.events().publish(topics, amount);
     }
 
     /// Emitted when an index is rebalanced
     ///
     /// - topics - `["rebalance", keeper: Address]`
     /// - data - `[assets: Vec<IndexAsset>`
-    pub fn rebalance(e: &Env, keeper: Address, assets: Vec<IndexAsset>) {
-        let topics = (Symbol::new(&e, "rebalance"), keeper);
-        e.events().publish(topics, assets);
+    pub fn rebalance(env: &Env, keeper: Address, assets: Vec<IndexAsset>) {
+        let topics = (Symbol::new(env, "rebalance"), keeper);
+        env.events().publish(topics, assets);
     }
 }

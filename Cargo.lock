@@ -815,6 +815,26 @@ version = "0.1.0"
 dependencies = [
  "normal",
  "num-integer",
+ "pretty_assertions",
+ "soroban-sdk",
+]
+
+[[package]]
+name = "normal-market"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "normal",
+ "num-integer",
+ "soroban-decimal",
+ "soroban-sdk",
+]
+
+[[package]]
+name = "normal-market-factory"
+version = "0.1.0"
+dependencies = [
+ "normal",
  "soroban-sdk",
 ]
 
@@ -825,17 +845,6 @@ dependencies = [
  "itoa",
  "normal",
  "pretty_assertions",
- "soroban-decimal",
- "soroban-sdk",
-]
-
-[[package]]
-name = "normal-synth-pool"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "normal",
- "num-integer",
  "soroban-decimal",
  "soroban-sdk",
 ]
@@ -1491,23 +1500,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "synth-market-factory"
-version = "0.1.0"
-dependencies = [
- "normal",
- "soroban-sdk",
-]
-
-[[package]]
-name = "synth_market"
-version = "0.1.0"
-dependencies = [
- "normal",
- "num-integer",
- "soroban-sdk",
 ]
 
 [[package]]

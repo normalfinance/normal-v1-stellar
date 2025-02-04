@@ -5,14 +5,19 @@ extern crate std;
 
 pub mod constants;
 pub mod contract;
+pub mod controller;
 pub mod dependencies;
 pub mod errors;
 pub mod events;
 pub mod governor;
 pub mod proposal_config;
+pub mod rewards;
 pub mod settings;
 pub mod storage;
 pub mod types;
 pub mod vote_count;
 
 pub use contract::*;
+
+#[cfg(test)]
+mod tests;

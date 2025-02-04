@@ -1,4 +1,4 @@
-SUBDIRS := contracts/governor contracts/index_token_factory contracts/index_token contracts/insurance contracts/scheduler contracts/synth_pool contracts/synth_market contracts/synth_market_factory contracts/token contracts/vesting contracts/votes packages/normal packages/decimal packages/curve
+SUBDIRS := contracts/token  contracts/votes contracts/vesting contracts/governor contracts/scheduler contracts/insurance contracts/index_token contracts/index_token_factory contracts/market contracts/market_factory packages/decimal packages/curve packages/normal 
 BUILD_FLAGS ?=
 
 default: build

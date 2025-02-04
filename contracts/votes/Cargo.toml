@@ -18,5 +18,5 @@ soroban-sdk = { workspace = true }
 sep-41-token = { workspace = true }
 soroban-fixed-point-math = { workspace = true }
 
-[dev_dependencies]
+[dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

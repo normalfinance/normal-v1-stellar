@@ -3,9 +3,10 @@ use normal::{
     oracle::OracleSource,
     types::IndexAsset,
 };
-use soroban_sdk::{contracttype, Address, Env, Map, Vec};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, Symbol, Vec};
 
-// ################################################################
+pub const XLM: Symbol = symbol_short!("XLM");
+pub const USD: Symbol = symbol_short!("USD");
 
 #[derive(Clone)]
 #[contracttype]
@@ -28,13 +29,12 @@ pub enum DataKey {
     Allowance(AllowanceDataKey),
     Balance(Address),
     State(Address),
-    LastTransfer(Address),
     Admin,
     Initialized,
 }
 
 // ################################################################
-//                             INDEX
+//                             Index
 // ################################################################
 
 #[contracttype]
@@ -52,9 +52,9 @@ pub struct Index {
     /// Token used to mint/redeem
     pub quote_token: Address,
     /// Oracle for fetching the quote asset price
-    pub quote_oracle: Address,
+    pub oracle: Address,
     /// Oracle type
-    pub quote_oracle_source: OracleSource,
+    pub oracle_source: OracleSource,
     /// Private indexes are mutable and can only be minted by the admin and whitelist
     /// Pubilic indexes are immutabel and can be minted by anyone
     pub is_public: bool,
@@ -67,14 +67,12 @@ pub struct Index {
     /// List of accounts blocked from minting the index
     pub blacklist: Vec<Address>,
     /// The Net Asset Value (NAV) at the inception of the index - what the creator deposits (e.g. $1,000)
-    pub base_nav: i64,
+    pub base_nav: i128,
     /// The price assigned to the index at inception (e.g. $100)
-    pub initial_price: i32,
-    ///
+    pub initial_price: i128,
     pub component_balances: Map<Address, i128>, // Token address > balance
     /// The ts when the component balances were last updated
     pub component_balance_update_ts: u64,
-    ///
     pub component_assets: Vec<IndexAsset>,
     /// Minimum amount of time that must pass before the index can be rebalanced again
     pub rebalance_threshold: u64,
@@ -82,7 +80,6 @@ pub struct Index {
     pub rebalance_ts: u64,
     /// The ts when the index was last updated (any property)
     pub last_updated_ts: u64,
-
     /// Metrics
     pub total_fees: i128,
     pub total_mints: i128,
@@ -90,7 +87,7 @@ pub struct Index {
 }
 
 impl Index {
-    pub fn can_invest(&self, env: &Env, account: Address) -> bool {
+    pub fn can_invest(&self, account: Address) -> bool {
         self.whitelist.contains(&account)
     }
 
@@ -103,15 +100,24 @@ impl Index {
     }
 }
 
+pub fn save_index(env: &Env, index: Index) {
+    env.storage().persistent().set(&DataKey::Index, &index);
+    env.storage().persistent().extend_ttl(
+        &DataKey::Index,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
+}
+
 pub fn get_index(env: &Env) -> Index {
-    let key = DataKey::Index;
     let index = env
         .storage()
         .persistent()
-        .get(&key)
-        .expect("Index: Index not set");
+        .get(&DataKey::Index)
+        .expect("Config not set");
+
     env.storage().persistent().extend_ttl(
-        &key,
+        &DataKey::Index,
         PERSISTENT_LIFETIME_THRESHOLD,
         PERSISTENT_BUMP_AMOUNT,
     );
@@ -119,43 +125,23 @@ pub fn get_index(env: &Env) -> Index {
     index
 }
 
-pub fn save_index(env: &Env, index: Index) {
-    let key = DataKey::Index;
-    env.storage().persistent().set(&key, &index);
-    env.storage().persistent().extend_ttl(
-        &key,
-        PERSISTENT_LIFETIME_THRESHOLD,
-        PERSISTENT_BUMP_AMOUNT,
-    );
-}
-
 // ################################################################
-
-pub fn read_factory(env: &Env) -> Address {
-    let key = DataKey::Factory;
-    env.storage().instance().get(&key).unwrap()
-}
-
-pub fn write_factory(env: &Env, id: &Address) {
-    let key = DataKey::Factory;
-    env.storage().instance().set(&key, id);
-}
-
+//                         Last Transfer
 // ################################################################
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LastTransfer {
-    pub ts: u64,
     pub balance: i128,
+    pub ts: u64,
 }
 
 pub fn get_last_transfer(env: &Env, key: &Address) -> LastTransfer {
     let last_transfer = match env.storage().persistent().get::<_, LastTransfer>(key) {
         Some(transfer) => transfer,
         None => LastTransfer {
-            ts: 0u64, // current_time
             balance: 0i128,
+            ts: 0u64, // current_time
         },
     };
     env.storage().persistent().has(&key).then(|| {
@@ -199,29 +185,98 @@ pub struct TransferWithFees {
 
 // ################################################################
 
-pub fn is_initialized(e: &Env) -> bool {
-    e.storage()
-        .persistent()
-        .get(&DataKey::Initialized)
-        .unwrap_or(false)
-}
+pub mod utils {
+    use normal::error::ErrorCode;
+    use soroban_sdk::{log, panic_with_error};
 
-pub fn set_initialized(e: &Env) {
-    e.storage().persistent().set(&DataKey::Initialized, &true);
+    use crate::token_contract;
 
-    e.storage().persistent().extend_ttl(
-        &DataKey::Initialized,
-        PERSISTENT_LIFETIME_THRESHOLD,
-        PERSISTENT_BUMP_AMOUNT,
-    );
-}
+    use super::*;
 
-pub fn read_administrator(env: &Env) -> Address {
-    let key = DataKey::Admin;
-    env.storage().instance().get(&key).unwrap()
-}
+    pub fn get_token_balance(env: &Env, token: &Address, account: &Address) -> i128 {
+        token_contract::Client::new(env, token).balance(account)
+    }
 
-pub fn write_administrator(env: &Env, id: &Address) {
-    let key = DataKey::Admin;
-    env.storage().instance().set(&key, id);
+    pub fn transfer_token(env: &Env, token: &Address, from: &Address, to: &Address, amount: i128) {
+        let token_client = token_contract::Client::new(env, token);
+        token_client.transfer(from, to, &amount);
+    }
+
+    pub fn check_nonnegative_amount(amount: i128) {
+        if amount < 0 {
+            panic!("negative amount is not allowed: {}", amount)
+        }
+    }
+
+    pub fn is_admin(env: &Env, sender: Address) {
+        let admin = get_admin(env);
+        if admin != sender {
+            log!(&env, "Index Token: You are not authorized!");
+            panic_with_error!(&env, ErrorCode::NotAuthorized);
+        }
+    }
+
+    pub fn is_governor(_env: &Env, _sender: Address) {
+        // let factory_client = index_factory_contract::Client::new(&env, &read_factory(&env));
+        // let config = factory_client.query_config();
+
+        // if config.governor != sender {
+        //     log!(&env, "Index Token: You are not authorized!");
+        //     panic_with_error!(&env, ErrorCode::NotAuthorized);
+        // }
+    }
+
+    pub fn is_initialized(e: &Env) -> bool {
+        e.storage()
+            .instance()
+            .get(&DataKey::Initialized)
+            .unwrap_or(false)
+    }
+
+    pub fn set_initialized(e: &Env) {
+        e.storage().instance().set(&DataKey::Initialized, &true);
+        e.storage()
+            .instance()
+            .extend_ttl(PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    }
+
+    pub fn save_admin(e: &Env, address: &Address) {
+        e.storage().persistent().set(&DataKey::Admin, address);
+        e.storage().persistent().extend_ttl(
+            &DataKey::Admin,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
+    }
+
+    pub fn get_admin(e: &Env) -> Address {
+        let admin = e.storage().persistent().get(&DataKey::Admin).unwrap();
+        e.storage().persistent().extend_ttl(
+            &DataKey::Admin,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
+
+        admin
+    }
+
+    pub fn save_factory(e: &Env, factory: &Address) {
+        e.storage().persistent().set(&DataKey::Factory, factory);
+        e.storage().persistent().extend_ttl(
+            &DataKey::Factory,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
+    }
+
+    pub fn get_factory(e: &Env) -> Address {
+        let factory = e.storage().persistent().get(&DataKey::Factory).unwrap();
+        e.storage().persistent().extend_ttl(
+            &DataKey::Factory,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
+
+        factory
+    }
 }

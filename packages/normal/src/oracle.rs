@@ -4,16 +4,67 @@ use crate::math::safe_math::SafeMath;
 use crate::{
     band_std_reference,
     constants::{PERCENTAGE_PRECISION_U64, PRICE_PRECISION_I64},
-    // reflector_price_oracle
 };
 use soroban_sdk::{contracttype, log, Address, Env, Symbol, Vec};
 
-/// Oracles types
+#[contracttype]
+#[derive(Default, Clone, Copy, Eq, PartialEq, Debug)]
+pub struct HistoricalOracleData {
+    /// precision: PRICE_PRECISION
+    pub last_oracle_price: i64,
+    /// precision: PRICE_PRECISION
+    pub last_oracle_conf: u64,
+    /// number of slots since last update
+    pub last_oracle_delay: i64,
+    /// precision: PRICE_PRECISION
+    pub last_oracle_price_twap: i64,
+    /// precision: PRICE_PRECISION
+    pub last_oracle_price_twap_5min: i64,
+    /// unix_timestamp of last snapshot
+    pub last_oracle_price_twap_ts: i64,
+}
+
+impl HistoricalOracleData {
+    pub fn default_quote_oracle() -> Self {
+        HistoricalOracleData {
+            last_oracle_price: PRICE_PRECISION_I64,
+            last_oracle_conf: 0,
+            last_oracle_delay: 0,
+            last_oracle_price_twap: PRICE_PRECISION_I64,
+            last_oracle_price_twap_5min: PRICE_PRECISION_I64,
+            ..HistoricalOracleData::default()
+        }
+    }
+
+    pub fn default_price(price: i64) -> Self {
+        HistoricalOracleData {
+            last_oracle_price: price,
+            last_oracle_conf: 0,
+            last_oracle_delay: 10,
+            last_oracle_price_twap: price,
+            last_oracle_price_twap_5min: price,
+            ..HistoricalOracleData::default()
+        }
+    }
+
+    pub fn default_with_current_oracle(oracle_price_data: OraclePriceData) -> Self {
+        HistoricalOracleData {
+            last_oracle_price: oracle_price_data.price,
+            last_oracle_conf: oracle_price_data.confidence,
+            last_oracle_delay: oracle_price_data.delay,
+            last_oracle_price_twap: oracle_price_data.price,
+            last_oracle_price_twap_5min: oracle_price_data.price,
+            // last_oracle_price_twap_ts: now,
+            ..HistoricalOracleData::default()
+        }
+    }
+}
+
 #[contracttype]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum OracleSource {
-    Band,      // (https://github.com/bandprotocol/band-std-reference-contracts-soroban/tree/main)
-    Reflector, // (https://github.com/reflector-network/reflector-contract)
+    Band, // (https://github.com/bandprotocol/band-std-reference-contracts-soroban/tree/main)
+    // Reflector, // (https://github.com/reflector-network/reflector-contract)
     QuoteAsset,
 }
 
@@ -27,18 +78,15 @@ pub struct OraclePriceData {
 }
 
 pub fn get_oracle_price(
-    env: Env,
-    oracle_source: OracleSource,
-    price_oracle_address: Address,
-    base_asset: Symbol, // ("BTC", "USD")
-    quote_asset: Symbol,
+    env: &Env,
+    oracle_source: &OracleSource,
+    price_oracle_address: &Address,
+    symbol_pair: (Symbol, Symbol),
     now: u64,
 ) -> NormalResult<OraclePriceData> {
     match oracle_source {
-        OracleSource::Band => {
-            get_band_price(&env, price_oracle_address, base_asset, quote_asset, now, 1)
-        }
-        OracleSource::Reflector => get_reflector_price(env, price_oracle_address, base_asset, now),
+        OracleSource::Band => get_band_price(env, price_oracle_address, symbol_pair, now),
+        // OracleSource::Reflector => get_reflector_price(),
         OracleSource::QuoteAsset => Ok(OraclePriceData {
             price: PRICE_PRECISION_I64,
             confidence: 1,
@@ -55,10 +103,10 @@ pub fn is_oracle_too_divergent_with_twap_5min(
     max_divergence: i64,
 ) -> NormalResult<bool> {
     let percent_diff = oracle_price
-        .safe_sub(oracle_twap_5min, env)?
+        .safe_sub(oracle_twap_5min, env)
         .abs()
-        .safe_mul(PERCENTAGE_PRECISION_U64.cast::<i64>(env)?, env)?
-        .safe_div(oracle_twap_5min.abs(), env)?;
+        .safe_mul(PERCENTAGE_PRECISION_U64.cast::<i64>(env), env)
+        .safe_div(oracle_twap_5min.abs(), env);
 
     let too_divergent = percent_diff >= max_divergence;
     if too_divergent {
@@ -76,23 +124,21 @@ pub fn is_oracle_too_divergent_with_twap_5min(
 
 fn get_band_price(
     env: &Env,
-    oracle_contract_address: Address,
-    base_asset: Symbol,
-    quote_asset: Symbol,
-    now: u64,
-    multiple: u128,
+    oracle_contract_address: &Address,
+    symbol_pair: (Symbol, Symbol),
+    now: u64, // multiple: u128,
 ) -> NormalResult<OraclePriceData> {
-    let client = band_std_reference::Client::new(&env, &oracle_contract_address);
+    let client = band_std_reference::Client::new(env, oracle_contract_address);
 
     let reference_datum = client
-        .get_reference_data(&Vec::from_array(&env, [(base_asset, quote_asset)]))
+        .get_reference_data(&Vec::from_array(env, [symbol_pair]))
         .get_unchecked(0);
 
     //  or(Err(crate::error::ErrorCode::UnableToLoadOracle))?;
 
     let oracle_price = reference_datum.rate;
     // let oracle_conf: u64;
-    let mut has_sufficient_data_points: bool = true;
+    let has_sufficient_data_points: bool = true;
     // let mut oracle_precision: u128;
     let published_slot = reference_datum.last_updated_base;
 
@@ -107,8 +153,8 @@ fn get_band_price(
     // }
     // oracle_precision = oracle_precision.safe_div(multiple)?;
 
-    let mut oracle_scale_mult = 1;
-    let mut oracle_scale_div = 1;
+    let oracle_scale_mult = 1;
+    let oracle_scale_div = 1;
 
     // if oracle_precision > PRICE_PRECISION {
     //     oracle_scale_div = oracle_precision.safe_div(PRICE_PRECISION)?;
@@ -117,10 +163,10 @@ fn get_band_price(
     // }
 
     let oracle_price_scaled = oracle_price
-        .cast::<i128>(env)?
-        .safe_mul(oracle_scale_mult.cast(env)?, env)?
-        .safe_div(oracle_scale_div.cast(env)?, env)?
-        .cast::<i64>(env)?;
+        .cast::<i128>(env)
+        .safe_mul(oracle_scale_mult.cast(env), env)
+        .safe_div(oracle_scale_div.cast(env), env)
+        .cast::<i64>(env);
 
     // let oracle_conf_scaled = oracle_conf
     //     .cast::<u128>()?
@@ -128,9 +174,7 @@ fn get_band_price(
     //     .safe_div(oracle_scale_div)?
     //     .cast::<u64>()?;
 
-    let oracle_delay: i64 = now
-        .cast::<i64>(env)?
-        .safe_sub(published_slot.cast(env)?, env)?;
+    let oracle_delay: i64 = now.cast::<i64>(env).safe_sub(published_slot.cast(env), env);
 
     Ok(OraclePriceData {
         price: oracle_price_scaled,
@@ -140,35 +184,35 @@ fn get_band_price(
     })
 }
 
-fn get_reflector_price(
-    env: Env,
-    price_oracle: Address,
-    base_asset: Symbol,
-    now: u64,
-) -> NormalResult<OraclePriceData> {
-    // let client = reflector_price_oracle::Client::new(&env, &reflector_contract_id);
+// fn get_reflector_price(
+//     // env: Env,
+//     // price_oracle: Address,
+//     // base_asset: Symbol,
+//     // now: u64,
+// ) -> NormalResult<OraclePriceData> {
+//     let client = reflector_price_oracle::Client::new(&env, &reflector_contract_id);
 
-    // // let decimals = client.decimals();
+//     // // let decimals = client.decimals();
 
-    // let price = client.lastprice(&base_asset).unwrap(); // Asset::Other(Symbol::new(&env, "BTC"))
+//     let price = client.lastprice(&base_asset).unwrap(); // Asset::Other(Symbol::new(&env, "BTC"))
 
-    // let mut has_sufficient_data_points: bool = true;
+//     // let mut has_sufficient_data_points: bool = true;
 
-    // let oracle_delay: i64 = (now as i64) - (published_slot as i64);
+//     // let oracle_delay: i64 = (now as i64) - (published_slot as i64);
 
-    // OraclePriceData {
-    //     price,
-    //     confidence: 1, // oracle_conf_scaled,
-    //     delay: oracle_delay,
-    //     has_sufficient_data_points,
-    // }
-    Ok(OraclePriceData {
-        price: PRICE_PRECISION_I64,
-        confidence: 1,
-        delay: 0,
-        has_sufficient_data_points: true,
-    })
-}
+//     // OraclePriceData {
+//     //     price,
+//     //     confidence: 1, // oracle_conf_scaled,
+//     //     delay: oracle_delay,
+//     //     has_sufficient_data_points,
+//     // }
+//     Ok(OraclePriceData {
+//         price: PRICE_PRECISION_I64,
+//         confidence: 1,
+//         delay: 0,
+//         has_sufficient_data_points: true,
+//     })
+// }
 
 #[contracttype]
 #[derive(Copy, Clone, Debug)]
@@ -178,7 +222,7 @@ pub struct OracleGuardRails {
 }
 
 impl OracleGuardRails {
-    fn default() -> Self {
+    pub fn default() -> Self {
         OracleGuardRails {
             price_divergence: PriceDivergenceGuardRails::default(),
             validity: ValidityGuardRails {
@@ -199,7 +243,7 @@ pub struct PriceDivergenceGuardRails {
 }
 
 impl PriceDivergenceGuardRails {
-    fn default() -> Self {
+    pub fn default() -> Self {
         PriceDivergenceGuardRails {
             mark_oracle_percent_divergence: PERCENTAGE_PRECISION_U64 / 10,
             oracle_twap_5min_perc_div: PERCENTAGE_PRECISION_U64 / 2,

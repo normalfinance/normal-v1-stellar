@@ -1,13 +1,16 @@
-use soroban_sdk::{log, Env};
+use soroban_sdk::{contracterror, log, panic_with_error, Env};
 
-use crate::error::{ErrorCode, NormalResult};
-// use solana_program::msg;
-// use std::panic::Location;
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum ErrorCode {
+    FailedUnwrap = 1,
+}
 
 pub trait SafeUnwrap {
     type Item;
 
-    fn safe_unwrap(self, env: &Env) -> NormalResult<Self::Item>;
+    fn safe_unwrap(self, env: &Env) -> Self::Item; // instead of Result<Self, ()> since it either returns Self or panics (no return)
 }
 
 impl<T> SafeUnwrap for Option<T> {
@@ -15,12 +18,13 @@ impl<T> SafeUnwrap for Option<T> {
 
     #[track_caller]
     #[inline(always)]
-    fn safe_unwrap(self, env: &Env) -> NormalResult<T> {
+    fn safe_unwrap(self, env: &Env) -> T {
         match self {
-            Some(v) => Ok(v),
+            Some(v) => v,
             None => {
                 log!(env, "Unwrap error thrown at {}:{}", file!(), line!());
-                Err(ErrorCode::FailedUnwrap)
+                panic_with_error!(env, ErrorCode::FailedUnwrap);
+                // Err(ErrorCode::FailedUnwrap)
             }
         }
     }
@@ -31,12 +35,13 @@ impl<T, U> SafeUnwrap for Result<T, U> {
 
     #[track_caller]
     #[inline(always)]
-    fn safe_unwrap(self, env: &Env) -> NormalResult<T> {
+    fn safe_unwrap(self, env: &Env) -> T {
         match self {
-            Ok(v) => Ok(v),
+            Ok(v) => v,
             Err(_) => {
                 log!(env, "Unwrap error thrown at {}:{}", file!(), line!());
-                Err(ErrorCode::FailedUnwrap)
+                panic_with_error!(env, ErrorCode::FailedUnwrap);
+                // Err(ErrorCode::FailedUnwrap)
             }
         }
     }

@@ -14,14 +14,14 @@ impl InsuranceFundEvents {
     ///
     /// - topics - `["initialization", proposal_id: u32, proposer: Address]`
     /// - data - `[title: String, desc: String, action: ProposalAction, vote_start: u32, vote_end: u32]`
-    pub fn initialization(
+    pub fn initialize_if(
         env: &Env,
         ts: u64,
         admin: Address,
         governor: Address,
         share_token_address: Address,
     ) {
-        let topics = (Symbol::new(&env, "initialization"), admin, governor);
+        let topics = (Symbol::new(&env, "initialize_if"), admin, governor);
         env.events().publish(topics, (ts, share_token_address));
     }
 
@@ -29,15 +29,15 @@ impl InsuranceFundEvents {
 
     /// Emitted when a user updates their stake in the Insurance Fund
     ///
-    /// - topics - `["insurance_fund_stake_record", user: Address]`
+    /// - topics - `["if_stake_record", user: Address]`
     /// - data - `[ts: u64, user: Address, action: StakeAction, amount: i128, insurance_vault_amount_before: u64, if_shares_before: u128, user_if_shares_before: u128, total_if_shares_before: u128, if_shares_after: u128, total_if_shares_after: u128, user_if_shares_after: u128]`
-    pub fn insurance_fund_stake_record(
+    pub fn if_stake_record(
         env: &Env,
         ts: u64,
         user: Address,
         action: StakeAction,
         amount: i128,
-        insurance_vault_amount_before: u64,
+        insurance_vault_amount_before: i128,
         if_shares_before: u128,
         user_if_shares_before: u128,
         total_if_shares_before: u128,
@@ -45,7 +45,7 @@ impl InsuranceFundEvents {
         total_if_shares_after: u128,
         user_if_shares_after: u128,
     ) {
-        let topics = (Symbol::new(&env, "insurance_fund_stake_record"), user);
+        let topics = (Symbol::new(&env, "if_stake_record"), user, action);
         env.events().publish(
             topics,
             (

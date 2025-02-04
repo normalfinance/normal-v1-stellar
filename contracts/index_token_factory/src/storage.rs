@@ -1,10 +1,13 @@
-use normal::constants::{
-    INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT,
-    PERSISTENT_LIFETIME_THRESHOLD,
+use normal::{
+    constants::{
+        INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT,
+        PERSISTENT_LIFETIME_THRESHOLD,
+    },
+    error::ErrorCode,
 };
 use soroban_sdk::{
     contracttype, log, panic_with_error, symbol_short, Address, BytesN, ConversionError, Env,
-    Symbol, TryFromVal, Val, Vec,
+    String, Symbol, TryFromVal, Val, Vec,
 };
 
 pub const ADMIN: Symbol = symbol_short!("ADMIN");
@@ -17,12 +20,12 @@ pub enum DataKey {
     Initialized = 3,
 }
 
-// #[derive(Clone)]
-// #[contracttype]
-// pub struct PairTupleKey {
-//     pub(crate) token_a: Address,
-//     pub(crate) token_b: Address,
-// }
+#[derive(Clone)]
+#[contracttype]
+pub struct IndexTupleKey {
+    pub(crate) symbol: String,
+    pub(crate) name: String,
+}
 
 impl TryFromVal<Env, DataKey> for Val {
     type Error = ConversionError;
@@ -31,6 +34,10 @@ impl TryFromVal<Env, DataKey> for Val {
         Ok((*v as u32).into())
     }
 }
+
+// ################################################################
+//                             Config
+// ################################################################
 
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Debug, Eq)]
@@ -56,6 +63,7 @@ pub struct Config {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndexResponse {
     // ...
+    pub x: bool,
 }
 
 #[contracttype]
@@ -138,28 +146,28 @@ pub fn save_index_vec(env: &Env, index_info: Vec<Address>) {
     );
 }
 
-// pub fn save_lp_vec_with_tuple_as_key(
-//     env: &Env,
-//     tuple_pool: (&Address, &Address),
-//     lp_address: &Address,
-// ) {
-//     env.storage().persistent().set(
-//         &(PairTupleKey {
-//             token_a: tuple_pool.0.clone(),
-//             token_b: tuple_pool.1.clone(),
-//         }),
-//         &lp_address,
-//     );
+pub fn save_index_vec_with_tuple_as_key(
+    env: &Env,
+    tuple_index: (&String, &String),
+    index_address: &Address,
+) {
+    env.storage().persistent().set(
+        &(IndexTupleKey {
+            symbol: tuple_index.0.clone(),
+            name: tuple_index.1.clone(),
+        }),
+        &index_address,
+    );
 
-//     env.storage().persistent().extend_ttl(
-//         &(PairTupleKey {
-//             token_a: tuple_pool.0.clone(),
-//             token_b: tuple_pool.1.clone(),
-//         }),
-//         PERSISTENT_LIFETIME_THRESHOLD,
-//         PERSISTENT_BUMP_AMOUNT,
-//     );
-// }
+    env.storage().persistent().extend_ttl(
+        &(IndexTupleKey {
+            symbol: tuple_index.0.clone(),
+            name: tuple_index.1.clone(),
+        }),
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
+}
 
 pub fn is_initialized(e: &Env) -> bool {
     e.storage()

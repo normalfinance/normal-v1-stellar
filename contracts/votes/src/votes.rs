@@ -59,9 +59,7 @@ pub trait Bonding {
     /// ### Arguments
     /// * `token` - The address of the underlying token contract
     /// * `governor`- The address of the Governor contract the votes apply to
-    /// * `name` - The name of the voting token
-    /// * `symbol` - The symbol of the voting token
-    fn initialize(e: Env, token: Address, governor: Address, name: String, symbol: String);
+    fn initialize(e: Env, token: Address, governor: Address);
 
     /// Deposit underlying tokens into the votes contract and mint the corresponding
     /// amount of voting tokens

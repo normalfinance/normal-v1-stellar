@@ -3,7 +3,7 @@ use soroban_sdk::{contractclient, Address, Env, String};
 use crate::types::{GovernorSettings, Proposal, ProposalAction, VoteCount};
 
 #[contractclient(name = "GovernorClient")]
-pub trait Governor {
+pub trait GovernorTrait {
     /// Setup the governor contract
     ///
     /// ### Arguments

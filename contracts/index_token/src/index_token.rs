@@ -1,26 +1,20 @@
-use normal::types::IndexTokenInitInfo;
-use soroban_sdk::{contractclient, Address, Env, String, Vec};
-
-use crate::{
-    contract::Index,
-    storage::{IndexAsset, IndexOperation, TransferWithFees},
+use normal::{
+    error::{ErrorCode, NormalResult},
+    types::{IndexAsset, IndexParams},
 };
+use soroban_sdk::{contractclient, Address, Env, Vec};
+
+use crate::{msg::IndexResponse, storage::IndexOperation};
 
 #[contractclient(name = "IndexTokenClient")]
 pub trait IndexTokenTrait {
-    // ################################################################
-    //                             ADMIN
-    // ################################################################
-
-    #[allow(clippy::too_many_arguments)]
     fn initialize(
         env: Env,
         admin: Address,
         factory: Address,
-        quote_token: Address,
-        rebalance_threshold: i64,
-        params: IndexTokenInitInfo,
-    );
+        initial_deposit: i128,
+        params: IndexParams,
+    ) -> Result<(), ErrorCode>;
 
     fn update_manager_fee(env: Env, sender: Address, manager_fee_bps: i64);
 
@@ -47,21 +41,19 @@ pub trait IndexTokenTrait {
     //                             USER
     // ################################################################
 
-    fn mint(env: Env, sender: Address, index_token_amount: i128, to: Option<Address>);
+    fn mint(env: Env, sender: Address, index_token_amount: i128) -> NormalResult;
 
-    fn redeem(env: Env, sender: Address, index_token_amount: i128, to: Option<Address>);
+    fn redeem(env: Env, sender: Address, index_token_amount: i128) -> NormalResult;
 
     // ################################################################
     //                             QUERIES
     // ################################################################
 
-    fn query_index(env: Env) -> Index;
+    fn query_index(env: Env) -> IndexResponse;
 
-    fn query_price(env: Env) -> i128;
+    // fn query_price(env: Env) -> i128;
 
-    fn query_nav(env: Env) -> i128;
+    // fn query_nav(env: Env) -> i128;
 
-    fn query_fee_exemption(env: Env, user: Address) -> bool;
-
-    fn query_fees_for_transfer(env: &Env, from: Address, amount: i128) -> TransferWithFees;
+    // fn query_index_info_for_factory(env: Env) -> IndexInfo;
 }

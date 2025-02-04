@@ -13,7 +13,6 @@ authors = ["jmoneyblew <joshua@normalfinance.io>"]
 curve = { path = "./packages/curve" }
 soroban-decimal = { path = "./packages/decimal" }
 normal = { path = "./packages/normal" }
-oracle = { path = "./packages/oracle" }
 num-integer = { version = "0.1.45", default-features = false, features = [
     "i128",
 ] }

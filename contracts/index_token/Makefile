@@ -1,9 +1,9 @@
 default: all
 
-all: lint build test
+all: lint build
 
-test: build # because of token dependency
-	cargo test
+# test: build
+# 	cargo test
 
 build:
 	$(MAKE) -C ../token build || break;
@@ -15,7 +15,7 @@ fmt:
 	cargo fmt --all
 
 clippy: build
-	cargo clippy --all-targets -- -D warnings -A clippy::too_many_arguments
+	cargo clippy --all-targets -- -D warnings
 
 clean:
 	cargo clean

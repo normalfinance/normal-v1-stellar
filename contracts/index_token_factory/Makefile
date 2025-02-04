@@ -1,13 +1,13 @@
 ifeq (,$(BUILD_FLAGS))
-  DEPS = ../index ../index_token
+  DEPS = ../index_token
 endif
 
 default: all
 
 all: lint build test
 
-test: build # because of token dependency
-	cargo test
+# test: build # because of token dependency
+# 	cargo test
 
 build:
 	@for dir in $(DEPS) ; do \

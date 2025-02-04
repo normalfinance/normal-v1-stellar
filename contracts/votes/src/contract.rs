@@ -1,11 +1,11 @@
-use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, String};
+use soroban_sdk::{ contract, contractimpl, panic_with_error, Address, Env, String };
 
 use crate::{
     balance,
-    checkpoints::{add_vote_ledger, upper_lookup, Checkpoint},
+    checkpoints::{ add_vote_ledger, upper_lookup, Checkpoint },
     error::TokenVotesError,
     events::TokenVotesEvents,
-    storage::{self, set_delegate, TokenMetadata},
+    storage::{ self, set_delegate, TokenMetadata },
     validation::require_nonnegative_amount,
     votes::Votes,
     voting_units::move_voting_units,
@@ -13,16 +13,13 @@ use crate::{
 
 // SEP-0041 Feature imports
 
-use crate::allowance::{create_allowance, spend_allowance};
+use crate::allowance::{ create_allowance, spend_allowance };
 use sep_41_token::Token;
 use sep_41_token::TokenEvents;
 
 // Bonding Feature imports
 
-use crate::{
-    emissions::{claim_emissions, set_emissions},
-    votes::Bonding,
-};
+use crate::{ emissions::{ claim_emissions, set_emissions }, votes::Bonding };
 use soroban_sdk::token::TokenClient;
 
 #[contract]
@@ -147,9 +144,7 @@ impl Votes for TokenVotes {
 
     fn get_votes(e: Env, account: Address) -> i128 {
         storage::extend_instance(&e);
-        storage::get_voting_units(&e, &account)
-            .to_checkpoint_data()
-            .1
+        storage::get_voting_units(&e, &account).to_checkpoint_data().1
     }
 
     fn get_past_votes(e: Env, user: Address, sequence: u32) -> i128 {
@@ -181,13 +176,7 @@ impl Votes for TokenVotes {
         let balance = storage::get_balance(&e, &account);
         let vote_ledgers = storage::get_vote_ledgers(&e);
         if balance > 0 {
-            move_voting_units(
-                &e,
-                &vote_ledgers,
-                Some(&cur_delegate),
-                Some(&delegatee),
-                balance,
-            );
+            move_voting_units(&e, &vote_ledgers, Some(&cur_delegate), Some(&delegatee), balance);
         }
         set_delegate(&e, &account, &delegatee);
 
@@ -197,7 +186,7 @@ impl Votes for TokenVotes {
 
 #[contractimpl]
 impl Bonding for TokenVotes {
-    fn initialize(e: Env, token: Address, governor: Address, name: String, symbol: String) {
+    fn initialize(e: Env, token: Address, governor: Address) {
         if storage::get_is_init(&e) {
             panic_with_error!(e, TokenVotesError::AlreadyInitializedError);
         }
@@ -207,8 +196,8 @@ impl Bonding for TokenVotes {
         let decimal = underlying_token.decimals();
         let token_metadata = TokenMetadata {
             decimal,
-            name,
-            symbol,
+            name: String::from_str(&e, "Vote-Escrowed Normal"),
+            symbol: String::from_str(&e, "veNORM"),
         };
         storage::set_metadata(&e, &token_metadata);
         storage::set_token(&e, &token);

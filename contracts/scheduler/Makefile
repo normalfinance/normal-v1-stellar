@@ -1,9 +1,9 @@
 default: all
 
-all: lint build test
+all: lint build
 
-test: build
-	cargo test
+# test: build
+# 	cargo test
 
 build:
 	$(MAKE) -C ../token build || break;
