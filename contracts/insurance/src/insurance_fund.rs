@@ -1,6 +1,6 @@
-use soroban_sdk::{ Address, BytesN, Env, String };
+use soroban_sdk::{Address, BytesN, Env, String};
 
-use crate::storage::InsuranceFund;
+use crate::storage::{InsuranceFund, Stake};
 
 pub trait InsuranceFundTrait {
     // ################################################################
@@ -11,15 +11,16 @@ pub trait InsuranceFundTrait {
     fn initialize(
         env: Env,
         admin: Address,
-        governor: Address,
-        governance_token: Address,
-        stake_asset: Address,
+        governor_contract: Address,
+        deposit_token: Address,
         token_wasm_hash: BytesN<32>,
-        share_token_decimals: u32,
-        share_token_name: String,
-        share_token_symbol: String,
-        max_buffer_balance: i128
+        stake_token_decimals: u32,
+        stake_token_name: String,
+        stake_token_symbol: String,
+        max_buffer_balance: i128,
     );
+
+    fn deposit_revenue(env: Env);
 
     // ################################################################
     //                             User
@@ -39,5 +40,7 @@ pub trait InsuranceFundTrait {
 
     fn query_insurance_fund(env: Env) -> InsuranceFund;
 
-    // fn query_if_stake(env: Env, address: Address) -> Stake;
+    fn query_admin(env: Env) -> Address;
+
+    fn query_if_stake(env: Env, address: Address) -> Stake;
 }

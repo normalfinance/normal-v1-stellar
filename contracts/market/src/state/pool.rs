@@ -1,10 +1,14 @@
-use normal::{ error::{ ErrorCode, NormalResult }, oracle::OracleSource, types::SynthTier };
+use normal::{
+    error::{ErrorCode, NormalResult},
+    oracle::OracleSource,
+    types::SynthTier,
+};
 use soroban_decimal::Decimal;
-use soroban_sdk::{ contracttype, log, Address, Env, Map, Vec };
+use soroban_sdk::{contracttype, log, Address, Env, Map, Vec};
 
-use crate::math::token_math::{ MAX_FEE_RATE, MAX_PROTOCOL_FEE_RATE };
+use crate::math::token_math::{MAX_FEE_RATE, MAX_PROTOCOL_FEE_RATE};
 
-use super::{ reward::RewardInfo, tick_array::TickArray };
+use super::{reward::RewardInfo, tick_array::TickArray};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -85,7 +89,12 @@ impl Pool {
     pub fn initiliaze_tick_array(&mut self, env: &Env, start_tick_index: i32) {
         self.tick_arrays.set(
             start_tick_index,
-            TickArray::new(env, env.current_contract_address(), start_tick_index, self.tick_spacing)
+            TickArray::new(
+                env,
+                env.current_contract_address(),
+                start_tick_index,
+                self.tick_spacing,
+            ),
         )
     }
 
@@ -106,7 +115,7 @@ impl Pool {
     pub fn update_rewards(
         &mut self,
         reward_infos: Vec<RewardInfo>,
-        reward_last_updated_timestamp: u64
+        reward_last_updated_timestamp: u64,
     ) {
         self.reward_last_updated_timestamp = reward_last_updated_timestamp;
         self.reward_infos = reward_infos;
@@ -116,7 +125,7 @@ impl Pool {
         &mut self,
         reward_infos: Vec<RewardInfo>,
         liquidity: u128,
-        reward_last_updated_timestamp: u64
+        reward_last_updated_timestamp: u64,
     ) {
         self.update_rewards(reward_infos, reward_last_updated_timestamp);
         self.liquidity = liquidity;
@@ -126,7 +135,7 @@ impl Pool {
     pub fn update_reward_authority(
         &mut self,
         reward_token: Address,
-        authority: Address
+        authority: Address,
     ) -> NormalResult<()> {
         let (mut reward, _i) = self.get_reward_by_token(reward_token)?;
         reward.authority = authority;
@@ -139,7 +148,7 @@ impl Pool {
         index: usize,
         reward_infos: Vec<RewardInfo>,
         timestamp: u64,
-        emissions_per_second_x64: u128
+        emissions_per_second_x64: u128,
     ) {
         self.update_rewards(reward_infos, timestamp);
         self.reward_infos[index].emissions_per_second_x64 = emissions_per_second_x64;
@@ -155,7 +164,7 @@ impl Pool {
         reward_infos: Vec<RewardInfo>,
         protocol_fee: u64,
         is_token_fee_in_a: bool,
-        reward_last_updated_timestamp: u64
+        reward_last_updated_timestamp: u64,
     ) {
         self.tick_current_index = tick_index;
         self.sqrt_price = sqrt_price;
@@ -258,9 +267,9 @@ impl Pool {
 
     pub fn get_new_oracle_conf_pct(
         &self,
-        confidence: u64, // price precision
+        confidence: u64,    // price precision
         reserve_price: u64, // price precision
-        now: i64
+        now: i64,
     ) -> NormalResult<u64> {
         // use previous value decayed as lower bound to avoid shrinking too quickly
         let upper_bound_divisor = 21_u64;
@@ -273,17 +282,16 @@ impl Pool {
             let confidence_divisor = upper_bound_divisor
                 .saturating_sub(since_last.cast::<u64>()?)
                 .max(lower_bound_divisor);
-            self.last_oracle_conf_pct.safe_sub(self.last_oracle_conf_pct / confidence_divisor)?
+            self.last_oracle_conf_pct
+                .safe_sub(self.last_oracle_conf_pct / confidence_divisor)?
         } else {
             self.last_oracle_conf_pct
         };
 
-        Ok(
-            confidence
-                .safe_mul(BID_ASK_SPREAD_PRECISION)?
-                .safe_div(reserve_price)?
-                .max(confidence_lower_bound)
-        )
+        Ok(confidence
+            .safe_mul(BID_ASK_SPREAD_PRECISION)?
+            .safe_div(reserve_price)?
+            .max(confidence_lower_bound))
     }
 
     pub fn is_recent_oracle_valid(&self, current_slot: u64) -> NormalResult<bool> {
@@ -294,7 +302,11 @@ impl Pool {
         let oracle_divergence = oracle_price
             .safe_sub(self.historical_oracle_data.last_oracle_price_twap_5min)?
             .safe_mul(PERCENTAGE_PRECISION_I64)?
-            .safe_div(self.historical_oracle_data.last_oracle_price_twap_5min.min(oracle_price))?
+            .safe_div(
+                self.historical_oracle_data
+                    .last_oracle_price_twap_5min
+                    .min(oracle_price),
+            )?
             .unsigned_abs();
 
         let oracle_divergence_limit = match self.synthetic_tier {
@@ -319,16 +331,15 @@ impl Pool {
 
         let min_price = oracle_price.min(self.historical_oracle_data.last_oracle_price_twap_5min);
 
-        let std_limit = (
-            match self.synthetic_tier {
-                SynthTier::A => min_price / 50, // 200 bps
-                SynthTier::B => min_price / 50, // 200 bps
-                SynthTier::C => min_price / 20, // 500 bps
-                SynthTier::Speculative => min_price / 10, // 1000 bps
-                SynthTier::HighlySpeculative => min_price / 10, // 1000 bps
-                SynthTier::Isolated => min_price / 10, // 1000 bps
-            }
-        ).unsigned_abs();
+        let std_limit = (match self.synthetic_tier {
+            SynthTier::A => min_price / 50,                 // 200 bps
+            SynthTier::B => min_price / 50,                 // 200 bps
+            SynthTier::C => min_price / 20,                 // 500 bps
+            SynthTier::Speculative => min_price / 10,       // 1000 bps
+            SynthTier::HighlySpeculative => min_price / 10, // 1000 bps
+            SynthTier::Isolated => min_price / 10,          // 1000 bps
+        })
+        .unsigned_abs();
 
         if self.oracle_std.max(self.mark_std) >= std_limit {
             log!(
@@ -347,23 +358,23 @@ impl Pool {
     pub fn get_max_confidence_interval_multiplier(self) -> NormalResult<u64> {
         // assuming validity_guard_rails max confidence pct is 2%
         Ok(match self.synthetic_tier {
-            SynthTier::A => 1, // 2%
-            SynthTier::B => 1, // 2%
-            SynthTier::C => 2, // 4%
-            SynthTier::Speculative => 10, // 20%
+            SynthTier::A => 1,                  // 2%
+            SynthTier::B => 1,                  // 2%
+            SynthTier::C => 2,                  // 4%
+            SynthTier::Speculative => 10,       // 20%
             SynthTier::HighlySpeculative => 50, // 100%
-            SynthTier::Isolated => 50, // 100%
+            SynthTier::Isolated => 50,          // 100%
         })
     }
 
     pub fn get_sanitize_clamp_denominator(self) -> NormalResult<Option<i64>> {
         Ok(match self.synthetic_tier {
-            SynthTier::A => Some(10_i64), // 10%
-            SynthTier::B => Some(5_i64), // 20%
-            SynthTier::C => Some(2_i64), // 50%
-            SynthTier::Speculative => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
+            SynthTier::A => Some(10_i64),         // 10%
+            SynthTier::B => Some(5_i64),          // 20%
+            SynthTier::C => Some(2_i64),          // 50%
+            SynthTier::Speculative => None,       // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
             SynthTier::HighlySpeculative => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
-            SynthTier::Isolated => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
+            SynthTier::Isolated => None,          // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
         })
     }
 }

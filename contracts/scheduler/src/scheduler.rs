@@ -1,4 +1,3 @@
-use normal::error::NormalResult;
 use soroban_sdk::{contractclient, Address, Env, Vec};
 
 use crate::{
@@ -36,12 +35,7 @@ pub trait SchedulerTrait {
     //                             KEEPER
     // ################################################################
 
-    fn execute_schedule(
-        env: Env,
-        sender: Address,
-        user: Address,
-        schedule_timestamp: u64,
-    ) -> NormalResult;
+    fn execute_schedule(env: Env, sender: Address, user: Address, schedule_timestamp: u64);
 
     fn collect_keeper_fees(env: Env, sender: Address);
 

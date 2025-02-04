@@ -241,7 +241,7 @@ pub mod utils {
     pub fn is_admin(env: &Env, sender: Address) {
         let admin = get_admin(env);
         if admin != sender {
-            log!(&env, "Index Token: You are not authorized!");
+            log!(&env, "Scheduler: You are not authorized!");
             panic_with_error!(&env, ErrorCode::NotAuthorized);
         }
     }

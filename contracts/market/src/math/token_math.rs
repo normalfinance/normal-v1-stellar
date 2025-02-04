@@ -3,8 +3,8 @@ use normal::error::{ErrorCode, NormalResult};
 use crate::errors::ErrorCode;
 
 use super::{
-    bit_math::{ div_round_up_if, div_round_up_if_u256, Q64_MASK, Q64_RESOLUTION },
-    tick_math::{ MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64 },
+    bit_math::{div_round_up_if, div_round_up_if_u256, Q64_MASK, Q64_RESOLUTION},
+    tick_math::{MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64},
     // u256_math::{ mul_u256, U256Muldiv },
 };
 
@@ -27,31 +27,33 @@ pub const MAX_PROTOCOL_FEE_RATE: u16 = 2_500;
 pub const PROTOCOL_FEE_RATE_MUL_VALUE: u128 = 10_000;
 
 #[derive(Debug)]
-pub enum AmountDeltaU64 {
-    Valid(u64),
+pub enum AmountDeltaI128 {
+    Valid(i128),
     ExceedsMax(ErrorCode),
 }
 
-impl AmountDeltaU64 {
-    pub fn lte(&self, other: u64) -> bool {
+impl AmountDeltaI128 {
+    pub fn lte(&self, other: i128) -> bool {
         match self {
-            AmountDeltaU64::Valid(value) => *value <= other,
-            AmountDeltaU64::ExceedsMax(_) => false,
+            AmountDeltaI128::Valid(value) => *value <= other,
+            AmountDeltaI128::ExceedsMax(_) => false,
         }
     }
 
     pub fn exceeds_max(&self) -> bool {
         match self {
-            AmountDeltaU64::Valid(_) => false,
-            AmountDeltaU64::ExceedsMax(_) => true,
+            AmountDeltaI128::Valid(_) => false,
+            AmountDeltaI128::ExceedsMax(_) => true,
         }
     }
 
-    pub fn value(self) -> u64 {
+    pub fn value(self) -> i128 {
         match self {
-            AmountDeltaU64::Valid(value) => value,
+            AmountDeltaI128::Valid(value) => value,
             // This should never happen
-            AmountDeltaU64::ExceedsMax(_) => panic!("Called unwrap on AmountDeltaU64::ExceedsMax"),
+            AmountDeltaI128::ExceedsMax(_) => {
+                panic!("Called unwrap on AmountDeltaI128::ExceedsMax")
+            }
         }
     }
 }
@@ -74,11 +76,11 @@ pub fn get_amount_delta_a(
     sqrt_price_0: u128,
     sqrt_price_1: u128,
     liquidity: u128,
-    round_up: bool
-) -> NormalResult<u64> {
+    round_up: bool,
+) -> NormalResult<i128> {
     match try_get_amount_delta_a(sqrt_price_0, sqrt_price_1, liquidity, round_up) {
-        Ok(AmountDeltaU64::Valid(value)) => Ok(value),
-        Ok(AmountDeltaU64::ExceedsMax(error)) => Err(error),
+        Ok(AmountDeltaI128::Valid(value)) => Ok(value),
+        Ok(AmountDeltaI128::ExceedsMax(error)) => Err(error),
         Err(error) => Err(error),
     }
 }
@@ -87,8 +89,8 @@ pub fn try_get_amount_delta_a(
     sqrt_price_0: u128,
     sqrt_price_1: u128,
     liquidity: u128,
-    round_up: bool
-) -> NormalResult<AmountDeltaU64> {
+    round_up: bool,
+) -> NormalResult<AmountDeltaI128> {
     let (sqrt_price_lower, sqrt_price_upper) = increasing_price_order(sqrt_price_0, sqrt_price_1);
 
     let sqrt_price_diff = sqrt_price_upper - sqrt_price_lower;
@@ -110,12 +112,12 @@ pub fn try_get_amount_delta_a(
     match result {
         Ok(result) => {
             if result > (u64::MAX as u128) {
-                return Ok(AmountDeltaU64::ExceedsMax(ErrorCode::TokenMaxExceeded));
+                return Ok(AmountDeltaI128::ExceedsMax(ErrorCode::TokenMaxExceeded));
             }
 
-            Ok(AmountDeltaU64::Valid(result as u64))
+            Ok(AmountDeltaI128::Valid(result as u64))
         }
-        Err(err) => Ok(AmountDeltaU64::ExceedsMax(err)),
+        Err(err) => Ok(AmountDeltaI128::ExceedsMax(err)),
     }
 }
 
@@ -132,11 +134,11 @@ pub fn get_amount_delta_b(
     sqrt_price_0: u128,
     sqrt_price_1: u128,
     liquidity: u128,
-    round_up: bool
-) -> NormalResult<u64> {
+    round_up: bool,
+) -> NormalResult<i128> {
     match try_get_amount_delta_b(sqrt_price_0, sqrt_price_1, liquidity, round_up) {
-        Ok(AmountDeltaU64::Valid(value)) => Ok(value),
-        Ok(AmountDeltaU64::ExceedsMax(error)) => Err(error),
+        Ok(AmountDeltaI128::Valid(value)) => Ok(value),
+        Ok(AmountDeltaI128::ExceedsMax(error)) => Err(error),
         Err(error) => Err(error),
     }
 }
@@ -145,8 +147,8 @@ pub fn try_get_amount_delta_b(
     sqrt_price_0: u128,
     sqrt_price_1: u128,
     liquidity: u128,
-    round_up: bool
-) -> NormalResult<AmountDeltaU64> {
+    round_up: bool,
+) -> NormalResult<AmountDeltaI128> {
     let (sqrt_price_lower, sqrt_price_upper) = increasing_price_order(sqrt_price_0, sqrt_price_1);
 
     // customized checked_mul_shift_right_round_up_if
@@ -155,7 +157,7 @@ pub fn try_get_amount_delta_b(
     let n1 = sqrt_price_upper - sqrt_price_lower;
 
     if n0 == 0 || n1 == 0 {
-        return Ok(AmountDeltaU64::Valid(0));
+        return Ok(AmountDeltaI128::Valid(0));
     }
 
     if let Some(p) = n0.checked_mul(n1) {
@@ -163,12 +165,20 @@ pub fn try_get_amount_delta_b(
 
         let should_round = round_up && p & Q64_MASK > 0;
         if should_round && result == u64::MAX {
-            return Ok(AmountDeltaU64::ExceedsMax(ErrorCode::MultiplicationOverflow));
+            return Ok(AmountDeltaI128::ExceedsMax(
+                ErrorCode::MultiplicationOverflow,
+            ));
         }
 
-        Ok(AmountDeltaU64::Valid(if should_round { result + 1 } else { result }))
+        Ok(AmountDeltaI128::Valid(if should_round {
+            result + 1
+        } else {
+            result
+        }))
     } else {
-        Ok(AmountDeltaU64::ExceedsMax(ErrorCode::MultiplicationShiftRightOverflow))
+        Ok(AmountDeltaI128::ExceedsMax(
+            ErrorCode::MultiplicationShiftRightOverflow,
+        ))
     }
 }
 
@@ -201,7 +211,7 @@ pub fn get_next_sqrt_price_from_a_round_up(
     sqrt_price: u128,
     liquidity: u128,
     amount: u64,
-    amount_specified_is_input: bool
+    amount_specified_is_input: bool,
 ) -> NormalResult<u128> {
     if amount == 0 {
         return Ok(sqrt_price);
@@ -243,7 +253,7 @@ pub fn get_next_sqrt_price_from_b_round_down(
     sqrt_price: u128,
     liquidity: u128,
     amount: u64,
-    amount_specified_is_input: bool
+    amount_specified_is_input: bool,
 ) -> NormalResult<u128> {
     // We always want square root price to be rounded down, which means
     // Case 3. If we are fixing input (adding B), we are increasing price, we want delta to be floor(delta)
@@ -261,10 +271,14 @@ pub fn get_next_sqrt_price_from_b_round_down(
     // Q64(32).64 +/- Q64.64
     if amount_specified_is_input {
         // We are adding token b to supply, causing price to increase
-        sqrt_price.checked_add(delta).ok_or(ErrorCode::SqrtPriceOutOfBounds)
+        sqrt_price
+            .checked_add(delta)
+            .ok_or(ErrorCode::SqrtPriceOutOfBounds)
     } else {
         // We are removing token b from supply,. causing price to decrease
-        sqrt_price.checked_sub(delta).ok_or(ErrorCode::SqrtPriceOutOfBounds)
+        sqrt_price
+            .checked_sub(delta)
+            .ok_or(ErrorCode::SqrtPriceOutOfBounds)
     }
 }
 
@@ -273,7 +287,7 @@ pub fn get_next_sqrt_price(
     liquidity: u128,
     amount: u64,
     amount_specified_is_input: bool,
-    a_to_b: bool
+    a_to_b: bool,
 ) -> NormalResult<u128> {
     if amount_specified_is_input == a_to_b {
         // We are fixing A
@@ -304,7 +318,7 @@ pub fn get_next_sqrt_price(
             sqrt_price,
             liquidity,
             amount,
-            amount_specified_is_input
+            amount_specified_is_input,
         )
     } else {
         // We are fixing B
@@ -335,7 +349,7 @@ pub fn get_next_sqrt_price(
             sqrt_price,
             liquidity,
             amount,
-            amount_specified_is_input
+            amount_specified_is_input,
         )
     }
 }

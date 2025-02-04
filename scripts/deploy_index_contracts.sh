@@ -19,9 +19,8 @@ echo "Contracts compiled."
 echo "Optimize contracts..."
 
 soroban contract optimize --wasm soroban_token_contract.wasm
-soroban contract optimize --wasm normal_index_factory.wasm
-soroban contract optimize --wasm normal_index.wasm
 soroban contract optimize --wasm normal_index_token.wasm
+soroban contract optimize --wasm normal_index_token_factory.wasm
 
 echo "Contracts optimized."
 
@@ -33,5 +32,5 @@ ADMIN_ADDRESS=$(soroban keys address $IDENTITY_STRING)
 echo "#############################"
 
 echo "Initialization complete!"
-echo "Index Factory Contract address: $FACTORY_ADDR"
-echo "Index Contract address: $MULTIHOP"
+echo "Index Token Contract address: $MULTIHOP"
+echo "Index Token Factory Contract address: $FACTORY_ADDR"

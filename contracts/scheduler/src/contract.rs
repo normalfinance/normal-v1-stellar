@@ -32,7 +32,7 @@ impl SchedulerTrait for Scheduler {
     fn initialize(
         env: Env,
         admin: Address,
-        synth_market_factory_address: Address,
+        market_factory_address: Address,
         index_factory_address: Address,
         protocol_fee_bps: i64,
         keeper_fee_bps: i64,
@@ -50,7 +50,7 @@ impl SchedulerTrait for Scheduler {
         validate_bps!(protocol_fee_bps, keeper_fee_bps);
 
         let config = Config {
-            synth_market_factory_address,
+            synth_market_factory_address: market_factory_address,
             index_factory_address,
             keepers: Vec::new(&env),
             protocol_fee_bps,
@@ -139,12 +139,7 @@ impl SchedulerTrait for Scheduler {
     //                             KEEPER
     // ################################################################
 
-    fn execute_schedule(
-        env: Env,
-        sender: Address,
-        user: Address,
-        schedule_timestamp: u64,
-    ) -> NormalResult {
+    fn execute_schedule(env: Env, sender: Address, user: Address, schedule_timestamp: u64) {
         sender.require_auth();
 
         let config = get_config(&env);
@@ -176,7 +171,7 @@ impl SchedulerTrait for Scheduler {
         let keeper_fee: u64 = 0;
 
         // Calculate order amount
-        let order_quote_asset_amount = calculate_order_amount(&env, &target_schedule)?;
+        let order_quote_asset_amount = calculate_order_amount(&env, &target_schedule);
 
         // Validate available balance compared to order amount
         let current_balance = schedules
@@ -234,7 +229,7 @@ impl SchedulerTrait for Scheduler {
 
         keeper.fees_owed.set(
             target_schedule.clone().quote_asset,
-            keeper_fee_before.safe_add(keeper_fee.cast::<i128>(&env)?, &env)?,
+            keeper_fee_before.safe_add(keeper_fee.cast::<i128>(&env), &env),
         );
 
         // ...
@@ -243,18 +238,16 @@ impl SchedulerTrait for Scheduler {
         target_schedule.executed_orders += 1;
         target_schedule.total_executed = target_schedule
             .total_executed
-            .safe_add(order_quote_asset_amount, &env)?;
+            .safe_add(order_quote_asset_amount, &env);
         target_schedule.total_fees_paid = target_schedule
             .total_fees_paid
-            .safe_add(protocol_fee, &env)?
-            .safe_add(keeper_fee, &env)?;
+            .safe_add(protocol_fee, &env)
+            .safe_add(keeper_fee, &env);
         target_schedule.last_order_ts = now;
 
         save_schedules(&env, &sender, &schedules);
 
         SchedulerEvents::order_execution(&env, sender, user, schedule_timestamp);
-
-        Ok(())
     }
 
     fn collect_keeper_fees(env: Env, sender: Address) {
@@ -408,19 +401,20 @@ impl SchedulerTrait for Scheduler {
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         let schedules = get_schedules(&env, &address);
         ScheduledResponse {
+            balances: schedules.balances,
             schedules: schedules.schedules,
         }
     }
 }
 
-fn calculate_order_amount(env: &Env, schedule: &Schedule) -> NormalResult<i128> {
+fn calculate_order_amount(env: &Env, schedule: &Schedule) -> i128 {
     let price: i128 = 0; // TODO: get the price
     let order_quote_asset_amount: i128 = schedule
         .base_asset_amount_per_interval
-        .cast::<i128>(env)?
-        .safe_mul(price, env)?;
+        .cast::<i128>(env)
+        .safe_mul(price, env);
 
-    Ok(order_quote_asset_amount)
+    order_quote_asset_amount
 }
 
 // Function to remove a schedule from the vector

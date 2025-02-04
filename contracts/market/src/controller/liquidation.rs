@@ -1,13 +1,7 @@
-// #[cfg(test)]
-// mod tests;
-
-use normal::{
-    error::{ErrorCode, NormalResult},
-    validate,
-};
+use normal::validate;
 use soroban_sdk::{Address, Env};
 
-use crate::storage::Position;
+use crate::errors::{Errors, NormalResult};
 
 pub fn liquidate_position(
     env: &Env,
@@ -26,14 +20,16 @@ pub fn liquidate_position(
     let mut position = get_position(&env, &user);
 
     validate!(
+        env,
         !position.is_bankrupt(),
-        ErrorCode::UserBankrupt,
+        Errors::UserBankrupt,
         "user bankrupt"
     )?;
 
     validate!(
+        env,
         !market.is_operation_paused(SynthOperation::Liquidation),
-        ErrorCode::InvalidLiquidation,
+        Errors::InvalidLiquidation,
         "Liquidation operation is paused for market {}",
         market_index
     )?;
@@ -46,7 +42,7 @@ pub fn liquidate_position(
 
     if !position.is_being_liquidated() && margin_calculation.meets_margin_requirement() {
         msg!("margin calculation: {:?}", margin_calculation);
-        return Err(ErrorCode::SufficientCollateral);
+        return Err(Errors::SufficientCollateral);
     } else if position.is_being_liquidated() && margin_calculation.can_exit_liquidation()? {
         position.exit_liquidation();
         return Ok(());
@@ -57,7 +53,7 @@ pub fn liquidate_position(
 
     validate!(
        position.is_open_position()
-        ErrorCode::PositionDoesntHaveOpenPositionOrOrders
+        Errors::PositionDoesntHaveOpenPositionOrOrders
     )?;
 
     // ...
@@ -91,7 +87,7 @@ pub fn liquidate_position(
             .cast()?,
     )?;
 
-    validate!(!oracle_price_too_divergent, ErrorCode::PriceBandsBreached)?;
+    validate!(!oracle_price_too_divergent, Errors::PriceBandsBreached)?;
 
     let user_base_asset_amount = position.cumulative_deposits.unsigned_abs();
 
@@ -147,19 +143,19 @@ pub fn resolve_position_bankruptcy(
 
     validate!(
         user.is_bankrupt(),
-        ErrorCode::UserNotBankrupt,
+        Errors::UserNotBankrupt,
         "user not bankrupt"
     )?;
 
     validate!(
         !liquidator.is_being_liquidated(),
-        ErrorCode::UserIsBeingLiquidated,
+        Errors::UserIsBeingLiquidated,
         "liquidator being liquidated"
     )?;
 
     validate!(
         !liquidator.is_bankrupt(),
-        ErrorCode::UserBankrupt,
+        Errors::UserBankrupt,
         "liquidator bankrupt"
     )?;
 
@@ -167,7 +163,7 @@ pub fn resolve_position_bankruptcy(
 
     validate!(
         !market.is_operation_paused(PerpOperation::Liquidation),
-        ErrorCode::InvalidLiquidation,
+        Errors::InvalidLiquidation,
         "Liquidation operation is paused for market {}",
         market_index
     )?;
@@ -189,7 +185,7 @@ pub fn resolve_position_bankruptcy(
 
     validate!(
         loss < 0,
-        ErrorCode::InvalidPerpPositionToLiquidate,
+        Errors::InvalidPerpPositionToLiquidate,
         "user must have negative pnl"
     )?;
 
@@ -245,7 +241,7 @@ pub fn resolve_position_bankruptcy(
     let losses_remaining: i128 = loss.safe_add(if_payment.cast::<i128>()?)?;
     validate!(
         losses_remaining <= 0,
-        ErrorCode::InvalidPerpPositionToLiquidate,
+        Errors::InvalidPerpPositionToLiquidate,
         "losses_remaining must be non-positive"
     )?;
 
@@ -261,7 +257,7 @@ pub fn resolve_position_bankruptcy(
     };
     validate!(
         fee_pool_payment >= 0,
-        ErrorCode::InvalidPerpPositionToLiquidate,
+        Errors::InvalidPerpPositionToLiquidate,
         "fee_pool_payment must be non-negative"
     )?;
 
@@ -281,7 +277,7 @@ pub fn resolve_position_bankruptcy(
     let loss_to_socialize = losses_remaining.safe_add(fee_pool_payment.cast::<i128>()?)?;
     validate!(
         loss_to_socialize <= 0,
-        ErrorCode::InvalidPerpPositionToLiquidate,
+        Errors::InvalidPerpPositionToLiquidate,
         "loss_to_socialize must be non-positive"
     )?;
 
@@ -377,13 +373,13 @@ pub fn calculate_margin_freed(
 pub fn set_position_status_to_being_liquidated(position: &mut Position, now: u64) -> NormalResult {
     validate!(
         !position.is_bankrupt(),
-        ErrorCode::UserBankrupt,
+        Errors::UserBankrupt,
         "position bankrupt"
     )?;
 
     validate!(
         !position.is_being_liquidated(),
-        ErrorCode::UserIsBeingLiquidated,
+        Errors::UserIsBeingLiquidated,
         "position is already being liquidated"
     )?;
 
@@ -398,7 +394,7 @@ pub fn set_position_status_to_being_liquidated(position: &mut Position, now: u64
 
     if !position.is_being_liquidated() && margin_calculation.meets_margin_requirement() {
         msg!("margin calculation: {:?}", margin_calculation);
-        return Err(ErrorCode::SufficientCollateral);
+        return Err(Errors::SufficientCollateral);
     } else {
         position.enter_liquidation(now)?;
     }

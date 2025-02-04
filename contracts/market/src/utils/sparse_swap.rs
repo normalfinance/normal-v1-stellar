@@ -1,9 +1,12 @@
-use normal::{ error::{ ErrorCode, NormalResult }, math::vec_dequeue::VecDeque };
-use soroban_sdk::{ vec, Address, Env, Vec };
+use normal::{
+    error::{ErrorCode, NormalResult},
+    math::vec_dequeue::VecDeque,
+};
+use soroban_sdk::{vec, Address, Env, Vec};
 
 use crate::state::{
     pool::Pool,
-    tick::{ Tick, TickUpdate, ZeroedTickArray, TICK_ARRAY_SIZE },
+    tick::{Tick, TickUpdate, ZeroedTickArray, TICK_ARRAY_SIZE},
     tick_array::TickArray,
 };
 
@@ -34,9 +37,10 @@ impl ProxiedTickArray {
         &self,
         tick_index: i32,
         tick_spacing: u32,
-        a_to_b: bool
+        a_to_b: bool,
     ) -> NormalResult<Option<i32>> {
-        self.as_ref().get_next_init_tick_index(tick_index, tick_spacing, a_to_b)
+        self.as_ref()
+            .get_next_init_tick_index(tick_index, tick_spacing, a_to_b)
     }
 
     pub fn get_tick(&self, tick_index: i32, tick_spacing: u32) -> NormalResult<&Tick> {
@@ -47,7 +51,7 @@ impl ProxiedTickArray {
         &mut self,
         tick_index: i32,
         tick_spacing: u32,
-        update: &TickUpdate
+        update: &TickUpdate,
     ) -> NormalResult<()> {
         self.as_ref;
         self.as_mut().update_tick(tick_index, tick_spacing, update)
@@ -130,7 +134,7 @@ impl SparseSwapTickSequenceBuilder {
         pool: &Pool,
         a_to_b: bool,
         static_tick_array_account_infos: Vec<TickArrayAccount>,
-        supplemental_tick_array_account_infos: Option<Vec<TickArrayAccount>>
+        supplemental_tick_array_account_infos: Option<Vec<TickArrayAccount>>,
     ) -> NormalResult<Self> {
         let mut tick_array_account_infos = static_tick_array_account_infos;
         if let Some(supplemental_tick_array_account_infos) = supplemental_tick_array_account_infos {
@@ -148,7 +152,11 @@ impl SparseSwapTickSequenceBuilder {
             let state = account_info;
 
             match &state {
-                TickArrayAccount::Initialized { tick_array_pool, start_tick_index, .. } => {
+                TickArrayAccount::Initialized {
+                    tick_array_pool,
+                    start_tick_index,
+                    ..
+                } => {
                     // has_one constraint equivalent check
                     if *tick_array_pool != pool {
                         return Err(ErrorCode::DifferentAMMTickArrayAccount);
@@ -162,7 +170,10 @@ impl SparseSwapTickSequenceBuilder {
                     // So we can safely use these accounts.
                     initialized.push((*start_tick_index, state));
                 }
-                TickArrayAccount::Uninitialized { pubkey: account_address, .. } => {
+                TickArrayAccount::Uninitialized {
+                    pubkey: account_address,
+                    ..
+                } => {
                     // TickArray accounts in uninitialized have been verified as:
                     //   - Owned by System program
                     //   - Data size is zero
@@ -234,26 +245,26 @@ impl SparseSwapTickSequenceBuilder {
                     // });
                     proxied_tick_arrays.push_back(
                         env,
-                        ProxiedTickArray::new_initialized(account_info) //tick_array_refmut)
+                        ProxiedTickArray::new_initialized(account_info), //tick_array_refmut)
                     );
                 }
-                TickArrayAccount::Uninitialized { start_tick_index, .. } => {
+                TickArrayAccount::Uninitialized {
+                    start_tick_index, ..
+                } => {
                     proxied_tick_arrays.push_back(
                         env,
-                        ProxiedTickArray::new_uninitialized(start_tick_index.unwrap())
+                        ProxiedTickArray::new_uninitialized(start_tick_index.unwrap()),
                     );
                 }
             }
         }
 
-        Ok(
-            SwapTickSequence::new_with_proxy(
-                env,
-                proxied_tick_arrays.pop_front().unwrap(),
-                proxied_tick_arrays.pop_front(),
-                proxied_tick_arrays.pop_front()
-            )
-        )
+        Ok(SwapTickSequence::new_with_proxy(
+            env,
+            proxied_tick_arrays.pop_front().unwrap(),
+            proxied_tick_arrays.pop_front(),
+            proxied_tick_arrays.pop_front(),
+        ))
     }
 }
 

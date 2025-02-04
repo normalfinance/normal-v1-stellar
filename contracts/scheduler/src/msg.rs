@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Vec};
+use soroban_sdk::{contracttype, Address, Map, Vec};
 
 use crate::storage::{Config, Schedule};
 
@@ -11,5 +11,6 @@ pub struct ConfigResponse {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ScheduledResponse {
+    pub balances: Map<Address, i128>,
     pub schedules: Vec<Schedule>,
 }

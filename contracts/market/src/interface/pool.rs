@@ -1,4 +1,4 @@
-use soroban_sdk::{ contractclient, Address, BytesN, Env, String, Vec };
+use soroban_sdk::{contractclient, Address, BytesN, Env, String, Vec};
 
 use crate::state::liquidity_position::LiquidityPositionUpdate;
 
@@ -13,7 +13,7 @@ pub trait PoolTrait {
         fee_rate: Option<i64>,
         protocol_fee_rate: Option<i64>,
         max_allowed_slippage_bps: Option<i64>,
-        max_allowed_variance_bps: Option<i64>
+        max_allowed_variance_bps: Option<i64>,
     );
 
     fn initialize_reward(
@@ -21,28 +21,22 @@ pub trait PoolTrait {
         sender: Address,
         reward_token: Address,
         initial_balance: i128,
-        emissions_per_second_x64: u128
+        emissions_per_second_x64: u128,
     );
 
     fn set_reward_emissions(
         env: Env,
         sender: Address,
         reward_token: Address,
-        emissions_per_second_x64: u128
+        emissions_per_second_x64: u128,
     );
 
     fn set_reward_authority(
         env: Env,
         sender: Address,
         reward_token: Address,
-        new_reward_authority: Address
+        new_reward_authority: Address,
     );
-
-    // ################################################################
-    //                             Keeper
-    // ################################################################
-
-    fn collect_protocol_fees(env: Env, sender: Address);
 
     // ################################################################
     //                             User
@@ -54,7 +48,7 @@ pub trait PoolTrait {
         env: Env,
         sender: Address,
         position_ts: u64,
-        update: LiquidityPositionUpdate
+        update: LiquidityPositionUpdate,
     );
 
     fn close_position(env: Env, sender: Address, position_ts: u64);
@@ -67,7 +61,7 @@ pub trait PoolTrait {
         token_max_a: u64,
         token_max_b: u64,
         tick_array_lower_index: i32,
-        tick_array_upper_index: i32
+        tick_array_upper_index: i32,
     );
 
     fn decrease_liquidity(
@@ -78,7 +72,7 @@ pub trait PoolTrait {
         token_max_a: u64,
         token_max_b: u64,
         tick_array_lower_index: i32,
-        tick_array_upper_index: i32
+        tick_array_upper_index: i32,
     );
 
     fn swap(
@@ -89,7 +83,7 @@ pub trait PoolTrait {
         sqrt_price_limit: u128,
         amount_specified_is_input: bool,
         a_to_b: bool, // Zero for one
-        tick_array_indexes: Vec<i32>
+        tick_array_indexes: Vec<i32>,
     );
 
     fn collect_fees(env: Env, sender: Address, position_ts: u64);

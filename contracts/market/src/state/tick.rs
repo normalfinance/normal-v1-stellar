@@ -1,5 +1,5 @@
-use normal::error::{ ErrorCode, NormalResult };
-use soroban_sdk::{ contracttype, Vec };
+use normal::error::{ErrorCode, NormalResult};
+use soroban_sdk::{contracttype, Vec};
 
 use super::tick_array::TickArrayType;
 
@@ -16,8 +16,8 @@ pub const TICK_ARRAY_SIZE_USIZE: usize = 88;
 #[derive(Default, Debug, PartialEq)]
 pub struct Tick {
     // Total 137 bytes
-    pub initialized: bool, // 1
-    pub liquidity_net: i128, // 16
+    pub initialized: bool,     // 1
+    pub liquidity_net: i128,   // 16
     pub liquidity_gross: u128, // 16
 
     // Q64.64
@@ -165,7 +165,7 @@ impl TickArrayType for ZeroedTickArray {
         &self,
         tick_index: i32,
         tick_spacing: u32,
-        a_to_b: bool
+        a_to_b: bool,
     ) -> NormalResult<Option<i32>> {
         if !self.in_search_range(tick_index, tick_spacing, !a_to_b) {
             return Err(ErrorCode::InvalidTickArraySequence);
@@ -178,9 +178,8 @@ impl TickArrayType for ZeroedTickArray {
     }
 
     fn get_tick(&self, tick_index: i32, tick_spacing: u32) -> Result<&Tick, ErrorCode> {
-        if
-            !self.check_in_array_bounds(tick_index, tick_spacing) ||
-            !Tick::check_is_usable_tick(tick_index, tick_spacing)
+        if !self.check_in_array_bounds(tick_index, tick_spacing)
+            || !Tick::check_is_usable_tick(tick_index, tick_spacing)
         {
             return Err(ErrorCode::TickNotFound);
         }
@@ -197,7 +196,7 @@ impl TickArrayType for ZeroedTickArray {
         &mut self,
         _tick_index: i32,
         _tick_spacing: u32,
-        _update: &TickUpdate
+        _update: &TickUpdate,
     ) -> NormalResult<()> {
         panic!("ZeroedTickArray must not be updated");
     }

@@ -1,7 +1,5 @@
-use normal::{
-    constants::{ PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD, PRICE_PRECISION },
-};
-use soroban_sdk::{ xdr::ToXdr, Address, Bytes, BytesN, ConversionError, Env, TryFromVal, Val };
+use normal::constants::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD, PRICE_PRECISION};
+use soroban_sdk::{xdr::ToXdr, Address, Bytes, BytesN, ConversionError, Env, TryFromVal, Val};
 
 #[derive(Clone, Copy)]
 #[repr(u32)]
@@ -62,7 +60,7 @@ pub mod utils {
         admin: Address,
         decimals: u32,
         name: String,
-        symbol: String
+        symbol: String,
     ) -> Address {
         let mut salt = Bytes::new(env);
         salt.append(&token_a.clone().to_xdr(env));
@@ -81,7 +79,7 @@ pub mod utils {
         admin: Address,
         decimals: u32,
         name: String,
-        symbol: String
+        symbol: String,
     ) -> Address {
         let mut salt = Bytes::new(env);
         salt.append(&token_a.clone().to_xdr(env));
@@ -92,37 +90,42 @@ pub mod utils {
             .deploy_v2(token_wasm_hash, (admin, decimals, name, symbol))
     }
 
-    pub fn get_balance(env: &Env,, contract: &Address) -> i128 {
+    pub fn get_balance(env: &Env, contract: &Address) -> i128 {
         token_contract::Client::new(env, contract).balance(&e.current_contract_address())
     }
 
-    pub fn is_initialized(env: &Env,) -> bool {
-        env.storage().persistent().get(&DataKey::Initialized).unwrap_or(false)
+    pub fn is_initialized(env: &Env) -> bool {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Initialized)
+            .unwrap_or(false)
     }
 
-    pub fn set_initialized(env: &Env,) {
+    pub fn set_initialized(env: &Env) {
         env.storage().persistent().set(&DataKey::Initialized, &true);
-        env.storage()
-            .persistent()
-            .extend_ttl(
-                &DataKey::Initialized,
-                PERSISTENT_LIFETIME_THRESHOLD,
-                PERSISTENT_BUMP_AMOUNT
-            );
+        env.storage().persistent().extend_ttl(
+            &DataKey::Initialized,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
     }
 
-    pub fn save_admin(env: &Env,, address: &Address) {
+    pub fn save_admin(env: &Env, address: &Address) {
         env.storage().persistent().set(&DataKey::Admin, address);
-        env.storage()
-            .persistent()
-            .extend_ttl(&DataKey::Admin, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        env.storage().persistent().extend_ttl(
+            &DataKey::Admin,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
     }
 
-    pub fn get_admin(env: &Env,) -> Address {
+    pub fn get_admin(env: &Env) -> Address {
         let admin = env.storage().persistent().get(&DataKey::Admin).unwrap();
-        env.storage()
-            .persistent()
-            .extend_ttl(&DataKey::Admin, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        env.storage().persistent().extend_ttl(
+            &DataKey::Admin,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
 
         admin
     }

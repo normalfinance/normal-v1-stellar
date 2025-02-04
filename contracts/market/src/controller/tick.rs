@@ -16,8 +16,7 @@ pub fn next_tick_cross_update(
 ) -> NormalResult<TickUpdate> {
     let mut update = TickUpdate::from(tick);
 
-    update.fee_growth_outside_a =
-        fee_growth_global_a.wrapping_sub(tick.fee_growth_outside_a);
+    update.fee_growth_outside_a = fee_growth_global_a.wrapping_sub(tick.fee_growth_outside_a);
     update.fee_growth_outside_b = fee_growth_global_b.wrapping_sub(tick.fee_growth_outside_b);
 
     for (i, reward_info) in reward_infos.iter().enumerate() {

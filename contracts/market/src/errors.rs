@@ -1,9 +1,29 @@
+// use normal::error::ErrorCode as SharedErrors;
 use soroban_sdk::contracterror;
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
-pub enum ErrorCode {
+#[allow(clippy::too_many_arguments)]
+pub enum Errors {
+    AlreadyInitialized = 100,
+    NotAuthorized = 2,
+    AdminNotSet = 3,
+}
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum TokenErrors {
+    InsufficientBalance = 1000,
+    InvalidAmount = 1001,
+    // ... token-related errors
+}
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum PoolErrors {
     InvalidEnum = 6000,
     InvalidStartTick = 6001,
     // TickArrayExistInPool = 6002,
@@ -76,3 +96,11 @@ pub enum ErrorCode {
 
     PartialFillError = 6057,
 }
+
+pub enum NormalError {
+    Error(Errors),
+    Token(TokenErrors),
+    Pool(PoolErrors),
+}
+
+pub type NormalResult<T = ()> = core::result::Result<T, NormalError>;

@@ -1,7 +1,7 @@
-use crate::math::bit_math::{ checked_mul_div, checked_mul_div_round_up };
+use crate::math::bit_math::{checked_mul_div, checked_mul_div_round_up};
+use crate::math::token_math::{get_next_sqrt_price, AmountDeltaI128};
 use normal::error::NormalResult;
 use soroban_sdk::contracttype;
-use crate::math::token_math::{ get_next_sqrt_price, AmountDeltaU64 };
 
 use super::token_math::FEE_RATE_MUL_VALUE;
 
@@ -23,7 +23,7 @@ pub fn compute_swap(
     sqrt_price_current: u128,
     sqrt_price_target: u128,
     amount_specified_is_input: bool,
-    a_to_b: bool
+    a_to_b: bool,
 ) -> NormalResult<SwapStepComputation> {
     // Since SplashPool (aka FullRange only pool) has only 2 initialized ticks at both ends,
     // the possibility of exceeding u64 when calculating "delta amount" is higher than concentrated pools.
@@ -33,14 +33,14 @@ pub fn compute_swap(
     // However, the primary purpose of initial calculation of "fixed delta" is to determine whether or not the iteration is "max swap" or not.
     // So the info that “the amount of tokens required exceeds the u64 range” is sufficient to determine that the iteration is NOT "max swap".
     //
-    // delta <= u64::MAX: AmountDeltaU64::Valid
-    // delta >  u64::MAX: AmountDeltaU64::ExceedsMax
+    // delta <= u64::MAX: AmountDeltaI128::Valid
+    // delta >  u64::MAX: AmountDeltaI128::ExceedsMax
     let initial_amount_fixed_delta = try_get_amount_fixed_delta(
         sqrt_price_current,
         sqrt_price_target,
         liquidity,
         amount_specified_is_input,
-        a_to_b
+        a_to_b,
     )?;
 
     let mut amount_calc = amount_remaining;
@@ -48,8 +48,9 @@ pub fn compute_swap(
         amount_calc = checked_mul_div(
             amount_remaining as u128,
             FEE_RATE_MUL_VALUE - (fee_rate as u128),
-            FEE_RATE_MUL_VALUE
-        )?.try_into()?;
+            FEE_RATE_MUL_VALUE,
+        )?
+        .try_into()?;
     }
 
     let next_sqrt_price = if initial_amount_fixed_delta.lte(amount_calc) {
@@ -60,7 +61,7 @@ pub fn compute_swap(
             liquidity,
             amount_calc,
             amount_specified_is_input,
-            a_to_b
+            a_to_b,
         )?
     };
 
@@ -71,7 +72,7 @@ pub fn compute_swap(
         next_sqrt_price,
         liquidity,
         amount_specified_is_input,
-        a_to_b
+        a_to_b,
     )?;
 
     // If the swap is not at the max, we need to readjust the amount of the fixed token we are using
@@ -82,7 +83,7 @@ pub fn compute_swap(
             next_sqrt_price,
             liquidity,
             amount_specified_is_input,
-            a_to_b
+            a_to_b,
         )?
     } else {
         // the result will be in the u64 range.
@@ -106,8 +107,9 @@ pub fn compute_swap(
         checked_mul_div_round_up(
             amount_in as u128,
             fee_rate as u128,
-            FEE_RATE_MUL_VALUE - (fee_rate as u128)
-        )?.try_into()?
+            FEE_RATE_MUL_VALUE - (fee_rate as u128),
+        )?
+        .try_into()?
     };
 
     Ok(SwapStepComputation {
@@ -123,21 +125,21 @@ fn get_amount_fixed_delta(
     sqrt_price_target: u128,
     liquidity: u128,
     amount_specified_is_input: bool,
-    a_to_b: bool
+    a_to_b: bool,
 ) -> NormalResult<u64> {
     if a_to_b == amount_specified_is_input {
         token_math::get_amount_delta_a(
             sqrt_price_current,
             sqrt_price_target,
             liquidity,
-            amount_specified_is_input
+            amount_specified_is_input,
         )
     } else {
         token_math::get_amount_delta_b(
             sqrt_price_current,
             sqrt_price_target,
             liquidity,
-            amount_specified_is_input
+            amount_specified_is_input,
         )
     }
 }
@@ -147,21 +149,21 @@ fn try_get_amount_fixed_delta(
     sqrt_price_target: u128,
     liquidity: u128,
     amount_specified_is_input: bool,
-    a_to_b: bool
-) -> NormalResult<AmountDeltaU64> {
+    a_to_b: bool,
+) -> NormalResult<AmountDeltaI128> {
     if a_to_b == amount_specified_is_input {
         token_math::try_get_amount_delta_a(
             sqrt_price_current,
             sqrt_price_target,
             liquidity,
-            amount_specified_is_input
+            amount_specified_is_input,
         )
     } else {
         token_math::try_get_amount_delta_b(
             sqrt_price_current,
             sqrt_price_target,
             liquidity,
-            amount_specified_is_input
+            amount_specified_is_input,
         )
     }
 }
@@ -171,21 +173,21 @@ fn get_amount_unfixed_delta(
     sqrt_price_target: u128,
     liquidity: u128,
     amount_specified_is_input: bool,
-    a_to_b: bool
+    a_to_b: bool,
 ) -> NormalResult<u64> {
     if a_to_b == amount_specified_is_input {
         token_math::get_amount_delta_b(
             sqrt_price_current,
             sqrt_price_target,
             liquidity,
-            !amount_specified_is_input
+            !amount_specified_is_input,
         )
     } else {
         token_math::get_amount_delta_a(
             sqrt_price_current,
             sqrt_price_target,
             liquidity,
-            !amount_specified_is_input
+            !amount_specified_is_input,
         )
     }
 }

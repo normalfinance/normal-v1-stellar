@@ -15,17 +15,17 @@ pub mod token_contract {
     );
 }
 
-// pub mod index_token {
-//     soroban_sdk::contractimport!(
-//         file = "../contract_a/target/wasm32-unknown-unknown/release/soroban_cross_contract_a_contract.wasm"
-//     );
-// }
+pub mod index_token {
+    soroban_sdk::contractimport!(
+        file = "../../target/wasm32-unknown-unknown/release/normal_index_token.wasm"
+    );
+}
 
-// pub mod synth_pool {
-//     soroban_sdk::contractimport!(
-//         file = "../contract_a/target/wasm32-unknown-unknown/release/soroban_cross_contract_a_contract.wasm"
-//     );
-// }
+pub mod market {
+    soroban_sdk::contractimport!(
+        file = "../../target/wasm32-unknown-unknown/release/normal_market.wasm"
+    );
+}
 
 #[cfg(test)]
 mod tests;

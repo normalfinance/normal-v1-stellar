@@ -1,13 +1,10 @@
 use normal::{
     constants::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
-    error::{ErrorCode},
     safe_decrement, safe_increment,
     types::OrderDirection,
     validate,
 };
 use soroban_sdk::{contracttype, log, Address, Env, Vec};
-
-use crate::errors::NormalResult;
 
 #[contracttype]
 #[derive(Clone, Debug)]
@@ -34,8 +31,8 @@ pub enum InsuranceFundOperation {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InsuranceFund {
-    pub stake_asset: Address,
-    pub share_token: Address,
+    pub deposit_token: Address,
+    pub stake_token: Address,
     pub unstaking_period: i64,
     pub revenue_settle_period: i64,
     pub max_insurance: u64,
@@ -133,8 +130,8 @@ pub struct Auction {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Buffer {
-    pub gov_token: Address,
-    pub gov_token_pool: Address, // DEX pool - Aquarius pool router: CBQDHNBFBZYE4MKPWBSJOPIYLW4SFSXAXUTSXJN76GNKYVYPCKWC6QUK
+    pub governance_token: Address,
+    pub governance_token_pool: Address, // DEX pool - Aquarius pool router: CBQDHNBFBZYE4MKPWBSJOPIYLW4SFSXAXUTSXJN76GNKYVYPCKWC6QUK
     pub quote_token: Address,
     // Auction
     pub auctions: Vec<Auction>,
@@ -188,8 +185,7 @@ pub enum StakeAction {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Stake {
-    // pub authority: Address,
-    if_shares: u128,
+    pub if_shares: u128,
     pub last_withdraw_request_shares: u128, // get zero as 0 when not in escrow
     pub if_base: u128,                      // exponent for if_shares decimal places (for rebase)
     pub last_valid_ts: u64,
@@ -212,52 +208,34 @@ impl Stake {
         }
     }
 
-    fn validate_base(&self, env: &Env, insurance_fund: &InsuranceFund) -> NormalResult {
+    fn validate_base(&self, env: &Env, insurance_fund: &InsuranceFund) {
         validate!(
             env,
             self.if_base == insurance_fund.shares_base,
-            ErrorCode::InvalidIFRebase,
+            InsuranceFundErrors::InvalidIFRebase,
             "if stake bases mismatch. user base: {} market base {}",
             self.if_base,
             insurance_fund.shares_base
-        )?;
-
-        Ok(())
+        );
     }
 
-    pub fn checked_if_shares(
-        &self,
-        env: &Env,
-        insurance_fund: &InsuranceFund,
-    ) -> NormalResult<u128> {
-        self.validate_base(env, insurance_fund)?;
-        Ok(self.if_shares)
+    pub fn checked_if_shares(&self, env: &Env, insurance_fund: &InsuranceFund) -> u128 {
+        self.validate_base(env, insurance_fund);
+        self.if_shares
     }
 
     pub fn unchecked_if_shares(&self) -> u128 {
         self.if_shares
     }
 
-    pub fn increase_if_shares(
-        &mut self,
-        env: &Env,
-        delta: u128,
-        insurance_fund: &InsuranceFund,
-    ) -> NormalResult {
-        self.validate_base(env, insurance_fund)?;
-        safe_increment!(self.if_shares, delta);
-        Ok(())
+    pub fn increase_if_shares(&mut self, env: &Env, delta: u128, insurance_fund: &InsuranceFund) {
+        self.validate_base(env, insurance_fund);
+        safe_increment!(self.if_shares, delta, env);
     }
 
-    pub fn decrease_if_shares(
-        &mut self,
-        env: &Env,
-        delta: u128,
-        insurance_fund: &InsuranceFund,
-    ) -> NormalResult {
-        self.validate_base(env, insurance_fund)?;
-        safe_decrement!(self.if_shares, delta);
-        Ok(())
+    pub fn decrease_if_shares(&mut self, env: &Env, delta: u128, insurance_fund: &InsuranceFund) {
+        self.validate_base(env, insurance_fund);
+        safe_decrement!(self.if_shares, delta, env);
     }
 
     pub fn update_if_shares(
@@ -265,11 +243,9 @@ impl Stake {
         env: &Env,
         new_shares: u128,
         insurance_fund: &InsuranceFund,
-    ) -> NormalResult {
-        self.validate_base(env, insurance_fund)?;
+    ) {
+        self.validate_base(env, insurance_fund);
         self.if_shares = new_shares;
-
-        Ok(())
     }
 }
 

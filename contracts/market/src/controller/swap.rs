@@ -1,15 +1,15 @@
 use crate::math::swap_math::NO_EXPLICIT_SQRT_PRICE_LIMIT;
-use crate::math::tick_math::{ tick_index_from_sqrt_price, MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64 };
+use crate::math::tick_math::{tick_index_from_sqrt_price, MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64};
 use crate::math::token_math::PROTOCOL_FEE_RATE_MUL_VALUE;
 use crate::storage::Pool;
 use crate::tick::TICK_ARRAY_SIZE;
-use crate::{ controller, math };
-use normal::error::{ ErrorCode, NormalResult };
-use soroban_sdk::{ contracttype, log, Env, Vec };
+use crate::{controller, math};
+use normal::error::{ErrorCode, NormalResult};
+use soroban_sdk::{contracttype, log, Env, Vec};
 
 use crate::{
     reward::RewardInfo,
-    tick::{ Tick, TickUpdate },
+    tick::{Tick, TickUpdate},
     utils::swap_tick_sequence::SwapTickSequence,
 };
 
@@ -34,10 +34,14 @@ pub fn swap(
     sqrt_price_limit: u128,
     amount_specified_is_input: bool,
     a_to_b: bool,
-    timestamp: u64
+    timestamp: u64,
 ) -> NormalResult<PostSwapUpdate> {
     let adjusted_sqrt_price_limit = if sqrt_price_limit == NO_EXPLICIT_SQRT_PRICE_LIMIT {
-        if a_to_b { MIN_SQRT_PRICE_X64 } else { MAX_SQRT_PRICE_X64 }
+        if a_to_b {
+            MIN_SQRT_PRICE_X64
+        } else {
+            MAX_SQRT_PRICE_X64
+        }
     } else {
         sqrt_price_limit
     };
@@ -46,9 +50,8 @@ pub fn swap(
         return Err(ErrorCode::SqrtPriceOutOfBounds);
     }
 
-    if
-        (a_to_b && adjusted_sqrt_price_limit > pool.sqrt_price) ||
-        (!a_to_b && adjusted_sqrt_price_limit < pool.sqrt_price)
+    if (a_to_b && adjusted_sqrt_price_limit > pool.sqrt_price)
+        || (!a_to_b && adjusted_sqrt_price_limit < pool.sqrt_price)
     {
         return Err(ErrorCode::InvalidSqrtPriceLimitDirection);
     }
@@ -57,9 +60,7 @@ pub fn swap(
         return Err(ErrorCode::ZeroTradableAmount);
     }
 
-    if
-        a_to_b &&
-        adjusted_sqrt_price_limit > pool.historical_oracle_data.last_oracle_price_twap_5min
+    if a_to_b && adjusted_sqrt_price_limit > pool.historical_oracle_data.last_oracle_price_twap_5min
     {
         // TODO: apply penalty
     }
@@ -83,19 +84,16 @@ pub fn swap(
     };
 
     while amount_remaining > 0 && adjusted_sqrt_price_limit != curr_sqrt_price {
-        let (next_array_index, next_tick_index) =
-            swap_tick_sequence.get_next_initialized_tick_index(
+        let (next_array_index, next_tick_index) = swap_tick_sequence
+            .get_next_initialized_tick_index(
                 curr_tick_index,
                 tick_spacing,
                 a_to_b,
-                curr_array_index
+                curr_array_index,
             )?;
 
-        let (next_tick_sqrt_price, sqrt_price_target) = get_next_sqrt_prices(
-            next_tick_index,
-            adjusted_sqrt_price_limit,
-            a_to_b
-        );
+        let (next_tick_sqrt_price, sqrt_price_target) =
+            get_next_sqrt_prices(next_tick_index, adjusted_sqrt_price_limit, a_to_b);
 
         let swap_computation = math::swap_math::compute_swap(
             amount_remaining,
@@ -104,7 +102,7 @@ pub fn swap(
             curr_sqrt_price,
             sqrt_price_target,
             amount_specified_is_input,
-            a_to_b
+            a_to_b,
         )?;
 
         if amount_specified_is_input {
@@ -136,7 +134,7 @@ pub fn swap(
             protocol_fee_rate,
             curr_liquidity,
             curr_protocol_fee,
-            curr_fee_growth_global_input
+            curr_fee_growth_global_input,
         );
         curr_protocol_fee = next_protocol_fee;
         curr_fee_growth_global_input = next_fee_growth_global_input;
@@ -144,10 +142,7 @@ pub fn swap(
         if swap_computation.next_price == next_tick_sqrt_price {
             let (next_tick, next_tick_initialized) = swap_tick_sequence
                 .get_tick(next_array_index, next_tick_index, tick_spacing)
-                .map_or_else(
-                    |_| (None, false),
-                    |tick| (Some(tick), tick.initialized)
-                );
+                .map_or_else(|_| (None, false), |tick| (Some(tick), tick.initialized));
 
             if next_tick_initialized {
                 let (fee_growth_global_a, fee_growth_global_b) = if a_to_b {
@@ -162,7 +157,7 @@ pub fn swap(
                     curr_liquidity,
                     fee_growth_global_a,
                     fee_growth_global_b,
-                    &next_reward_infos
+                    &next_reward_infos,
                 )?;
 
                 curr_liquidity = next_liquidity;
@@ -170,22 +165,21 @@ pub fn swap(
                     next_array_index,
                     next_tick_index,
                     tick_spacing,
-                    &update
+                    &update,
                 )?;
             }
 
             let tick_offset = swap_tick_sequence.get_tick_offset(
                 next_array_index,
                 next_tick_index,
-                tick_spacing
+                tick_spacing,
             )?;
 
             // Increment to the next tick array if either condition is true:
             //  - Price is moving left and the current tick is the start of the tick array
             //  - Price is moving right and the current tick is the end of the tick array
-            curr_array_index = if
-                (a_to_b && tick_offset == 0) ||
-                (!a_to_b && tick_offset == (TICK_ARRAY_SIZE as isize) - 1)
+            curr_array_index = if (a_to_b && tick_offset == 0)
+                || (!a_to_b && tick_offset == (TICK_ARRAY_SIZE as isize) - 1)
             {
                 next_array_index + 1
             } else {
@@ -194,7 +188,11 @@ pub fn swap(
 
             // The get_init_tick search is inclusive of the current index in an a_to_b trade.
             // We therefore have to shift the index by 1 to advance to the next init tick to the left.
-            curr_tick_index = if a_to_b { next_tick_index - 1 } else { next_tick_index };
+            curr_tick_index = if a_to_b {
+                next_tick_index - 1
+            } else {
+                next_tick_index
+            };
         } else if swap_computation.next_price != curr_sqrt_price {
             curr_tick_index = tick_index_from_sqrt_price(&swap_computation.next_price);
         }
@@ -203,10 +201,9 @@ pub fn swap(
     }
 
     // Reject partial fills if no explicit sqrt price limit is set and trade is exact out mode
-    if
-        amount_remaining > 0 &&
-        !amount_specified_is_input &&
-        sqrt_price_limit == NO_EXPLICIT_SQRT_PRICE_LIMIT
+    if amount_remaining > 0
+        && !amount_specified_is_input
+        && sqrt_price_limit == NO_EXPLICIT_SQRT_PRICE_LIMIT
     {
         return Err(ErrorCode::PartialFillError);
     }
@@ -243,7 +240,7 @@ fn calculate_fees(
     protocol_fee_rate: i64,
     curr_liquidity: u128,
     curr_protocol_fee: u64,
-    curr_fee_growth_global_input: u128
+    curr_fee_growth_global_input: u128,
 ) -> (u64, u128) {
     let mut next_protocol_fee = curr_protocol_fee;
     let mut next_fee_growth_global_input = curr_fee_growth_global_input;
@@ -255,9 +252,8 @@ fn calculate_fees(
     }
 
     if curr_liquidity > 0 {
-        next_fee_growth_global_input = next_fee_growth_global_input.wrapping_add(
-            ((global_fee as u128) << Q64_RESOLUTION) / curr_liquidity
-        );
+        next_fee_growth_global_input = next_fee_growth_global_input
+            .wrapping_add(((global_fee as u128) << Q64_RESOLUTION) / curr_liquidity);
     }
     (next_protocol_fee, next_fee_growth_global_input)
 }
@@ -274,24 +270,26 @@ fn calculate_update(
     liquidity: u128,
     fee_growth_global_a: u128,
     fee_growth_global_b: u128,
-    reward_infos: &Vec<RewardInfo>
+    reward_infos: &Vec<RewardInfo>,
 ) -> NormalResult<(TickUpdate, u128)> {
     // Use updated fee_growth for crossing tick
     // Use -liquidity_net if going left, +liquidity_net going right
-    let signed_liquidity_net = if a_to_b { -tick.liquidity_net } else { tick.liquidity_net };
+    let signed_liquidity_net = if a_to_b {
+        -tick.liquidity_net
+    } else {
+        tick.liquidity_net
+    };
 
     let update = controller::tick::next_tick_cross_update(
         tick,
         fee_growth_global_a,
         fee_growth_global_b,
-        reward_infos
+        reward_infos,
     )?;
 
     // Update the global liquidity to reflect the new current tick
-    let next_liquidity = math::liquidity_math::add_liquidity_delta(
-        liquidity,
-        signed_liquidity_net
-    )?;
+    let next_liquidity =
+        math::liquidity_math::add_liquidity_delta(liquidity, signed_liquidity_net)?;
 
     Ok((update, next_liquidity))
 }
@@ -299,7 +297,7 @@ fn calculate_update(
 fn get_next_sqrt_prices(
     next_tick_index: i32,
     sqrt_price_limit: u128,
-    a_to_b: bool
+    a_to_b: bool,
 ) -> (u128, u128) {
     let next_tick_price = math::tick_math::sqrt_price_from_tick_index(next_tick_index);
     let next_sqrt_price_limit = if a_to_b {

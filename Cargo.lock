@@ -815,6 +815,7 @@ version = "0.1.0"
 dependencies = [
  "normal",
  "num-integer",
+ "pretty_assertions",
  "soroban-sdk",
 ]
 
@@ -826,6 +827,14 @@ dependencies = [
  "normal",
  "num-integer",
  "soroban-decimal",
+ "soroban-sdk",
+]
+
+[[package]]
+name = "normal-market-factory"
+version = "0.1.0"
+dependencies = [
+ "normal",
  "soroban-sdk",
 ]
 

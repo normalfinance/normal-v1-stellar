@@ -1,4 +1,4 @@
-use normal::error::ErrorCode as SharedErrors;
+// use normal::error::ErrorCode as SharedErrors;
 use soroban_sdk::contracterror;
 
 #[contracterror]
@@ -35,25 +35,7 @@ pub enum Errors {
     InsufficientIFShares = 13,
     #[doc = "Trying to remove liqudity too fast after adding it"]
     TryingToRemoveLiquidityTooFast = 14,
+    AlreadyInitialized = 15,
+    NotAuthorized = 16,
+    AdminNotSet = 17,
 }
-
-pub enum NormalError {
-    Shared(SharedErrors),
-    Errors(Errors),
-}
-
-// Auto-convert from SharedErrors
-impl From<SharedErrors> for NormalError {
-    fn from(error: SharedErrors) -> Self {
-        NormalError::Shared(error)
-    }
-}
-
-// Auto-convert from Errors
-impl From<Errors> for NormalError {
-    fn from(error: Errors) -> Self {
-        NormalError::Errors(error)
-    }
-}
-
-pub type NormalResult<T = ()> = core::result::Result<T, NormalError>;

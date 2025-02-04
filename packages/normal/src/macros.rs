@@ -1,13 +1,4 @@
-#[macro_export]
-macro_rules! get_struct_values {
-    ($struct:expr, $($property:ident),+) => {
-        {
-        ($(
-            $struct.$property,
-        )+)
-        }
-    };
-}
+use soroban_sdk::panic_with_error;
 
 #[macro_export]
 macro_rules! get_then_update_id {
@@ -18,88 +9,70 @@ macro_rules! get_then_update_id {
     }};
 }
 
+/// A macro that validates a condition, logs a message, and panics with a specific error if the condition is false
 #[macro_export]
 macro_rules! validate {
-    ($env:expr, $assert:expr, $err:expr) => {
-        {
-            if ($assert) {
-                Ok(())
-            } else {
-                let error_code: ErrorCode = $err;
-                log!($env, "Error {} thrown at {}:{}", error_code, file!(), line!());
-                Err(error_code)
-            }
+    ($env:expr, $condition:expr, $error:expr, $message:expr) => {
+        if !$condition {
+            // Log the validation failure message
+            #[cfg(debug_assertions)]
+            $env.log($message);
+            // Panic with the specified error
+            #[cfg(debug_assertions)]
+            panic_with_error!($env, $error)
         }
     };
-    (
-        $env:expr,
-        $assert:expr,
-        $err:expr,
-        $($arg:tt)+
-    ) => {
+    // Version with format string and single data parameter
+    ($env:expr, $condition:expr, $error:expr, $message:expr, $data:expr) => {
         {
-        if ($assert) {
-            Ok(())
-        } else {
-            let error_code: ErrorCode = $err;
-            log!($env, "Error {} thrown at {}:{}", error_code, file!(), line!());
-            log!($env, $($arg)*);
-            Err(error_code)
-        }
+        if !$condition {{
+            #[cfg(debug_assertions)]
+            $env.log(&format!($message, $data));
+            #[cfg(debug_assertions)]
+            panic_with_error!($env, $error)
+        }}
         }
     };
-}
-
-#[macro_export]
-macro_rules! dlog {
-    ($($variable:expr),+) => {
+    // Version with format string and multiple data parameters
+    ($env:expr, $condition:expr, $error:expr, $message:expr, $($data:expr),+ $(,)?) => {
         {
-        $(
-            log!("{}: {}", stringify!($variable), $variable);
-        )+
+        if !$condition {{
+            #[cfg(debug_assertions)]
+            $env.log(&format!($message, $($data),+));
+            #[cfg(debug_assertions)]
+            panic_with_error!($env, $error)
+        }}
         }
     };
-    ($($arg:tt)+) => {
-        {
-            #[cfg(not(feature = "mainnet-beta"))]
-            log!($($arg)+);
+    // Variant without logging for cases where logging isn't needed
+    ($env:expr, $condition:expr, $error:expr) => {
+        if !$condition {
+            #[cfg(debug_assertions)]
+            panic_with_error!($env, $error)
         }
     };
 }
 
 #[macro_export]
 macro_rules! safe_increment {
-    ($struct:expr, $value:expr) => {{
-        $struct = $struct
-            .checked_add($value)
-            .ok_or_else(|| $crate::error::ErrorCode::MathError)?
+    ($struct:expr, $value:expr, $env:expr) => {{
+        $struct = $struct.checked_add($value).unwrap_or_else(|| {
+            #[cfg(debug_assertions)]
+            panic_with_error!($env, $crate::safe_math::Error::MathError);
+            $struct
+        });
     }};
 }
 
 #[macro_export]
 macro_rules! safe_decrement {
-    ($struct:expr, $value:expr) => {{
-        $struct = $struct
-            .checked_sub($value)
-            .ok_or_else(|| $crate::error::ErrorCode::MathError)?
+    ($struct:expr, $value:expr, $env:expr) => {{
+        $struct = $struct.checked_sub($value).unwrap_or_else(|| {
+            #[cfg(debug_assertions)]
+            panic_with_error!($env, $crate::safe_math::Error::MathError);
+            $struct
+        });
     }};
-}
-
-// Validate if int value is bigger then 0
-#[macro_export]
-macro_rules! validate_int_parameters {
-    ($($arg:expr),*) => {
-        {
-            $(
-                let value: Option<i128> = Into::<Option<_>>::into($arg);
-                if let Some(val) = value {
-                    if val <= 0 {
-                        panic!("value cannot be less than or equal zero")
-                    }
-                }
-            )*
-        }
-    };
 }
 
 // Validate all bps to be between the range 0..10_000

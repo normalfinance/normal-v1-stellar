@@ -1,10 +1,10 @@
 #![no_std]
 
 mod contract;
-mod controller;
-mod interface;
+pub mod controller;
 mod errors;
 mod events;
+mod interface;
 pub mod math;
 pub mod state;
 mod storage;

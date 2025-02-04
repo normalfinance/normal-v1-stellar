@@ -1,11 +1,11 @@
 use normal::{
-    constants::{ PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD },
-    oracle::{ HistoricalOracleData, OracleSource },
+    constants::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
+    oracle::{HistoricalOracleData, OracleSource},
     types::SynthTier,
 };
-use soroban_sdk::{ contracttype, Address, Env, String, Vec };
+use soroban_sdk::{contracttype, Address, Env, String, Vec};
 
-use crate::storage::{ DataKey };
+use crate::storage::DataKey;
 
 use super::pool::{Pool, PoolParams};
 
@@ -228,7 +228,6 @@ pub struct Market {
 
     // Collateral / Liquidations
     //
-
     ///
     pub collateral_lending_utilization: u64,
 
@@ -274,34 +273,34 @@ impl Market {
     pub fn get_max_confidence_interval_multiplier(self) -> u64 {
         // assuming validity_guard_rails max confidence pct is 2%
         match self.synth_tier {
-            SynthTier::A => 1, // 2%
-            SynthTier::B => 1, // 2%
-            SynthTier::C => 2, // 4%
-            SynthTier::Speculative => 10, // 20%
+            SynthTier::A => 1,                  // 2%
+            SynthTier::B => 1,                  // 2%
+            SynthTier::C => 2,                  // 4%
+            SynthTier::Speculative => 10,       // 20%
             SynthTier::HighlySpeculative => 50, // 100%
-            SynthTier::Isolated => 50, // 100%
+            SynthTier::Isolated => 50,          // 100%
         }
     }
 
     pub fn get_sanitize_clamp_denominator(self) -> Option<i64> {
         match self.synth_tier {
-            SynthTier::A => Some(10_i64), // 10%
-            SynthTier::B => Some(5_i64), // 20%
-            SynthTier::C => Some(2_i64), // 50%
-            SynthTier::Speculative => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
+            SynthTier::A => Some(10_i64),         // 10%
+            SynthTier::B => Some(5_i64),          // 20%
+            SynthTier::C => Some(2_i64),          // 50%
+            SynthTier::Speculative => None,       // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
             SynthTier::HighlySpeculative => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
-            SynthTier::Isolated => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
+            SynthTier::Isolated => None,          // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
         }
     }
 
     pub fn get_auction_end_min_max_divisors(self) -> (u64, u64) {
         match self.synth_tier {
-            SynthTier::A => (1000, 50), // 10 bps, 2%
-            SynthTier::B => (1000, 20), // 10 bps, 5%
-            SynthTier::C => (500, 20), // 50 bps, 5%
-            SynthTier::Speculative => (100, 10), // 1%, 10%
+            SynthTier::A => (1000, 50),              // 10 bps, 2%
+            SynthTier::B => (1000, 20),              // 10 bps, 5%
+            SynthTier::C => (500, 20),               // 50 bps, 5%
+            SynthTier::Speculative => (100, 10),     // 1%, 10%
             SynthTier::HighlySpeculative => (50, 5), // 2%, 20%
-            SynthTier::Isolated => (50, 5), // 2%, 20%
+            SynthTier::Isolated => (50, 5),          // 2%, 20%
         }
     }
 
@@ -333,7 +332,7 @@ impl Market {
             size,
             self.imf_factor,
             default_margin_ratio,
-            MARGIN_PRECISION_U128
+            MARGIN_PRECISION_U128,
         )?;
 
         let margin_ratio = default_margin_ratio.max(size_adj_margin_ratio);
@@ -342,12 +341,13 @@ impl Market {
     }
 
     pub fn get_max_liquidation_fee(&self) -> u32 {
-        let max_liquidation_fee = self.liquidator_fee
+        let max_liquidation_fee = self
+            .liquidator_fee
             .safe_mul(MAX_LIQUIDATION_MULTIPLIER)?
             .min(
                 self.margin_ratio_maintenance
                     .safe_mul(LIQUIDATION_FEE_PRECISION)?
-                    .safe_div(MARGIN_PRECISION)?
+                    .safe_div(MARGIN_PRECISION)?,
             );
         max_liquidation_fee
     }
@@ -358,7 +358,10 @@ impl Market {
             .safe_sub(self.amm.historical_oracle_data.last_oracle_price_twap_5min)?
             .safe_mul(PERCENTAGE_PRECISION_I64)?
             .safe_div(
-                self.amm.historical_oracle_data.last_oracle_price_twap_5min.min(oracle_price)
+                self.amm
+                    .historical_oracle_data
+                    .last_oracle_price_twap_5min
+                    .min(oracle_price),
             )?
             .unsigned_abs();
 
@@ -381,20 +384,18 @@ impl Market {
             return Ok(false);
         }
 
-        let min_price = oracle_price.min(
-            self.amm.historical_oracle_data.last_oracle_price_twap_5min
-        );
+        let min_price =
+            oracle_price.min(self.amm.historical_oracle_data.last_oracle_price_twap_5min);
 
-        let std_limit = (
-            match self.contract_tier {
-                ContractTier::A => min_price / 50, // 200 bps
-                ContractTier::B => min_price / 50, // 200 bps
-                ContractTier::C => min_price / 20, // 500 bps
-                ContractTier::Speculative => min_price / 10, // 1000 bps
-                ContractTier::HighlySpeculative => min_price / 10, // 1000 bps
-                ContractTier::Isolated => min_price / 10, // 1000 bps
-            }
-        ).unsigned_abs();
+        let std_limit = (match self.contract_tier {
+            ContractTier::A => min_price / 50,                 // 200 bps
+            ContractTier::B => min_price / 50,                 // 200 bps
+            ContractTier::C => min_price / 20,                 // 500 bps
+            ContractTier::Speculative => min_price / 10,       // 1000 bps
+            ContractTier::HighlySpeculative => min_price / 10, // 1000 bps
+            ContractTier::Isolated => min_price / 10,          // 1000 bps
+        })
+        .unsigned_abs();
 
         if self.amm.oracle_std.max(self.amm.mark_std) >= std_limit {
             msg!(
@@ -410,7 +411,8 @@ impl Market {
     }
 
     pub fn get_open_interest(&self) -> u128 {
-        self.amm.base_asset_amount_long
+        self.amm
+            .base_asset_amount_long
             .abs()
             .max(self.amm.base_asset_amount_short.abs())
             .unsigned_abs()
@@ -419,17 +421,25 @@ impl Market {
 
 pub fn save_market(env: &Env, market: Market) {
     env.storage().persistent().set(&DataKey::Market, &market);
-    env.storage()
-        .persistent()
-        .extend_ttl(&DataKey::Market, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &DataKey::Market,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn get_market(env: &Env) -> Market {
-    let market = env.storage().persistent().get(&DataKey::Market).expect("Market not set");
-
-    env.storage()
+    let market = env
+        .storage()
         .persistent()
-        .extend_ttl(&DataKey::Market, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        .get(&DataKey::Market)
+        .expect("Market not set");
+
+    env.storage().persistent().extend_ttl(
+        &DataKey::Market,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 
     market
 }

@@ -1,7 +1,7 @@
-use normal::{ oracle::OracleSource, types::SynthTier };
+use normal::{ error::ErrorCode, oracle::OracleSource, types::SynthTier };
 use soroban_sdk::{ contractclient, Address, BytesN, Env, String, Vec };
 
-use crate::state::market::{ MarketOperation, MarketParams, MarketStatus };
+use crate::state::market::{ Market, MarketOperation, MarketParams, MarketStatus };
 
 #[contractclient(name = "MarketClient")]
 pub trait MarketTrait {
@@ -30,7 +30,7 @@ pub trait MarketTrait {
         debt_ceiling: Option<u128>
     );
 
-    fn extend_expiry_ts(env: Env, sender: Address, expiry_timestamp: i64);
+    fn extend_expiry_ts(env: Env, sender: Address, expiry_ts: u64);
 
     fn update_margin_config(
         env: Env,
@@ -59,6 +59,15 @@ pub trait MarketTrait {
     // ################################################################
     //                             Keeper
     // ################################################################
+
+    /// Revenue is settled to 2 places: Normal Insurance and the Governor.
+    /// A portion of revenue is sent to the Normal Buffer is filled to its max balance,
+    /// while any overflow goes to the Insurance Fund.
+    ///
+    /// The remaining majority of revenue is sent to the Governor to be
+    /// distributed to voters/
+    ///
+    fn settle_revenue(env: Env, keeper: Address);
 
     fn update_oracle_twap(env: Env, keeper: Address);
 
@@ -93,4 +102,24 @@ pub trait MarketTrait {
     /// * `amount` - The path to the file.
     ///
     fn borrow_synth(env: Env, sender: Address, amount: i128);
+
+    // ################################################################
+    //                             Queries
+    // ################################################################
+
+    // Returns the configuration structure containing the addresses
+    fn query_market(env: Env) -> Market;
+
+    // Returns the address for the pool share token
+    fn query_synth_token_address(env: Env) -> Address;
+
+    // Returns the address for the pool stake contract
+    fn query_lp_contract_address(env: Env) -> Address;
+
+    // Returns  the total amount of LP tokens and assets in a specific pool
+    fn query_market_info(env: Env) -> PoolResponse;
+
+    fn query_market_info_for_factory(env: Env) -> MarketInfo;
+
+    fn migrate_admin_key(env: Env) -> Result<(), ErrorCode>;
 }

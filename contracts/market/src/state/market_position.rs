@@ -1,8 +1,8 @@
 use normal::{
-    constants::{ PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD },
+    constants::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
     error::NormalResult,
 };
-use soroban_sdk::{ contracttype, Address, Env };
+use soroban_sdk::{contracttype, Address, Env};
 
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Debug, Eq)]
@@ -52,9 +52,10 @@ impl MarketPosition {
     }
 
     pub fn is_being_liquidated(&self) -> bool {
-        self.status &
-            ((MarketPositionStatus::BeingLiquidated as u8) |
-                (MarketPositionStatus::Bankrupt as u8)) > 0
+        self.status
+            & ((MarketPositionStatus::BeingLiquidated as u8)
+                | (MarketPositionStatus::Bankrupt as u8))
+            > 0
     }
 
     pub fn is_bankrupt(&self) -> bool {
@@ -78,7 +79,7 @@ impl MarketPosition {
         &mut self,
         amount: u64,
         price: i64,
-        precision: u128
+        precision: u128,
     ) -> NormalResult {
         let value = self.get_deposit_value(amount, price, precision);
         self.total_deposits = self.total_deposits.saturating_add(value);
@@ -90,7 +91,7 @@ impl MarketPosition {
         &mut self,
         amount: u64,
         price: i64,
-        precision: u128
+        precision: u128,
     ) -> NormalResult {
         let value = amount
             .cast::<u128>()?
@@ -148,7 +149,7 @@ impl MarketPosition {
         &mut self,
 
         context: MarginContext,
-        now: i64
+        now: i64,
     ) -> NormalResult<MarginCalculation> {
         let margin_calculation =
             calculate_margin_requirement_and_total_collateral_and_liability_info(self, context)?;
@@ -162,15 +163,13 @@ impl MarketPosition {
         margin_requirement_type: MarginRequirementType,
         withdraw_market_index: u32,
         withdraw_amount: u128,
-        now: i64
+        now: i64,
     ) -> NormalResult<bool> {
         let strict = margin_requirement_type == MarginRequirementType::Initial;
         let context = MarginContext::standard(margin_requirement_type).strict(strict);
 
-        let calculation = calculate_margin_requirement_and_total_collateral_and_liability_info(
-            self,
-            context
-        )?;
+        let calculation =
+            calculate_margin_requirement_and_total_collateral_and_liability_info(self, context)?;
 
         if calculation.margin_requirement > 0 || calculation.get_num_of_liabilities()? > 0 {
             validate!(
@@ -197,26 +196,26 @@ impl MarketPosition {
 pub fn get_market_position(env: &Env, key: &Address) -> MarketPosition {
     let position = match env.storage().persistent().get::<_, MarketPosition>(key) {
         Some(pos) => pos,
-        None =>
-            MarketPosition {
-                positions: Vec::new(env),
-            },
+        None => MarketPosition {
+            positions: Vec::new(env),
+        },
     };
-    env.storage()
-        .persistent()
-        .has(&key)
-        .then(|| {
-            env.storage()
-                .persistent()
-                .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
-        });
+    env.storage().persistent().has(&key).then(|| {
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
+    });
 
     position
 }
 
 pub fn save_market_position(env: &Env, key: &Address, position_info: &MarketPosition) {
     env.storage().persistent().set(key, position_info);
-    env.storage()
-        .persistent()
-        .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }

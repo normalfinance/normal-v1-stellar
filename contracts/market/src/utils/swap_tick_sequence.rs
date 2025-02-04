@@ -1,8 +1,8 @@
-use normal::error::{ ErrorCode, NormalResult };
-use soroban_sdk::{ Env, Vec };
+use normal::error::{ErrorCode, NormalResult};
+use soroban_sdk::{Env, Vec};
 
 use crate::state::{
-    tick::{ Tick, TickUpdate, MAX_TICK_INDEX, MIN_TICK_INDEX, TICK_ARRAY_SIZE },
+    tick::{Tick, TickUpdate, MAX_TICK_INDEX, MIN_TICK_INDEX, TICK_ARRAY_SIZE},
     tick_array::TickArray,
 };
 
@@ -18,7 +18,7 @@ impl SwapTickSequence {
             env,
             ProxiedTickArray::new_initialized(ta0),
             ta1.map(ProxiedTickArray::new_initialized),
-            ta2.map(ProxiedTickArray::new_initialized)
+            ta2.map(ProxiedTickArray::new_initialized),
         )
     }
 
@@ -26,7 +26,7 @@ impl SwapTickSequence {
         env: &Env,
         ta0: ProxiedTickArray,
         ta1: Option<ProxiedTickArray>,
-        ta2: Option<ProxiedTickArray>
+        ta2: Option<ProxiedTickArray>,
     ) -> Self {
         // let mut vec = Vec::with_capacity(3);
         let mut _vec = Vec::new(env);
@@ -56,7 +56,7 @@ impl SwapTickSequence {
         &self,
         array_index: usize,
         tick_index: i32,
-        tick_spacing: u32
+        tick_spacing: u32,
     ) -> NormalResult<&Tick> {
         let array = self.arrays.get(array_index);
         match array {
@@ -81,7 +81,7 @@ impl SwapTickSequence {
         array_index: usize,
         tick_index: i32,
         tick_spacing: u32,
-        update: &TickUpdate
+        update: &TickUpdate,
     ) -> NormalResult<()> {
         let array = self.arrays.get_mut(array_index);
         match array {
@@ -97,7 +97,7 @@ impl SwapTickSequence {
         &self,
         array_index: usize,
         tick_index: i32,
-        tick_spacing: u32
+        tick_spacing: u32,
     ) -> NormalResult<isize> {
         let array = self.arrays.get(array_index);
         match array {
@@ -125,7 +125,7 @@ impl SwapTickSequence {
         tick_index: i32,
         tick_spacing: u32,
         a_to_b: bool,
-        start_array_index: usize
+        start_array_index: usize,
     ) -> NormalResult<(usize, i32)> {
         let ticks_in_array = TICK_ARRAY_SIZE * (tick_spacing as i32);
         let mut search_index = tick_index;
@@ -141,11 +141,8 @@ impl SwapTickSequence {
                 }
             };
 
-            let next_index = next_array.get_next_init_tick_index(
-                search_index,
-                tick_spacing,
-                a_to_b
-            )?;
+            let next_index =
+                next_array.get_next_init_tick_index(search_index, tick_spacing, a_to_b)?;
 
             match next_index {
                 Some(next_index) => {

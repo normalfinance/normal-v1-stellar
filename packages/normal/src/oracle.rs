@@ -1,8 +1,11 @@
 use crate::error::NormalResult;
 use crate::math::casting::Cast;
 use crate::math::safe_math::SafeMath;
-use crate::{ band_std_reference, constants::{ PERCENTAGE_PRECISION_U64, PRICE_PRECISION_I64 } };
-use soroban_sdk::{ contracttype, log, Address, Env, Symbol, Vec };
+use crate::{
+    band_std_reference,
+    constants::{PERCENTAGE_PRECISION_U64, PRICE_PRECISION_I64},
+};
+use soroban_sdk::{contracttype, log, Address, Env, Symbol, Vec};
 
 #[contracttype]
 #[derive(Default, Clone, Copy, Eq, PartialEq, Debug)]
@@ -79,18 +82,17 @@ pub fn get_oracle_price(
     oracle_source: &OracleSource,
     price_oracle_address: &Address,
     symbol_pair: (Symbol, Symbol),
-    now: u64
+    now: u64,
 ) -> NormalResult<OraclePriceData> {
     match oracle_source {
         OracleSource::Band => get_band_price(env, price_oracle_address, symbol_pair, now),
         // OracleSource::Reflector => get_reflector_price(),
-        OracleSource::QuoteAsset =>
-            Ok(OraclePriceData {
-                price: PRICE_PRECISION_I64,
-                confidence: 1,
-                delay: 0,
-                has_sufficient_data_points: true,
-            }),
+        OracleSource::QuoteAsset => Ok(OraclePriceData {
+            price: PRICE_PRECISION_I64,
+            confidence: 1,
+            delay: 0,
+            has_sufficient_data_points: true,
+        }),
     }
 }
 
@@ -98,13 +100,13 @@ pub fn is_oracle_too_divergent_with_twap_5min(
     env: &Env,
     oracle_price: i64,
     oracle_twap_5min: i64,
-    max_divergence: i64
+    max_divergence: i64,
 ) -> NormalResult<bool> {
     let percent_diff = oracle_price
-        .safe_sub(oracle_twap_5min, env)?
+        .safe_sub(oracle_twap_5min, env)
         .abs()
-        .safe_mul(PERCENTAGE_PRECISION_U64.cast::<i64>(env)?, env)?
-        .safe_div(oracle_twap_5min.abs(), env)?;
+        .safe_mul(PERCENTAGE_PRECISION_U64.cast::<i64>(env), env)
+        .safe_div(oracle_twap_5min.abs(), env);
 
     let too_divergent = percent_diff >= max_divergence;
     if too_divergent {
@@ -124,7 +126,7 @@ fn get_band_price(
     env: &Env,
     oracle_contract_address: &Address,
     symbol_pair: (Symbol, Symbol),
-    now: u64 // multiple: u128,
+    now: u64, // multiple: u128,
 ) -> NormalResult<OraclePriceData> {
     let client = band_std_reference::Client::new(env, oracle_contract_address);
 
@@ -161,10 +163,10 @@ fn get_band_price(
     // }
 
     let oracle_price_scaled = oracle_price
-        .cast::<i128>(env)?
-        .safe_mul(oracle_scale_mult.cast(env)?, env)?
-        .safe_div(oracle_scale_div.cast(env)?, env)?
-        .cast::<i64>(env)?;
+        .cast::<i128>(env)
+        .safe_mul(oracle_scale_mult.cast(env), env)
+        .safe_div(oracle_scale_div.cast(env), env)
+        .cast::<i64>(env);
 
     // let oracle_conf_scaled = oracle_conf
     //     .cast::<u128>()?
@@ -172,7 +174,7 @@ fn get_band_price(
     //     .safe_div(oracle_scale_div)?
     //     .cast::<u64>()?;
 
-    let oracle_delay: i64 = now.cast::<i64>(env)?.safe_sub(published_slot.cast(env)?, env)?;
+    let oracle_delay: i64 = now.cast::<i64>(env).safe_sub(published_slot.cast(env), env);
 
     Ok(OraclePriceData {
         price: oracle_price_scaled,
@@ -219,19 +221,19 @@ pub struct OracleGuardRails {
     pub validity: ValidityGuardRails,
 }
 
-// impl OracleGuardRails {
-//     fn default() -> Self {
-//         OracleGuardRails {
-//             price_divergence: PriceDivergenceGuardRails::default(),
-//             validity: ValidityGuardRails {
-//                 slots_before_stale_for_amm: 10,       // ~5 seconds
-//                 slots_before_stale_for_margin: 120,   // ~60 seconds
-//                 confidence_interval_max_size: 20_000, // 2% of price
-//                 too_volatile_ratio: 5,                // 5x or 80% down
-//             },
-//         }
-//     }
-// }
+impl OracleGuardRails {
+    pub fn default() -> Self {
+        OracleGuardRails {
+            price_divergence: PriceDivergenceGuardRails::default(),
+            validity: ValidityGuardRails {
+                slots_before_stale_for_amm: 10,       // ~5 seconds
+                slots_before_stale_for_margin: 120,   // ~60 seconds
+                confidence_interval_max_size: 20_000, // 2% of price
+                too_volatile_ratio: 5,                // 5x or 80% down
+            },
+        }
+    }
+}
 
 #[derive(Copy, Clone, Debug)]
 #[contracttype]
@@ -240,14 +242,14 @@ pub struct PriceDivergenceGuardRails {
     pub oracle_twap_5min_perc_div: u64,
 }
 
-// impl PriceDivergenceGuardRails {
-//     fn default() -> Self {
-//         PriceDivergenceGuardRails {
-//             mark_oracle_percent_divergence: PERCENTAGE_PRECISION_U64 / 10,
-//             oracle_twap_5min_perc_div: PERCENTAGE_PRECISION_U64 / 2,
-//         }
-//     }
-// }
+impl PriceDivergenceGuardRails {
+    pub fn default() -> Self {
+        PriceDivergenceGuardRails {
+            mark_oracle_percent_divergence: PERCENTAGE_PRECISION_U64 / 10,
+            oracle_twap_5min_perc_div: PERCENTAGE_PRECISION_U64 / 2,
+        }
+    }
+}
 
 #[derive(Copy, Clone, Default, Debug)]
 #[contracttype]

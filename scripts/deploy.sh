@@ -19,11 +19,18 @@ echo "Contracts compiled."
 echo "Optimize contracts..."
 
 soroban contract optimize --wasm soroban_token_contract.wasm
+
+soroban contract optimize --wasm normal_votes.wasm
+soroban contract optimize --wasm normal_vesting.wasm
+soroban contract optimize --wasm normal_governor.wasm
+
+soroban contract optimize --wasm normal_market.wasm
+soroban contract optimize --wasm normal_market_factory.wasm
+
+# soroban contract optimize --wasm normal_index_token.wasm
+# soroban contract optimize --wasm normal_index_token_factory.wasm
+
 soroban contract optimize --wasm normal_insurance.wasm
-soroban contract optimize --wasm normal_oracle_proxy.wasm
-soroban contract optimize --wasm normal_synth_market_factory.wasm
-soroban contract optimize --wasm normal_synth_market.wasm
-soroban contract optimize --wasm normal_amm.wasm
 soroban contract optimize --wasm normal_scheduler.wasm
 
 echo "Contracts optimized."

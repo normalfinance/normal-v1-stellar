@@ -6,8 +6,8 @@ use normal::{
         LIQUIDATION_FEE_PRECISION,
         SPOT_IMF_PRECISION,
     },
-    error::ErrorCode,
-    oracle::{ get_oracle_price, OraclePriceData, OracleSource },
+    error::{ ErrorCode, NormalResult },
+    oracle::{ get_oracle_price, HistoricalOracleData, OraclePriceData, OracleSource },
     types::SynthTier,
     validate,
     validate_bps,
@@ -29,6 +29,7 @@ use soroban_sdk::{
 
 use crate::{
     controller,
+    errors::ContractError,
     events::{ MarketEvents, PoolEvents },
     interface::{ market::MarketTrait, pool::PoolTrait },
     math,
@@ -44,7 +45,7 @@ use crate::{
         reward::{ calculate_collect_reward, RewardInfo },
         tick_array::TickArray,
     },
-    storage::utils,
+    storage::utils::{ self, get_admin },
     token_contract,
     utils::{ sparse_swap::SparseSwapTickSequenceBuilder, swap_utils::update_and_swap_amm },
     validation::margin::validate_margin,
@@ -238,7 +239,7 @@ impl MarketTrait for SynthMarket {
             utilization_twap: 0,
             last_interest_ts: 0,
             last_twap_ts: 0,
-            expiry_timestamp: 0,
+            expiry_ts: 0,
             expiry_price: 0,
             max_position_size: 0,
             next_deposit_record_id: 0,
@@ -255,7 +256,7 @@ impl MarketTrait for SynthMarket {
             debt_ceiling: params.debt_ceiling,
             debt_floor: params.debt_floor,
             oracle_source: params.oracle_source,
-            historical_oracle_data: {},
+            historical_oracle_data: HistoricalOracleData::default(),
             last_oracle_conf_pct: 0,
             last_oracle_valid: false,
             last_oracle_normalised_price: 0,
@@ -348,7 +349,7 @@ impl MarketTrait for SynthMarket {
         save_market(&env, market)
     }
 
-    fn extend_expiry_ts(env: Env, sender: Address, expiry_ts: i64) {
+    fn extend_expiry_ts(env: Env, sender: Address, expiry_ts: u64) {
         utils::is_admin(&env, &sender, true);
 
         let mut market = get_market(&env);
@@ -381,9 +382,9 @@ impl MarketTrait for SynthMarket {
     fn update_margin_config(
         env: Env,
         sender: Address,
-        imf_factor: Option<u32>,
-        margin_ratio_initial: Option<u32>,
-        margin_ratio_maintenance: Option<u32>
+        margin_ratio_initial: u32,
+        margin_ratio_maintenance: u32,
+        imf_factor: Option<u32>
     ) {
         utils::is_admin(&env, &sender, true);
 
@@ -568,6 +569,62 @@ impl MarketTrait for SynthMarket {
     // ################################################################
     //                             Keeper
     // ################################################################
+
+    fn settle_revenue(env: Env, keeper: Address) {
+        keeper.require_auth();
+
+        /**
+         * Revenue is
+         */
+
+        let market = &mut get_market(&env);
+
+        // validate!(
+        //     insurance_fund.revenue_settle_period > 0,
+        //     ErrorCode::RevenueSettingsCannotSettleToIF,
+        //     "invalid revenue_settle_period settings on market"
+        // )?;
+
+        let market_vault_amount = 0;
+        // let insurance_vault_amount = 0;
+
+        let now = env.ledger().timestamp();
+
+        env.invoke_contract(insurance_fund, func, args);
+
+        let time_until_next_update = math::helpers::on_the_hour_update(
+            now,
+            insurance_fund.last_revenue_settle_ts,
+            insurance_fund.revenue_settle_period
+        );
+
+        validate!(
+            time_until_next_update == 0,
+            ErrorCode::RevenueSettingsCannotSettleToIF,
+            "Must wait {} seconds until next available settlement time",
+            time_until_next_update
+        );
+
+        // uses proportion of revenue pool allocated to insurance fund
+        let token_amount = controller::insurance::settle_revenue_to_insurance_fund(
+            spot_vault_amount,
+            insurance_vault_amount,
+            market,
+            now,
+            true
+        );
+
+        insurance_fund.last_revenue_settle_ts = now;
+
+        token_contract::Client
+            ::new(&env, address)
+            .transfer(&env.current_contract_address(), &insurance_fund, token_amount);
+
+        // math::spot_withdraw::validate_spot_market_vault_amount(
+        //     spot_market,
+        //     ctx.accounts.spot_market_vault.amount
+        // )?;
+    }
 
     fn update_oracle_twap(env: Env, keeper: Address) {
         keeper.require_auth();
@@ -823,6 +880,80 @@ impl MarketTrait for SynthMarket {
 
         PoolEvents::provide_liquidity(&env);
     }
+
+    // ################################################################
+    //                             Queries
+    // ################################################################
+
+    fn query_market(env: Env) -> Market {
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+
+        get_market(&env)
+    }
+
+    fn query_synth_token_address(env: Env) -> Address {
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+
+        get_market(&env).synth_token
+    }
+
+    fn query_lp_contract_address(env: Env) -> Address {
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+
+        get_market(&env).amm.lp_token
+    }
+
+    fn query_pool_info(env: Env) -> PoolResponse {
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        let config = get_config(&env);
+
+        PoolResponse {
+            asset_a: Asset {
+                address: config.token_a,
+                amount: utils::get_pool_balance_a(&env),
+            },
+            asset_b: Asset {
+                address: config.token_b,
+                amount: utils::get_pool_balance_b(&env),
+            },
+            asset_lp_share: Asset {
+                address: config.share_token,
+                amount: utils::get_total_shares(&env),
+            },
+            stake_address: config.stake_contract,
+        }
+    }
+
+    fn query_market_info_for_factory(env: Env) -> MarketInfo {
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        let market = get_market(&env);
+        let pool_response = PoolResponse {
+            asset_a: Asset {
+                address: config.token_a,
+                amount: utils::get_pool_balance_a(&env),
+            },
+            asset_b: Asset {
+                address: config.token_b,
+                amount: utils::get_pool_balance_b(&env),
+            },
+            asset_lp_share: Asset {
+                address: config.share_token,
+                amount: utils::get_total_shares(&env),
+            },
+            stake_address: config.stake_contract,
+        };
+
+        MarketInfo {
+            pool_address: env.current_contract_address(),
+            pool_response,
+        }
+    }
+
+    fn migrate_admin_key(env: Env) -> Result<(), ErrorCode> {
+        let admin = get_admin(&env);
+        env.storage().instance().set(&ADMIN, &admin);
+        Ok(())
+    }
 }
 
 // ################################################################
@@ -923,7 +1054,7 @@ impl PoolTrait for SynthMarket {
             emissions_per_second_x64
         )?;
         if reward.current_balance < emissions_per_day {
-            return Err(ErrorCode::RewardVaultAmountInsufficient);
+            panic_with_error!(&env, ContractError::RewardVaultAmountInsufficient);
         }
 
         let timestamp = env.ledger().timestamp();
@@ -947,26 +1078,6 @@ impl PoolTrait for SynthMarket {
         let mut market = get_market(&env);
 
         market.amm.update_reward_authority(reward_token, new_reward_authority);
-    }
-
-    // ################################################################
-    //                             Keeper
-    // ################################################################
-
-    fn collect_protocol_fees(env: Env, sender: Address) {
-        sender.require_auth();
-
-        let mut market = get_market(&env);
-
-        // TODO: distribute revenue to the appropriate locations instead of the sender
-        token_contract::Client
-            ::new(&env, &market.amm.token_a)
-            .transfer(&env.current_contract_address(), &sender, market.amm.protocol_fee_owed_a);
-        token_contract::Client
-            ::new(&env, &market.amm.token_b)
-            .transfer(&env.current_contract_address(), &sender, market.amm.protocol_fee_owed_b);
-
-        market.amm.reset_protocol_fees_owed();
     }
 
     // ################################################################
@@ -1001,7 +1112,7 @@ impl PoolTrait for SynthMarket {
         let mut position = get_liquidity_position_by_ts(&env, &sender, position_ts)?;
 
         if !position.is_position_empty() {
-            return Err(ErrorCode::ClosePositionNotEmpty);
+            panic_with_error!(&env, ContractError::ClosePositionNotEmpty);
         }
 
         let market = get_market(&env);
@@ -1022,7 +1133,7 @@ impl PoolTrait for SynthMarket {
         sender.require_auth();
 
         if liquidity_amount == 0 {
-            return Err(ErrorCode::LiquidityZero);
+            panic_with_error!(&env, ContractError::LiquidityZero);
         }
 
         let market = get_market(&env);
@@ -1031,13 +1142,13 @@ impl PoolTrait for SynthMarket {
         let tick_array_lower = match market.amm.tick_arrays.get(tick_array_lower_index) {
             Some(ta) => ta,
             None => {
-                return Err(ErrorCode::AdminNotSet);
+                panic_with_error!(&env, ErrorCode::AdminNotSet);
             }
         };
         let tick_array_upper = match market.amm.tick_arrays.get(tick_array_upper_index) {
             Some(ta) => ta,
             None => {
-                return Err(ErrorCode::AdminNotSet);
+                panic_with_error!(&env, ErrorCode::AdminNotSet);
             }
         };
 
@@ -1074,7 +1185,7 @@ impl PoolTrait for SynthMarket {
         )?;
 
         if delta_a > token_max_a || delta_b > token_max_b {
-            return Err(ErrorCode::TokenMaxExceeded);
+            panic_with_error!(&env, ContractError::TokenMaxExceeded);
         }
 
         token_contract::Client
@@ -1110,7 +1221,7 @@ impl PoolTrait for SynthMarket {
         sender.require_auth();
 
         if liquidity_amount == 0 {
-            return Err(ErrorCode::LiquidityZero);
+            panic_with_error!(&env, ErrorCode::LiquidityZero);
         }
         let liquidity_delta = math::liquidity_math::convert_to_liquidity_delta(
             liquidity_amount,
@@ -1124,13 +1235,13 @@ impl PoolTrait for SynthMarket {
         let tick_array_lower = match market.amm.tick_arrays.get(tick_array_lower_index) {
             Some(ta) => ta,
             None => {
-                return Err(ErrorCode::AdminNotSet);
+                panic_with_error!(&env, ErrorCode::AdminNotSet);
             }
         };
         let tick_array_upper = match market.amm.tick_arrays.get(tick_array_upper_index) {
             Some(ta) => ta,
             None => {
-                return Err(ErrorCode::AdminNotSet);
+                panic_with_error!(&env, ErrorCode::AdminNotSet);
             }
         };
 
@@ -1208,7 +1319,7 @@ impl PoolTrait for SynthMarket {
                 let tick_array = match market.amm.tick_arrays.get(index) {
                     Some(ta) => ta,
                     None => {
-                        return Err(ErrorCode::AdminNotSet);
+                        panic_with_error!(&env, ErrorCode::AdminNotSet);
                     }
                 };
                 tick_array
@@ -1240,13 +1351,13 @@ impl PoolTrait for SynthMarket {
                 (a_to_b && other_amount_threshold > swap_update.amount_quote) ||
                 (!a_to_b && other_amount_threshold > swap_update.amount_synthetic)
             {
-                return Err(ErrorCode::AmountOutBelowMinimum);
+                panic_with_error!(&env, ErrorCode::AmountOutBelowMinimum);
             }
         } else if
             (a_to_b && other_amount_threshold < swap_update.amount_synthetic) ||
             (!a_to_b && other_amount_threshold < swap_update.amount_quote)
         {
-            return Err(ErrorCode::AmountInAboveMaximum);
+            panic_with_error!(&env, ErrorCode::AmountInAboveMaximum);
         }
 
         update_and_swap_amm(&env, &market.amm, sender, swap_update, a_to_b, timestamp);
@@ -1310,6 +1421,17 @@ impl PoolTrait for SynthMarket {
 
     //     get_pool(&env).lp_token
     // }
+}
+
+#[contractimpl]
+impl SynthMarket {
+    #[allow(dead_code)]
+    pub fn update(env: Env, new_wasm_hash: BytesN<32>) {
+        let admin = get_admin(&env);
+        admin.require_auth();
+
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+    }
 }
 
 // TODO: do we need to update the AMM?

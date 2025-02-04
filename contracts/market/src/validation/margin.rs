@@ -1,5 +1,5 @@
 use normal::{
-    constants::{ LIQUIDATION_FEE_TO_MARGIN_PRECISION_RATIO, MAX_MARGIN_RATIO, MIN_MARGIN_RATIO },
+    constants::{LIQUIDATION_FEE_TO_MARGIN_PRECISION_RATIO, MAX_MARGIN_RATIO, MIN_MARGIN_RATIO},
     error::ErrorCode,
     validate,
 };
@@ -9,7 +9,7 @@ pub fn validate_margin(
     env: &Env,
     margin_ratio_initial: u32,
     margin_ratio_maintenance: u32,
-    liquidation_fee: u32
+    liquidation_fee: u32,
 ) {
     if !(MIN_MARGIN_RATIO..=MAX_MARGIN_RATIO).contains(&margin_ratio_initial) {
         return Err(ErrorCode::InvalidMarginRatio);

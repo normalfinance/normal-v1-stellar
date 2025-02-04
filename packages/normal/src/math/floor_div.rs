@@ -33,8 +33,6 @@ macro_rules! checked_impl {
 checked_impl!(i128);
 checked_impl!(i64);
 checked_impl!(i32);
-// checked_impl!(i16);
-// checked_impl!(i8);
 
 #[cfg(test)]
 mod test {
