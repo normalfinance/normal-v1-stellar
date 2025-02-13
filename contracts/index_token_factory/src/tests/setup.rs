@@ -1,10 +1,12 @@
-use crate::{ contract::{ IndexTokenFactory, IndexTokenFactoryClient }, token_contract };
+use crate::{
+    contract::{IndexTokenFactory, IndexTokenFactoryClient},
+    token_contract,
+};
 // use phoenix::utils::{LiquidityPoolInitInfo, StakeInitInfo, TokenInitInfo};
-use soroban_sdk::{ testutils::Address as _, vec, Address, BytesN, Env, String };
+use soroban_sdk::{testutils::Address as _, vec, Address, BytesN, Env, String};
 pub const ONE_DAY: u64 = 86400;
-const TOKEN_WASM: &[u8] = include_bytes!(
-    "../../../../target/wasm32-unknown-unknown/release/soroban_token_contract.wasm"
-);
+const TOKEN_WASM: &[u8] =
+    include_bytes!("../../../../target/wasm32-unknown-unknown/release/soroban_token_contract.wasm");
 
 #[allow(clippy::too_many_arguments)]
 pub mod index_token_contract {
@@ -14,7 +16,8 @@ pub mod index_token_contract {
 }
 
 pub fn install_index_token_contract(env: &Env) -> BytesN<32> {
-    env.deployer().upload_contract_wasm(index_token_contract::WASM)
+    env.deployer()
+        .upload_contract_wasm(index_token_contract::WASM)
 }
 
 pub fn install_token_wasm(env: &Env) -> BytesN<32> {
@@ -24,7 +27,7 @@ pub fn install_token_wasm(env: &Env) -> BytesN<32> {
 pub fn deploy_index_token_factory_contract<'a>(
     env: &Env,
     admin: impl Into<Option<Address>>,
-    governor: impl Into<Option<Address>>
+    governor: impl Into<Option<Address>>,
 ) -> IndexTokenFactoryClient<'a> {
     let admin = admin.into().unwrap_or(Address::generate(env));
     // let governor: Address = governor.into().unwrap_or(Address::generate(env));
@@ -35,15 +38,7 @@ pub fn deploy_index_token_factory_contract<'a>(
     let index_token_wasm_hash = install_index_token_contract(env);
     let token_wasm_hash = install_token_wasm(env);
 
-    factory.initialize(
-        &admin,
-        &index_token_wasm_hash,
-        &[],
-        &[],
-        0,
-        0,
-        &oracle
-    );
+    factory.initialize(&admin, &index_token_wasm_hash, &[], &[], 0, 0, &oracle);
 
     factory
 }
@@ -53,10 +48,8 @@ pub fn generate_index_token_init_info(
     token_b: Address,
     manager: Address,
     admin: Address,
-    fee_recipient: Address
+    fee_recipient: Address,
 ) -> IndexParams {
-  
-
     IndexParams {
         admin: admin.clone(),
         fee_recipient: fee_recipient.clone(),
@@ -74,7 +67,7 @@ pub fn install_and_deploy_token_contract<'a>(
     admin: Address,
     decimal: u32,
     name: String,
-    symbol: String
+    symbol: String,
 ) -> token_contract::Client<'a> {
     let token_addr = env.register(TOKEN_WASM, (admin, decimal, name, symbol));
     let token_client = token_contract::Client::new(env, &token_addr);

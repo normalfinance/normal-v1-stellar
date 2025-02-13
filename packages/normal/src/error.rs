@@ -4,9 +4,6 @@ use soroban_sdk::contracterror;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum ErrorCode {
-    AlreadyInitialized = 100,
-    NotAuthorized = 2,
-    AdminNotSet = 3,
     TransferAmountTooSmallAfterFees = 4,
     InvalidFee = 5,
     TooSoonToRebalance = 7,

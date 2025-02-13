@@ -69,7 +69,7 @@ pub enum NormalAction {
 pub fn is_oracle_valid_for_action(
     oracle_validity: OracleValidity,
     action: Option<NormalAction>,
-) -> NormalResult<bool> {
+) -> bool {
     let is_ok = match action {
         Some(action) => match action {
             NormalAction::OracleOrderPrice => {
@@ -107,7 +107,7 @@ pub fn is_oracle_valid_for_action(
         }
     };
 
-    Ok(is_ok)
+    is_ok
 }
 
 pub fn block_operation(// env: Env,
@@ -116,7 +116,7 @@ pub fn block_operation(// env: Env,
     // guard_rails: &OracleGuardRails,
     // reserve_price: u64,
     // now: u64,
-) -> NormalResult<bool> {
+) -> bool {
     // let OracleStatus {
     //     oracle_validity,
     //     mark_too_divergent: is_oracle_mark_too_divergent,
@@ -134,7 +134,7 @@ pub fn block_operation(// env: Env,
     // // TODO: when else should we block
     // let block = !is_oracle_valid || is_oracle_mark_too_divergent;
     let block = false;
-    Ok(block)
+    block
 }
 
 #[contracttype]
@@ -153,7 +153,7 @@ pub fn get_oracle_status(
     oracle_price_data: &OraclePriceData,
     // guard_rails: &OracleGuardRails,
     // reserve_price: u64,
-) -> NormalResult<OracleStatus> {
+) -> OracleStatus {
     // let oracle_validity = oracle_validity(
     //     env,
     //     market_name,
@@ -179,12 +179,12 @@ pub fn get_oracle_status(
     //     mark_too_divergent: is_oracle_mark_too_divergent,
     //     oracle_validity,
     // })
-    Ok(OracleStatus {
+    OracleStatus {
         price_data: *oracle_price_data,
         oracle_res_price_spread_pct: 1,
         mark_too_divergent: false,
         oracle_validity: OracleValidity::Valid,
-    })
+    }
 }
 
 pub fn oracle_validity(
@@ -195,7 +195,7 @@ pub fn oracle_validity(
     valid_oracle_guard_rails: &ValidityGuardRails,
     max_confidence_interval_multiplier: u64,
     log_validity: bool,
-) -> NormalResult<OracleValidity> {
+) -> OracleValidity {
     let OraclePriceData {
         price: oracle_price,
         confidence: oracle_conf,
@@ -220,9 +220,12 @@ pub fn oracle_validity(
         .confidence_interval_max_size
         .safe_mul(max_confidence_interval_multiplier, env));
 
-    let is_stale_for_amm = oracle_delay.gt(&valid_oracle_guard_rails.slots_before_stale_for_amm);
-    let is_stale_for_margin =
-        oracle_delay.gt(&valid_oracle_guard_rails.slots_before_stale_for_margin);
+    let is_stale_for_amm = oracle_delay.gt(&valid_oracle_guard_rails
+        .slots_before_stale_for_amm
+        .cast::<u64>(env));
+    let is_stale_for_margin = oracle_delay.gt(&valid_oracle_guard_rails
+        .slots_before_stale_for_margin
+        .cast::<u64>(env));
 
     let oracle_validity = if is_oracle_price_nonpositive {
         OracleValidity::NonPositive
@@ -286,5 +289,5 @@ pub fn oracle_validity(
         }
     }
 
-    Ok(oracle_validity)
+    oracle_validity
 }

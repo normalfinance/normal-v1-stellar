@@ -1,3 +1,3 @@
 mod config;
-mod setup;
 mod queries;
+mod setup;

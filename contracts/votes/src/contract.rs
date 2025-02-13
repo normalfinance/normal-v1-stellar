@@ -1,11 +1,11 @@
-use soroban_sdk::{ contract, contractimpl, panic_with_error, Address, Env, String };
+use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, String};
 
 use crate::{
     balance,
-    checkpoints::{ add_vote_ledger, upper_lookup, Checkpoint },
+    checkpoints::{add_vote_ledger, upper_lookup, Checkpoint},
     error::TokenVotesError,
     events::TokenVotesEvents,
-    storage::{ self, set_delegate, TokenMetadata },
+    storage::{self, set_delegate, TokenMetadata},
     validation::require_nonnegative_amount,
     votes::Votes,
     voting_units::move_voting_units,
@@ -13,13 +13,16 @@ use crate::{
 
 // SEP-0041 Feature imports
 
-use crate::allowance::{ create_allowance, spend_allowance };
+use crate::allowance::{create_allowance, spend_allowance};
 use sep_41_token::Token;
 use sep_41_token::TokenEvents;
 
 // Bonding Feature imports
 
-use crate::{ emissions::{ claim_emissions, set_emissions }, votes::Bonding };
+use crate::{
+    emissions::{claim_emissions, set_emissions},
+    votes::Bonding,
+};
 use soroban_sdk::token::TokenClient;
 
 #[contract]
@@ -144,7 +147,9 @@ impl Votes for TokenVotes {
 
     fn get_votes(e: Env, account: Address) -> i128 {
         storage::extend_instance(&e);
-        storage::get_voting_units(&e, &account).to_checkpoint_data().1
+        storage::get_voting_units(&e, &account)
+            .to_checkpoint_data()
+            .1
     }
 
     fn get_past_votes(e: Env, user: Address, sequence: u32) -> i128 {
@@ -176,7 +181,13 @@ impl Votes for TokenVotes {
         let balance = storage::get_balance(&e, &account);
         let vote_ledgers = storage::get_vote_ledgers(&e);
         if balance > 0 {
-            move_voting_units(&e, &vote_ledgers, Some(&cur_delegate), Some(&delegatee), balance);
+            move_voting_units(
+                &e,
+                &vote_ledgers,
+                Some(&cur_delegate),
+                Some(&delegatee),
+                balance,
+            );
         }
         set_delegate(&e, &account, &delegatee);
 

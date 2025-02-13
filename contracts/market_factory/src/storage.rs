@@ -1,8 +1,6 @@
 use normal::constants::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD};
-use normal::oracle::OracleGuardRails;
-use soroban_sdk::{
-    contracttype, symbol_short, Address, BytesN, ConversionError, Env, Symbol, TryFromVal, Val, Vec,
-};
+use normal::types::market::MarketFactoryConfig;
+use soroban_sdk::{contracttype, Address, ConversionError, Env, String, TryFromVal, Val, Vec};
 
 #[derive(Clone, Copy)]
 #[repr(u32)]
@@ -15,8 +13,8 @@ pub enum DataKey {
 #[derive(Clone)]
 #[contracttype]
 pub struct MarketTupleKey {
-    pub(crate) token_a: Symbol,
-    pub(crate) token_b: Symbol,
+    pub(crate) token_a: Address,
+    pub(crate) token_b: Address,
 }
 
 impl TryFromVal<Env, DataKey> for Val {
@@ -27,40 +25,7 @@ impl TryFromVal<Env, DataKey> for Val {
     }
 }
 
-#[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Config {
-    pub admin: Address,
-    pub governor: Address,
-    pub market_wasm_hash: BytesN<32>,
-    pub token_wasm_hash: BytesN<32>,
-    pub emergency_oracles: Vec<Address>,
-    pub oracle_guard_rails: OracleGuardRails,
-    // pub lp_token_decimals: u32,
-}
-
-/// This struct is used to return a query result with the total amount of LP tokens and assets in a specific pool.
-#[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MarketResponse {
-    /// The asset A in the pool together with asset amounts
-    pub asset_a: Asset,
-    /// The asset B in the pool together with asset amounts
-    pub asset_b: Asset,
-    /// The total amount of LP tokens currently issued
-    pub asset_lp_share: Asset,
-    /// The address of the Stake contract for the liquidity pool
-    pub stake_address: Address,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MarketInfo {
-    pub market_address: Address,
-    pub market_response: MarketResponse,
-}
-
-pub fn save_config(env: &Env, config: Config) {
+pub fn save_config(env: &Env, config: MarketFactoryConfig) {
     env.storage().persistent().set(&DataKey::Config, &config);
     env.storage().persistent().extend_ttl(
         &DataKey::Config,
@@ -69,7 +34,7 @@ pub fn save_config(env: &Env, config: Config) {
     );
 }
 
-pub fn get_config(env: &Env) -> Config {
+pub fn get_config(env: &Env) -> MarketFactoryConfig {
     let config = env
         .storage()
         .persistent()
@@ -114,7 +79,7 @@ pub fn save_market_vec(env: &Env, market_info: Vec<Address>) {
 
 pub fn save_market_vec_with_tuple_as_key(
     env: &Env,
-    tuple_market: (&Symbol, &Symbol),
+    tuple_market: (&Address, &Address),
     market_address: &Address,
 ) {
     env.storage().persistent().set(

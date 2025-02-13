@@ -1,11 +1,6 @@
 use soroban_sdk::{contracterror, log, panic_with_error, Env};
 
-#[contracterror]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
-#[repr(u32)]
-pub enum ErrorCode {
-    FailedUnwrap = 1,
-}
+use crate::error::ErrorCode;
 
 pub trait SafeUnwrap {
     type Item;
@@ -24,7 +19,6 @@ impl<T> SafeUnwrap for Option<T> {
             None => {
                 log!(env, "Unwrap error thrown at {}:{}", file!(), line!());
                 panic_with_error!(env, ErrorCode::FailedUnwrap);
-                // Err(ErrorCode::FailedUnwrap)
             }
         }
     }
@@ -41,7 +35,6 @@ impl<T, U> SafeUnwrap for Result<T, U> {
             Err(_) => {
                 log!(env, "Unwrap error thrown at {}:{}", file!(), line!());
                 panic_with_error!(env, ErrorCode::FailedUnwrap);
-                // Err(ErrorCode::FailedUnwrap)
             }
         }
     }

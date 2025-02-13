@@ -1,0 +1,4 @@
+stellar contract bindings typescript \
+  --network testnet \
+  --contract-id normal_market \
+  --output-dir packages/hello_world

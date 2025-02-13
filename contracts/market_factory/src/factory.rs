@@ -1,10 +1,8 @@
-use normal::oracle::OracleGuardRails;
-use soroban_sdk::{contractclient, Address, BytesN, Env, String, Symbol, Vec};
-
-use crate::{
-    errors::ContractError,
-    storage::{Config, MarketInfo},
+use normal::{
+    oracle::OracleGuardRails,
+    types::market::{MarketFactoryConfig, MarketInfo, MarketParams},
 };
+use soroban_sdk::{contractclient, Address, BytesN, Env, Vec};
 
 #[contractclient(name = "MarketFactoryClient")]
 pub trait MarketFactoryTrait {
@@ -13,26 +11,15 @@ pub trait MarketFactoryTrait {
         env: Env,
         admin: Address,
         governor: Address,
-        synth_market_wasm_hash: BytesN<32>,
+        insurance: Address,
         token_wasm_hash: BytesN<32>,
+        market_wasm_hash: BytesN<32>,
     );
 
     #[allow(clippy::too_many_arguments)]
-    fn create_market(
-        env: Env,
-        sender: Address,
-        params: MarketParams,
-        token_wasm_hash: BytesN<32>,
-        synth_token_name: String,
-        synth_token_symbol: String,
-    ) -> Address;
+    fn create_market(env: Env, params: MarketParams) -> Address;
 
-    fn update_emergency_oracles(
-        env: Env,
-        sender: Address,
-        to_add: Vec<Address>,
-        to_remove: Vec<Address>,
-    );
+    fn update_super_keepers(env: Env, to_add: Vec<Address>, to_remove: Vec<Address>);
 
     fn update_wasm_hashes(
         env: Env,
@@ -52,13 +39,11 @@ pub trait MarketFactoryTrait {
 
     fn query_all_markets_details(env: Env) -> Vec<MarketInfo>;
 
-    fn query_for_market_by_token_pair(env: Env, token_a: Symbol, token_b: Symbol) -> Address;
+    fn query_for_market_by_token_pair(env: Env, token_a: Address, token_b: Address) -> Address;
 
     fn get_admin(env: Env) -> Address;
 
-    fn get_config(env: Env) -> Config;
+    fn get_config(env: Env) -> MarketFactoryConfig;
 
-    fn query_emergency_oracle(env: Env, oracle: Address) -> bool;
-
-    fn migrate_admin_key(env: Env) -> Result<(), ContractError>;
+    // fn migrate_admin_key(env: Env) -> Result<(), ContractError>;
 }

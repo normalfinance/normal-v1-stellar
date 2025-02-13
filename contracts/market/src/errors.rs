@@ -9,15 +9,22 @@ pub enum Errors {
     AlreadyInitialized = 100,
     NotAuthorized = 2,
     AdminNotSet = 3,
-}
-
-#[contracterror]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
-#[repr(u32)]
-pub enum TokenErrors {
-    InsufficientBalance = 1000,
-    InvalidAmount = 1001,
-    // ... token-related errors
+    InvalidMarginRatio = 4,
+    DefaultError = 5,
+    InvalidOracle = 6,
+    PriceBandsBreached = 7,
+    MarketBeingInitialized = 8,
+    PositionBankrupt = 9,
+    InsufficientFunds = 10,
+    UserCantLiquidateThemself = 11,
+    InsufficientBalance = 12,
+    InvalidAmount = 13,
+    DivideByZero = 14,
+    MultiplicationOverflow = 15,
+    MultiplicationShiftRightOverflow = 16,
+    PositionIsBeingLiquidated = 17,
+    MarketOperationPaused = 18,
+    InvalidPosition = 19,
 }
 
 #[contracterror]
@@ -95,12 +102,6 @@ pub enum PoolErrors {
     DifferentPoolTickArrayAccount = 6056,
 
     PartialFillError = 6057,
-}
-
-pub enum NormalError {
-    Error(Errors),
-    Token(TokenErrors),
-    Pool(PoolErrors),
 }
 
 pub type NormalResult<T = ()> = core::result::Result<T, NormalError>;

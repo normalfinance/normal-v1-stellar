@@ -1,6 +1,8 @@
 use normal::error::{ErrorCode, NormalResult};
+use soroban_decimal::{Decimal, Decimal256};
+use soroban_sdk::{panic_with_error, Env};
 
-use crate::errors::ErrorCode;
+use crate::errors::{ErrorCode, Errors};
 
 use super::{
     bit_math::{div_round_up_if, div_round_up_if_u256, Q64_MASK, Q64_RESOLUTION},
@@ -73,6 +75,7 @@ impl AmountDeltaI128 {
 
 // Δt_a = (liquidity * (sqrt_price_lower - sqrt_price_upper)) / (sqrt_price_upper * sqrt_price_lower)
 pub fn get_amount_delta_a(
+    env: &Env,
     sqrt_price_0: u128,
     sqrt_price_1: u128,
     liquidity: u128,
@@ -86,6 +89,7 @@ pub fn get_amount_delta_a(
 }
 
 pub fn try_get_amount_delta_a(
+    env: &Env,
     sqrt_price_0: u128,
     sqrt_price_1: u128,
     liquidity: u128,
@@ -93,15 +97,20 @@ pub fn try_get_amount_delta_a(
 ) -> NormalResult<AmountDeltaI128> {
     let (sqrt_price_lower, sqrt_price_upper) = increasing_price_order(sqrt_price_0, sqrt_price_1);
 
-    let sqrt_price_diff = sqrt_price_upper - sqrt_price_lower;
+    let sqrt_price_diff = Decimal256::new(env, sqrt_price_upper - sqrt_price_lower);
 
-    let numerator = mul_u256(liquidity, sqrt_price_diff)
-        .checked_shift_word_left()
-        .ok_or(ErrorCode::MultiplicationOverflow)?;
+    // let numerator = mul_u256(liquidity, sqrt_price_diff)
+    //     .checked_shift_word_left()
+    //     .ok_or(ErrorCode::MultiplicationOverflow)?;
 
-    let denominator = mul_u256(sqrt_price_upper, sqrt_price_lower);
+    let numerator = sqrt_price_diff.mul(env, liquidity);
+    // .checked_shift_word_left()
+    // .ok_or(ErrorCode::MultiplicationOverflow)?;
 
-    let (quotient, remainder) = numerator.div(denominator, round_up);
+    // let denominator = mul_u256(sqrt_price_upper, sqrt_price_lower);
+    let denominator = Decimal256::new(env, sqrt_price_upper).mul(env, sqrt_price_lower);
+
+    let (quotient, remainder) = numerator.div(env, denominator); // round_up
 
     let result = if round_up && !remainder.is_zero() {
         quotient.add(U256Muldiv::new(0, 1)).try_into_u128()
@@ -131,24 +140,26 @@ pub fn try_get_amount_delta_a(
 // Replace delta
 // Δt_b = (sqrt_price_upper - sqrt_price_lower) * liquidity
 pub fn get_amount_delta_b(
+    env: &Env,
     sqrt_price_0: u128,
     sqrt_price_1: u128,
     liquidity: u128,
     round_up: bool,
-) -> NormalResult<i128> {
+) -> i128 {
     match try_get_amount_delta_b(sqrt_price_0, sqrt_price_1, liquidity, round_up) {
-        Ok(AmountDeltaI128::Valid(value)) => Ok(value),
-        Ok(AmountDeltaI128::ExceedsMax(error)) => Err(error),
+        AmountDeltaI128::Valid(value) => value,
+        AmountDeltaI128::ExceedsMax(error) => Err(error),
         Err(error) => Err(error),
     }
 }
 
 pub fn try_get_amount_delta_b(
+    env: &Env,
     sqrt_price_0: u128,
     sqrt_price_1: u128,
     liquidity: u128,
     round_up: bool,
-) -> NormalResult<AmountDeltaI128> {
+) -> AmountDeltaI128 {
     let (sqrt_price_lower, sqrt_price_upper) = increasing_price_order(sqrt_price_0, sqrt_price_1);
 
     // customized checked_mul_shift_right_round_up_if
@@ -157,7 +168,7 @@ pub fn try_get_amount_delta_b(
     let n1 = sqrt_price_upper - sqrt_price_lower;
 
     if n0 == 0 || n1 == 0 {
-        return Ok(AmountDeltaI128::Valid(0));
+        return AmountDeltaI128::Valid(0);
     }
 
     if let Some(p) = n0.checked_mul(n1) {
@@ -165,20 +176,12 @@ pub fn try_get_amount_delta_b(
 
         let should_round = round_up && p & Q64_MASK > 0;
         if should_round && result == u64::MAX {
-            return Ok(AmountDeltaI128::ExceedsMax(
-                ErrorCode::MultiplicationOverflow,
-            ));
+            return AmountDeltaI128::ExceedsMax(ErrorCode::MultiplicationOverflow);
         }
 
-        Ok(AmountDeltaI128::Valid(if should_round {
-            result + 1
-        } else {
-            result
-        }))
+        AmountDeltaI128::Valid(if should_round { result + 1 } else { result })
     } else {
-        Ok(AmountDeltaI128::ExceedsMax(
-            ErrorCode::MultiplicationShiftRightOverflow,
-        ))
+        AmountDeltaI128::ExceedsMax(ErrorCode::MultiplicationShiftRightOverflow)
     }
 }
 
@@ -208,24 +211,24 @@ pub fn increasing_price_order(sqrt_price_0: u128, sqrt_price_1: u128) -> (u128, 
 // Invert fractions
 // sqrt_price_new = (sqrt_price * liquidity) / (liquidity + amount * sqrt_price)
 pub fn get_next_sqrt_price_from_a_round_up(
+    env: &Env,
     sqrt_price: u128,
     liquidity: u128,
     amount: u64,
     amount_specified_is_input: bool,
-) -> NormalResult<u128> {
+) -> u128 {
     if amount == 0 {
-        return Ok(sqrt_price);
+        return sqrt_price;
     }
-    let product = mul_u256(sqrt_price, amount as u128);
+    let product = Decimal256::new(env, sqrt_price).mul(env, &Decimal256::new(env, amount as u128));
 
-    let numerator = mul_u256(liquidity, sqrt_price)
-        .checked_shift_word_left()
-        .ok_or(ErrorCode::MultiplicationOverflow)?;
+    let numerator = Decimal256::new(env, liquidity).mul(env, &Decimal256::new(env, sqrt_price));
 
     // In this scenario the denominator will end up being < 0
+    // let liquidity_shift_left = Decimal256::new(env, 0).shi
     let liquidity_shift_left = U256Muldiv::new(0, liquidity).shift_word_left();
     if !amount_specified_is_input && liquidity_shift_left.lte(product) {
-        return Err(ErrorCode::DivideByZero);
+        panic_with_error!(env, Errors::DivideByZero);
     }
 
     let denominator = if amount_specified_is_input {
@@ -236,13 +239,49 @@ pub fn get_next_sqrt_price_from_a_round_up(
 
     let price = div_round_up_if_u256(numerator, denominator, true)?;
     if price < MIN_SQRT_PRICE_X64 {
-        return Err(ErrorCode::TokenMinSubceeded);
+        panic_with_error!(env, Errors::TokenMinSubceeded);
     } else if price > MAX_SQRT_PRICE_X64 {
-        return Err(ErrorCode::TokenMaxExceeded);
+        panic_with_error!(env, Errors::TokenMaxExceeded);
     }
 
-    Ok(price)
+    price
 }
+// pub fn get_next_sqrt_price_from_a_round_up(
+//     sqrt_price: u128,
+//     liquidity: u128,
+//     amount: u64,
+//     amount_specified_is_input: bool
+// ) -> NormalResult<u128> {
+//     if amount == 0 {
+//         return Ok(sqrt_price);
+//     }
+//     let product = mul_u256(sqrt_price, amount as u128);
+
+//     let numerator = mul_u256(liquidity, sqrt_price)
+//         .checked_shift_word_left()
+//         .ok_or(ErrorCode::MultiplicationOverflow)?;
+
+//     // In this scenario the denominator will end up being < 0
+//     let liquidity_shift_left = U256Muldiv::new(0, liquidity).shift_word_left();
+//     if !amount_specified_is_input && liquidity_shift_left.lte(product) {
+//         return Err(ErrorCode::DivideByZero);
+//     }
+
+//     let denominator = if amount_specified_is_input {
+//         liquidity_shift_left.add(product)
+//     } else {
+//         liquidity_shift_left.sub(product)
+//     };
+
+//     let price = div_round_up_if_u256(numerator, denominator, true)?;
+//     if price < MIN_SQRT_PRICE_X64 {
+//         return Err(ErrorCode::TokenMinSubceeded);
+//     } else if price > MAX_SQRT_PRICE_X64 {
+//         return Err(ErrorCode::TokenMaxExceeded);
+//     }
+
+//     Ok(price)
+// }
 
 //
 // Get change in price corresponding to a change in token_b supply
@@ -250,11 +289,12 @@ pub fn get_next_sqrt_price_from_a_round_up(
 // 6.13
 // Δ(sqrt_price) = Δt_b / liquidity
 pub fn get_next_sqrt_price_from_b_round_down(
+    env: &Env,
     sqrt_price: u128,
     liquidity: u128,
     amount: u64,
     amount_specified_is_input: bool,
-) -> NormalResult<u128> {
+) -> u128 {
     // We always want square root price to be rounded down, which means
     // Case 3. If we are fixing input (adding B), we are increasing price, we want delta to be floor(delta)
     // sqrt_price + floor(delta) < sqrt_price + delta
@@ -266,29 +306,30 @@ pub fn get_next_sqrt_price_from_b_round_down(
     let amount_x64 = (amount as u128) << Q64_RESOLUTION;
 
     // Q64.64 / Q64.0 => Q64.64
-    let delta = div_round_up_if(amount_x64, liquidity, !amount_specified_is_input)?;
+    let delta = div_round_up_if(env, amount_x64, liquidity, !amount_specified_is_input)?;
 
     // Q64(32).64 +/- Q64.64
     if amount_specified_is_input {
         // We are adding token b to supply, causing price to increase
         sqrt_price
             .checked_add(delta)
-            .ok_or(ErrorCode::SqrtPriceOutOfBounds)
+            .ok_or(panic_with_error!(env, Errors::SqrtPriceOutOfBounds))
     } else {
         // We are removing token b from supply,. causing price to decrease
         sqrt_price
             .checked_sub(delta)
-            .ok_or(ErrorCode::SqrtPriceOutOfBounds)
+            .ok_or(panic_with_error!(env, Errors::SqrtPriceOutOfBounds))
     }
 }
 
 pub fn get_next_sqrt_price(
+    env: &Env,
     sqrt_price: u128,
     liquidity: u128,
     amount: u64,
     amount_specified_is_input: bool,
     a_to_b: bool,
-) -> NormalResult<u128> {
+) -> u128 {
     if amount_specified_is_input == a_to_b {
         // We are fixing A
         // Case 1. amount_specified_is_input = true, a_to_b = true
@@ -315,6 +356,7 @@ pub fn get_next_sqrt_price(
         // a higher price means we are removing more A to give to the user. Thus when performing math, we wish
         // to round the price up, since that means we guarantee that user receives at least _amount_ of A
         get_next_sqrt_price_from_a_round_up(
+            env,
             sqrt_price,
             liquidity,
             amount,
@@ -346,6 +388,7 @@ pub fn get_next_sqrt_price(
         // a lower price means we are removing more B to give to the user. Thus when performing math, we
         // wish to round the price down, since that means we guarantee that the user receives at least _amount_ of B
         get_next_sqrt_price_from_b_round_down(
+            env,
             sqrt_price,
             liquidity,
             amount,

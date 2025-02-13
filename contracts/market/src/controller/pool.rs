@@ -1,18 +1,18 @@
-use crate::errors::{Errors, NormalResult};
+use crate::errors::PoolErrors;
 use crate::math::bit_math::checked_mul_div;
 
 use crate::state::pool::Pool;
 use crate::state::reward::RewardInfo;
 use crate::{math, token_contract};
-use soroban_sdk::{Env, Vec};
+use soroban_sdk::{panic_with_error, Env, Vec};
 
-pub fn update_pool_price(env: &Env, pool: &Pool) -> NormalResult {
+pub fn update_pool_price(env: &Env, pool: &Pool) {
     // let protocol_position =
     let price_diff = pool.get_oracle_price_deviance(env);
     let liquidity_delta = pool.get_liquidity_delta_for_price_impact(price_diff)?;
 
     if liquidity_delta == 0 {
-        return Ok(());
+        return;
     }
 
     let delta_b = 100;
@@ -42,24 +42,19 @@ pub fn update_pool_price(env: &Env, pool: &Pool) -> NormalResult {
 
     // update the pool and protocol position
     // position.up
-
-    Ok(())
 }
 
 // Calculates the next global reward growth variables based on the given timestamp.
 // The provided timestamp must be greater than or equal to the last updated timestamp.
-pub fn next_amm_reward_infos(
-    pool: &Pool,
-    next_timestamp: u64,
-) -> Result<Vec<RewardInfo>, ErrorCode> {
+pub fn next_amm_reward_infos(env: &Env, pool: &Pool, next_timestamp: u64) -> Vec<RewardInfo> {
     let curr_timestamp = pool.reward_last_updated_timestamp;
     if next_timestamp < curr_timestamp {
-        return Err(Errors::InvalidTimestamp.into());
+        return panic_with_error!(env, PoolErrors::InvalidTimestamp);
     }
 
     // No-op if no liquidity or no change in timestamp
     if pool.liquidity == 0 || next_timestamp == curr_timestamp {
-        return Ok(pool.reward_infos);
+        return pool.reward_infos;
     }
 
     // Calculate new global reward growth
@@ -74,6 +69,7 @@ pub fn next_amm_reward_infos(
         // If the calculation overflows, set the delta value to zero.
         // This will halt reward distributions for this reward.
         let reward_growth_delta = checked_mul_div(
+            env,
             time_delta,
             reward_info.emissions_per_second_x64,
             pool.liquidity,
@@ -85,20 +81,21 @@ pub fn next_amm_reward_infos(
         reward_info.growth_global_x64 = curr_growth_global.wrapping_add(reward_growth_delta);
     }
 
-    Ok(next_reward_infos)
+    next_reward_infos
 }
 
 // Calculates the next global liquidity for a amm depending on its position relative
 // to the lower and upper tick indexes and the liquidity_delta.
 pub fn next_amm_liquidity(
+    env: &Env,
     pool: &Pool,
     tick_upper_index: i32,
     tick_lower_index: i32,
     liquidity_delta: i128,
-) -> Result<u128, ErrorCode> {
+) -> u128 {
     if pool.tick_current_index < tick_upper_index && pool.tick_current_index >= tick_lower_index {
-        math::liquidity_math::add_liquidity_delta(pool.liquidity, liquidity_delta)
+        math::liquidity_math::add_liquidity_delta(env, pool.liquidity, liquidity_delta)
     } else {
-        Ok(pool.liquidity)
+        pool.liquidity
     }
 }

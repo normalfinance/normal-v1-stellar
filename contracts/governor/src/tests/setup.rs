@@ -1,6 +1,9 @@
-use soroban_sdk::{ Address, BytesN, Env };
+use soroban_sdk::{Address, BytesN, Env};
 
-use crate::{ contract::{ Governor, GovernorClient }, types::GovernorSettings };
+use crate::{
+    contract::{Governor, GovernorClient},
+    types::GovernorSettings,
+};
 
 // pub fn deploy_token_contract<'a>(env: &Env, admin: &Address) -> token_contract::Client<'a> {
 //     token_contract::Client::new(

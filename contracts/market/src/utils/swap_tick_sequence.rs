@@ -52,12 +52,7 @@ impl SwapTickSequence {
     /// - `&Tick`: A reference to the desired Tick object
     /// - `TickArrayIndexOutofBounds` - The provided array-index is out of bounds
     /// - `TickNotFound`: - The provided tick-index is not an initializable tick index in this AMM w/ this tick-spacing.
-    pub fn get_tick(
-        &self,
-        array_index: usize,
-        tick_index: i32,
-        tick_spacing: u32,
-    ) -> NormalResult<&Tick> {
+    pub fn get_tick(&self, array_index: usize, tick_index: i32, tick_spacing: u32) -> &Tick {
         let array = self.arrays.get(array_index);
         match array {
             Some(array) => array.get_tick(tick_index, tick_spacing),
@@ -82,23 +77,17 @@ impl SwapTickSequence {
         tick_index: i32,
         tick_spacing: u32,
         update: &TickUpdate,
-    ) -> NormalResult<()> {
+    ) {
         let array = self.arrays.get_mut(array_index);
         match array {
             Some(array) => {
                 array.update_tick(tick_index, tick_spacing, update)?;
-                Ok(())
             }
             _ => Err(ErrorCode::TickArrayIndexOutofBounds.into()),
         }
     }
 
-    pub fn get_tick_offset(
-        &self,
-        array_index: usize,
-        tick_index: i32,
-        tick_spacing: u32,
-    ) -> NormalResult<isize> {
+    pub fn get_tick_offset(&self, array_index: usize, tick_index: i32, tick_spacing: u32) -> isize {
         let array = self.arrays.get(array_index);
         match array {
             Some(array) => array.tick_offset(tick_index, tick_spacing),
@@ -126,7 +115,7 @@ impl SwapTickSequence {
         tick_spacing: u32,
         a_to_b: bool,
         start_array_index: usize,
-    ) -> NormalResult<(usize, i32)> {
+    ) -> (usize, i32) {
         let ticks_in_array = TICK_ARRAY_SIZE * (tick_spacing as i32);
         let mut search_index = tick_index;
         let mut array_index = start_array_index;
@@ -146,23 +135,23 @@ impl SwapTickSequence {
 
             match next_index {
                 Some(next_index) => {
-                    return Ok((array_index, next_index));
+                    return (array_index, next_index);
                 }
                 None => {
                     // If we are at the last valid tick array, return the min/max tick index
                     if a_to_b && next_array.is_min_tick_array() {
-                        return Ok((array_index, MIN_TICK_INDEX));
+                        return (array_index, MIN_TICK_INDEX);
                     } else if !a_to_b && next_array.is_max_tick_array(tick_spacing) {
-                        return Ok((array_index, MAX_TICK_INDEX));
+                        return (array_index, MAX_TICK_INDEX);
                     }
 
                     // If we are at the last tick array in the sequencer, return the last tick
                     if array_index + 1 == self.arrays.len() {
                         if a_to_b {
-                            return Ok((array_index, next_array.start_tick_index()));
+                            return (array_index, next_array.start_tick_index());
                         } else {
                             let last_tick = next_array.start_tick_index() + ticks_in_array - 1;
-                            return Ok((array_index, last_tick));
+                            return (array_index, last_tick);
                         }
                     }
 

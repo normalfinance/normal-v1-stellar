@@ -1,6 +1,6 @@
-use soroban_sdk::{ contractclient, Address, Env, String };
+use soroban_sdk::{contractclient, Address, Env, String};
 
-use crate::types::{ GovernorSettings, Proposal, ProposalAction, VoteCount };
+use crate::types::{GovernorSettings, Proposal, ProposalAction, VoteCount};
 
 #[contractclient(name = "RewardsClient")]
 pub trait RewardsTrait {

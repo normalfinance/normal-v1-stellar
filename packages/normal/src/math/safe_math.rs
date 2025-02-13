@@ -1,14 +1,8 @@
 use soroban_sdk::{contracterror, log, panic_with_error, Env};
 
+use crate::error::ErrorCode;
 use crate::math::ceil_div::CheckedCeilDiv;
 use crate::math::floor_div::CheckedFloorDiv;
-
-#[contracterror]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
-#[repr(u32)]
-pub enum ErrorCode {
-    MathError = 1,
-}
 
 pub trait SafeMath: Sized {
     fn safe_add(self, rhs: Self, env: &Env) -> Self; // instead of Result<Self, ()> since it either returns Self or panics (no return)
@@ -29,7 +23,6 @@ macro_rules! checked_impl {
                     None => {
                         log!(env, "Math error thrown at {}:{}", file!(), line!());
                         panic_with_error!(env, ErrorCode::MathError);
-                        // Err(ErrorCode::MathError)
                     }
                 }
             }
@@ -42,7 +35,6 @@ macro_rules! checked_impl {
                     None => {
                         log!(env, "Math error thrown at {}:{}", file!(), line!());
                         panic_with_error!(env, ErrorCode::MathError);
-                        // Err(ErrorCode::MathError)
                     }
                 }
             }
@@ -55,7 +47,6 @@ macro_rules! checked_impl {
                     None => {
                         log!(env, "Math error thrown at {}:{}", file!(), line!());
                         panic_with_error!(env, ErrorCode::MathError);
-                        // Err(ErrorCode::MathError)
                     }
                 }
             }
@@ -68,7 +59,6 @@ macro_rules! checked_impl {
                     None => {
                         log!(env, "Math error thrown at {}:{}", file!(), line!());
                         panic_with_error!(env, ErrorCode::MathError);
-                        // Err(ErrorCode::MathError)
                     }
                 }
             }
@@ -81,7 +71,6 @@ macro_rules! checked_impl {
                     None => {
                         log!(env, "Math error thrown at {}:{}", file!(), line!());
                         panic_with_error!(env, ErrorCode::MathError);
-                        // Err(ErrorCode::MathError)
                     }
                 }
             }
@@ -112,7 +101,6 @@ macro_rules! div_floor_impl {
                     None => {
                         log!(env, "Math error thrown at {}:{}", file!(), line!());
                         panic_with_error!(env, ErrorCode::MathError);
-                        // Err(ErrorCode::MathError)
                     }
                 }
             }

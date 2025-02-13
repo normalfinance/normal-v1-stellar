@@ -1,9 +1,10 @@
 use normal::{
     constants::{LIQUIDATION_FEE_TO_MARGIN_PRECISION_RATIO, MAX_MARGIN_RATIO, MIN_MARGIN_RATIO},
-    error::ErrorCode,
     validate,
 };
-use soroban_sdk::Env;
+use soroban_sdk::{panic_with_error, Env};
+
+use crate::errors::Errors;
 
 pub fn validate_margin(
     env: &Env,
@@ -12,21 +13,21 @@ pub fn validate_margin(
     liquidation_fee: u32,
 ) {
     if !(MIN_MARGIN_RATIO..=MAX_MARGIN_RATIO).contains(&margin_ratio_initial) {
-        return Err(ErrorCode::InvalidMarginRatio);
+        panic_with_error!(env, Errors::InvalidMarginRatio);
     }
 
     if margin_ratio_initial <= margin_ratio_maintenance {
-        return Err(ErrorCode::InvalidMarginRatio);
+        panic_with_error!(env, Errors::InvalidMarginRatio);
     }
 
     if !(MIN_MARGIN_RATIO..=MAX_MARGIN_RATIO).contains(&margin_ratio_maintenance) {
-        return Err(ErrorCode::InvalidMarginRatio);
+        panic_with_error!(env, Errors::InvalidMarginRatio);
     }
 
     validate!(
         env,
         margin_ratio_maintenance * LIQUIDATION_FEE_TO_MARGIN_PRECISION_RATIO > liquidation_fee,
-        ErrorCode::InvalidMarginRatio,
+        Errors::InvalidMarginRatio,
         "margin_ratio_maintenance must be greater than liquidation fee"
     )?;
 }

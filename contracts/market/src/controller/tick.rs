@@ -1,11 +1,12 @@
-use normal::error::NormalResult;
-use soroban_sdk::{Env, Vec};
+use soroban_sdk::{panic_with_error, Env, Vec};
 
 use crate::{
-    errors::ErrorCode,
+    errors::PoolErrors,
     math,
-    reward::RewardInfo,
-    tick::{Tick, TickUpdate},
+    state::{
+        reward::RewardInfo,
+        tick::{Tick, TickUpdate},
+    },
 };
 
 pub fn next_tick_cross_update(
@@ -13,7 +14,7 @@ pub fn next_tick_cross_update(
     fee_growth_global_a: u128,
     fee_growth_global_b: u128,
     reward_infos: &Vec<RewardInfo>,
-) -> NormalResult<TickUpdate> {
+) -> TickUpdate {
     let mut update = TickUpdate::from(tick);
 
     update.fee_growth_outside_a = fee_growth_global_a.wrapping_sub(tick.fee_growth_outside_a);
@@ -28,7 +29,7 @@ pub fn next_tick_cross_update(
             .growth_global_x64
             .wrapping_sub(tick.reward_growths_outside[i]);
     }
-    Ok(update)
+    update
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -42,18 +43,18 @@ pub fn next_tick_modify_liquidity_update(
     reward_infos: &Vec<RewardInfo>,
     liquidity_delta: i128,
     is_upper_tick: bool,
-) -> NormalResult<TickUpdate> {
+) -> TickUpdate {
     // noop if there is no change in liquidity
     if liquidity_delta == 0 {
-        return Ok(TickUpdate::from(tick));
+        return TickUpdate::from(tick);
     }
 
     let liquidity_gross =
-        math::liquidity_math::add_liquidity_delta(tick.liquidity_gross, liquidity_delta)?;
+        math::liquidity_math::add_liquidity_delta(env, tick.liquidity_gross, liquidity_delta);
 
     // Update to an uninitialized tick if remaining liquidity is being removed
     if liquidity_gross == 0 {
-        return Ok(TickUpdate::default());
+        return TickUpdate::default();
     }
 
     let (fee_growth_outside_a, fee_growth_outside_b, reward_growths_outside) =
@@ -79,21 +80,21 @@ pub fn next_tick_modify_liquidity_update(
     let liquidity_net = if is_upper_tick {
         tick.liquidity_net
             .checked_sub(liquidity_delta)
-            .ok_or(ErrorCode::LiquidityNetError)?
+            .ok_or(panic_with_error!(env, PoolErrors::LiquidityNetError))
     } else {
         tick.liquidity_net
             .checked_add(liquidity_delta)
-            .ok_or(ErrorCode::LiquidityNetError)?
+            .ok_or(panic_with_error!(env, PoolErrors::LiquidityNetError))
     };
 
-    Ok(TickUpdate {
+    TickUpdate {
         initialized: true,
         liquidity_net,
         liquidity_gross,
         fee_growth_outside_a,
         fee_growth_outside_b,
         reward_growths_outside,
-    })
+    }
 }
 
 // Calculates the fee growths inside of tick_lower and tick_upper based on their

@@ -33,7 +33,8 @@ pub fn next_position_modify_liquidity_update(
     update.fee_owed_a = position.fee_owed_a.wrapping_add(fee_delta_synthetic);
     update.fee_owed_b = position.fee_owed_b.wrapping_add(fee_delta_quote);
 
-    for (i, update) in update.reward_infos.iter_mut().enumerate() {
+    for (i, update) in update.reward_infos.iter().enumerate() {
+        // .iter_mute()
         let reward_growth_inside = reward_growths_inside[i];
         let curr_reward_info = position.reward_infos[i];
 

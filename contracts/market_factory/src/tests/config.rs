@@ -1,9 +1,12 @@
-use super::setup::{ install_market_contract, install_token_wasm };
-use crate::{
-    tests::setup::{ deploy_market_factory_contract, generate_market_init_info, market_contract },
+use super::setup::{install_market_contract, install_token_wasm};
+use crate::tests::setup::{
+    deploy_market_factory_contract, generate_market_init_info, market_contract,
 };
 
-use soroban_sdk::{ testutils::{ arbitrary::std, Address as _ }, vec, Address, Env, String };
+use soroban_sdk::{
+    testutils::{arbitrary::std, Address as _},
+    vec, Address, Env, String,
+};
 
 #[test]
 fn factory_successfully_inits_itself() {
@@ -64,7 +67,7 @@ fn factory_successfully_inits_market() {
         token2.clone(),
         Address::generate(&env),
         admin.clone(),
-        user.clone()
+        user.clone(),
     );
 
     factory.create_market(
@@ -73,7 +76,7 @@ fn factory_successfully_inits_market() {
         &market_params,
         "",
         &String::from_str(&env, "Normal Bitcoin"),
-        &String::from_str(&env, "nBTC")
+        &String::from_str(&env, "nBTC"),
     );
     let market_contract_addr = factory.query_markets().get(0).unwrap();
 
@@ -81,34 +84,28 @@ fn factory_successfully_inits_market() {
     let share_token_address = first_market_contract.query_share_token_address();
     let stake_token_address = first_market_contract.query_stake_contract_address();
 
-    assert_eq!(first_market_contract.query_config(), market_contract::Config {
-        fee_recipient: user,
-        max_allowed_slippage_bps: 5_000,
-        max_allowed_spread_bps: 500,
-        max_referral_bps: 5_000,
-        pool_type: lp_contract::PairType::Xyk,
-        share_token: share_token_address,
-        stake_contract: stake_token_address,
-        token_a: token1,
-        token_b: token2,
-        total_fee_bps: 0,
-    });
+    assert_eq!(
+        first_market_contract.query_config(),
+        market_contract::Config {
+            fee_recipient: user,
+            max_allowed_slippage_bps: 5_000,
+            max_allowed_spread_bps: 500,
+            max_referral_bps: 5_000,
+            pool_type: lp_contract::PairType::Xyk,
+            share_token: share_token_address,
+            stake_contract: stake_token_address,
+            token_a: token1,
+            token_b: token2,
+            total_fee_bps: 0,
+        }
+    );
 }
-
 
 #[test]
-fn factory_successfully_updates_emergency_oracles() {
-
-}
-
+fn factory_successfully_updates_emergency_oracles() {}
 
 #[test]
-fn factory_successfully_updates_wasm_hashes() {
-
-}
-
+fn factory_successfully_updates_wasm_hashes() {}
 
 #[test]
-fn factory_successfully_updates_oracle_guard_rails() {
-
-}
+fn factory_successfully_updates_oracle_guard_rails() {}

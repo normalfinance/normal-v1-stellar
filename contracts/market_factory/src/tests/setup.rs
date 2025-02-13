@@ -1,10 +1,12 @@
-use crate::{ contract::{ MarketFactory, MarketFactoryClient }, token_contract };
+use crate::{
+    contract::{MarketFactory, MarketFactoryClient},
+    token_contract,
+};
 // use phoenix::utils::{LiquidityPoolInitInfo, StakeInitInfo, TokenInitInfo};
-use soroban_sdk::{ testutils::Address as _, vec, Address, BytesN, Env, String };
+use soroban_sdk::{testutils::Address as _, vec, Address, BytesN, Env, String};
 pub const ONE_DAY: u64 = 86400;
-const TOKEN_WASM: &[u8] = include_bytes!(
-    "../../../../target/wasm32-unknown-unknown/release/soroban_token_contract.wasm"
-);
+const TOKEN_WASM: &[u8] =
+    include_bytes!("../../../../target/wasm32-unknown-unknown/release/soroban_token_contract.wasm");
 
 #[allow(clippy::too_many_arguments)]
 pub mod market_contract {
@@ -24,7 +26,7 @@ pub fn install_token_wasm(env: &Env) -> BytesN<32> {
 pub fn deploy_market_factory_contract<'a>(
     env: &Env,
     admin: impl Into<Option<Address>>,
-    governor: impl Into<Option<Address>>
+    governor: impl Into<Option<Address>>,
 ) -> MarketFactoryClient<'a> {
     let admin = admin.into().unwrap_or(Address::generate(env));
     let governor: Address = governor.into().unwrap_or(Address::generate(env));
@@ -33,12 +35,7 @@ pub fn deploy_market_factory_contract<'a>(
     let market_wasm_hash = install_market_contract(env);
     let token_wasm_hash = install_token_wasm(env);
 
-    factory.initialize(
-        &admin,
-        &governor,
-        &market_wasm_hash,
-        &token_wasm_hash,
-    );
+    factory.initialize(&admin, &governor, &market_wasm_hash, &token_wasm_hash);
 
     factory
 }
@@ -48,9 +45,8 @@ pub fn generate_market_init_info(
     token_b: Address,
     manager: Address,
     admin: Address,
-    fee_recipient: Address
+    fee_recipient: Address,
 ) -> MarketParams {
-    
     let pool_params = PoolParams {
         min_bond: 10,
         min_reward: 10,
@@ -75,7 +71,7 @@ pub fn install_and_deploy_token_contract<'a>(
     admin: Address,
     decimal: u32,
     name: String,
-    symbol: String
+    symbol: String,
 ) -> token_contract::Client<'a> {
     let token_addr = env.register(TOKEN_WASM, (admin, decimal, name, symbol));
     let token_client = token_contract::Client::new(env, &token_addr);

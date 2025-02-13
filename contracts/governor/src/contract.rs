@@ -1,23 +1,20 @@
 use soroban_sdk::{
-    contract,
-    contractimpl,
-    panic_with_error,
-    unwrap::UnwrapOptimized,
-    Address,
-    Env,
-    String,
+    contract, contractimpl, panic_with_error, unwrap::UnwrapOptimized, Address, Env, String,
 };
 
 use crate::{
-    controller, dependencies::VotesClient, errors::GovernorError, events::GovernorEvents, governor::GovernorTrait, rewards::RewardsTrait, settings::require_valid_settings, storage, types::{
-        GovernorSettings,
-        Proposal,
-        ProposalAction,
-        ProposalConfig,
-        ProposalData,
-        ProposalStatus,
+    controller,
+    dependencies::VotesClient,
+    errors::GovernorError,
+    events::GovernorEvents,
+    governor::GovernorTrait,
+    rewards::RewardsTrait,
+    settings::require_valid_settings,
+    storage,
+    types::{
+        GovernorSettings, Proposal, ProposalAction, ProposalConfig, ProposalData, ProposalStatus,
         VoteCount,
-    }
+    },
 };
 
 #[contract]
@@ -54,7 +51,7 @@ impl GovernorTrait for Governor {
         creator: Address,
         title: String,
         description: String,
-        action: ProposalAction
+        action: ProposalAction,
     ) -> u32 {
         creator.require_auth();
         storage::extend_instance(&e);
@@ -85,12 +82,8 @@ impl GovernorTrait for Governor {
             panic_with_error!(&e, GovernorError::InsufficientVotingUnitsError);
         }
 
-        let proposal_config = ProposalConfig::new(
-            &e,
-            title.clone(),
-            description.clone(),
-            action.clone()
-        );
+        let proposal_config =
+            ProposalConfig::new(&e, title.clone(), description.clone(), action.clone());
         let proposal_id = storage::get_next_proposal_id(&e);
         let vote_start = match action {
             // no vote delay for snapshot proposals as they cannot be executed
@@ -124,7 +117,7 @@ impl GovernorTrait for Governor {
             description,
             action,
             vote_start,
-            vote_end
+            vote_end,
         );
         proposal_id
     }
@@ -145,8 +138,7 @@ impl GovernorTrait for Governor {
 
     fn close(e: Env, proposal_id: u32) {
         storage::extend_instance(&e);
-        let mut proposal_data = storage
-            ::get_proposal_data(&e, proposal_id)
+        let mut proposal_data = storage::get_proposal_data(&e, proposal_id)
             .unwrap_or_else(|| panic_with_error!(&e, GovernorError::NonExistentProposalError));
 
         if proposal_data.status != ProposalStatus::Open {
@@ -171,7 +163,7 @@ impl GovernorTrait for Governor {
             let passed_quorum = vote_count.is_over_quorum(
                 settings.quorum,
                 settings.counting_type,
-                total_vote_supply
+                total_vote_supply,
             );
             let passed_vote_threshold = vote_count.is_over_threshold(settings.vote_threshold);
 
@@ -192,20 +184,18 @@ impl GovernorTrait for Governor {
             proposal_id,
             proposal_data.status as u32,
             proposal_data.eta,
-            vote_count
+            vote_count,
         );
     }
 
     fn execute(e: Env, proposal_id: u32) {
         storage::extend_instance(&e);
-        let mut proposal_data = storage
-            ::get_proposal_data(&e, proposal_id)
+        let mut proposal_data = storage::get_proposal_data(&e, proposal_id)
             .unwrap_or_else(|| panic_with_error!(&e, GovernorError::NonExistentProposalError));
 
-        if
-            proposal_data.status != ProposalStatus::Successful ||
-            !proposal_data.executable ||
-            proposal_data.eta == 0
+        if proposal_data.status != ProposalStatus::Successful
+            || !proposal_data.executable
+            || proposal_data.eta == 0
         {
             panic_with_error!(&e, GovernorError::ProposalNotExecutableError);
         }
@@ -231,8 +221,7 @@ impl GovernorTrait for Governor {
         storage::extend_instance(&e);
         from.require_auth();
 
-        let mut proposal_data = storage
-            ::get_proposal_data(&e, proposal_id)
+        let mut proposal_data = storage::get_proposal_data(&e, proposal_id)
             .unwrap_or_else(|| panic_with_error!(&e, GovernorError::NonExistentProposalError));
 
         // require from to be the creator or the council
@@ -242,9 +231,8 @@ impl GovernorTrait for Governor {
                 panic_with_error!(&e, GovernorError::UnauthorizedError);
             } else {
                 // block the security council from canceling council proposals
-                let proposal_config = storage
-                    ::get_proposal_config(&e, proposal_id)
-                    .unwrap_optimized();
+                let proposal_config =
+                    storage::get_proposal_config(&e, proposal_id).unwrap_optimized();
                 // match proposal_config.action {
                 //     ProposalAction::Council(_) => {
                 //         panic_with_error!(&e, GovernorError::UnauthorizedError);
@@ -272,16 +260,14 @@ impl GovernorTrait for Governor {
     fn vote(e: Env, voter: Address, proposal_id: u32, support: u32) {
         voter.require_auth();
         storage::extend_instance(&e);
-        let proposal_data = storage
-            ::get_proposal_data(&e, proposal_id)
+        let proposal_data = storage::get_proposal_data(&e, proposal_id)
             .unwrap_or_else(|| panic_with_error!(&e, GovernorError::NonExistentProposalError));
 
         if proposal_data.status != ProposalStatus::Open {
             panic_with_error!(&e, GovernorError::ProposalClosedError);
         }
-        if
-            proposal_data.vote_start > e.ledger().sequence() ||
-            proposal_data.vote_end < e.ledger().sequence()
+        if proposal_data.vote_start > e.ledger().sequence()
+            || proposal_data.vote_end < e.ledger().sequence()
         {
             panic_with_error!(&e, GovernorError::OutsideOfVotePeriodError);
         }
@@ -289,10 +275,8 @@ impl GovernorTrait for Governor {
             panic_with_error!(&e, GovernorError::AlreadyVotedError);
         }
 
-        let voter_power = VotesClient::new(
-            &e,
-            &storage::get_voter_token_address(&e)
-        ).get_past_votes(&voter, &proposal_data.vote_start);
+        let voter_power = VotesClient::new(&e, &storage::get_voter_token_address(&e))
+            .get_past_votes(&voter, &proposal_data.vote_start);
         if voter_power <= 0 {
             panic_with_error!(&e, GovernorError::InsufficientVotingUnitsError);
         }

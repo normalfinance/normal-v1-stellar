@@ -1,7 +1,10 @@
-use normal::{ error::ErrorCode, oracle::OracleSource, types::SynthTier };
-use soroban_sdk::{ contractclient, Address, BytesN, Env, String, Vec };
+use normal::{
+    oracle::OracleSource,
+    types::market::{MarketInfo, MarketParams, MarketResponse, SynthTier},
+};
+use soroban_sdk::{contractclient, Address, BytesN, Env, String, Vec};
 
-use crate::state::market::{ Market, MarketOperation, MarketParams, MarketStatus };
+use crate::state::market::{Market, MarketOperation, MarketStatus};
 
 #[contractclient(name = "MarketClient")]
 pub trait MarketTrait {
@@ -10,11 +13,10 @@ pub trait MarketTrait {
     // ################################################################
     fn initialize(
         env: Env,
-        sender: Address,
-        params: MarketParams,
         token_wasm_hash: BytesN<32>,
-        synth_token_name: String,
-        synth_token_symbol: String
+        params: MarketParams,
+        factory_addr: Address,
+        insurance_addr: Address,
     );
 
     fn initialize_shutdown(env: Env, sender: Address, expiry_ts: u64);
@@ -27,7 +29,7 @@ pub trait MarketTrait {
         env: Env,
         sender: Address,
         debt_floor: Option<u32>,
-        debt_ceiling: Option<u128>
+        debt_ceiling: Option<u128>,
     );
 
     fn extend_expiry_ts(env: Env, sender: Address, expiry_ts: u64);
@@ -37,7 +39,7 @@ pub trait MarketTrait {
         sender: Address,
         margin_ratio_initial: u32,
         margin_ratio_maintenance: u32,
-        imf_factor: Option<u32>
+        imf_factor: Option<u32>,
     );
 
     fn update_liquidation_config(
@@ -45,7 +47,7 @@ pub trait MarketTrait {
         sender: Address,
         liquidator_fee: u32,
         if_liquidation_fee: u32,
-        liquidation_penalty: Option<u32>
+        liquidation_penalty: Option<u32>,
     );
 
     fn update_name(env: Env, sender: Address, name: String);
@@ -54,7 +56,20 @@ pub trait MarketTrait {
 
     fn update_synth_tier(env: Env, sender: Address, synth_tier: SynthTier);
 
-    fn reset_oracle_twap(env: Env, sender: Address);
+    fn update_emissions(env: Env, sender: Address, amount: u128, deadline: u64);
+
+    // ################################################################
+    //                          Super Keeper
+    // ################################################################
+
+    fn update_collateral_oracle(
+        env: Env,
+        sender: Address,
+        oracle: Address,
+        oracle_source: OracleSource,
+    );
+
+    fn update_collateral_oracle_freeze(env: Env, sender: Address, frozen: bool);
 
     // ################################################################
     //                             Keeper
@@ -67,41 +82,69 @@ pub trait MarketTrait {
     /// The remaining majority of revenue is sent to the Governor to be
     /// distributed to voters/
     ///
-    fn settle_revenue(env: Env, keeper: Address);
+    fn settle_revenue(env: Env, sender: Address);
 
-    fn update_oracle_twap(env: Env, keeper: Address);
+    /// Deposits excess/idle collateral to lending/borrowing markets
+    /// to earn addiotional yield payed to deposits.
+    ///
+    ///
+    fn lend_collateral(env: Env, sender: Address);
 
-    fn update_oracle(env: Env, keeper: Address, oracle: Address, oracle_source: OracleSource);
+    /// Recalls a necessary amount of collateral from lending/borrowing
+    /// markets in the event risk needs lowering.
+    ///
+    ///
+    fn unlend_collateral(env: Env, sender: Address);
 
-    fn freeze_oracle(env: Env, emergency_oracle: Address) {}
+    fn liquidate_position(
+        env: Env,
+        liquidator: Address,
+        user: Address,
+        max_base_asset_amount: u64,
+        limit_price: Option<u64>,
+    );
 
-    // fn lend_collateral(e: Env, fee_rate: u128);
-
-    // fn unlend_collateral(e: Env, fee_rate: u128);
-
-    // fn liquidate_position(e: Env, fee_rate: u128);
-
-    // fn resolve_position_bankruptcy(e: Env, fee_rate: u128);
+    fn resolve_position_bankruptcy(env: Env, sender: Address);
 
     // ################################################################
     //                             User
     // ################################################################
 
-    fn deposit_collateral(env: Env, sender: Address, amount: i128);
+    /// 1) Update position
+    ///     - Increase balance
+    ///     - Increase total_deposits
+    /// 2) Update market
+    ///     - collateral.balance
+    ///     - collateral.token_twap
+    ///     - collateral.utilization_twap (c-ratio)
+    ///     - last_twap_ts
+    ///     - next_deposit_record_id
+    /// 3) Receive tokens
+    fn deposit_collateral(env: Env, sender: Address, amount: i128, reduce_only: bool);
 
-    fn withdraw_collateral(env: Env, sender: Address, amount: i128);
+    /// 1)
+    fn withdraw_collateral(env: Env, sender: Address, amount: i128, reduce_only: bool);
 
     /// Mints synthetic tokens against deposited collateral and automatically
     /// provides the minted tokens and respective amount of collateral as
     /// liquidity to the Protocol Pool liquidity position.
     ///
-    /// # Arguments
+    /// Validations:
+    /// - Market status
+    /// - Paused operations
+    /// - Position not liquidated
+    /// - Debt ceiling and floor
+    /// - Mint doesn't exceed max_margin_ratio
+    /// - Mint amount under max mint amount
+    /// - Check against market.max_position_size
     ///
-    /// * `env` - The path to the file.
-    /// * `sender` - The path to the file.
-    /// * `amount` - The path to the file.
-    ///
-    fn borrow_synth(env: Env, sender: Address, amount: i128);
+    /// Update position
+    /// Update market
+    /// Mint tokens
+    /// Provide tokens as LP
+    fn borrow_and_increase_liquidity(env: Env, sender: Address, amount: i128);
+
+    fn remove_liquidity_and_repay(env: Env, sender: Address, amount: i128);
 
     // ################################################################
     //                             Queries
@@ -117,9 +160,9 @@ pub trait MarketTrait {
     fn query_lp_contract_address(env: Env) -> Address;
 
     // Returns  the total amount of LP tokens and assets in a specific pool
-    fn query_market_info(env: Env) -> PoolResponse;
+    fn query_market_info(env: Env) -> MarketResponse;
 
     fn query_market_info_for_factory(env: Env) -> MarketInfo;
 
-    fn migrate_admin_key(env: Env) -> Result<(), ErrorCode>;
+    // fn migrate_admin_key(env: Env) -> Result<(), ErrorCode>;
 }

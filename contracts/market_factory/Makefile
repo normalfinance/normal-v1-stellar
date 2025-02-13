@@ -1,3 +1,7 @@
+ifeq (,$(BUILD_FLAGS))
+  DEPS = ../token ../market
+endif
+
 default: all
 
 all: lint build test
@@ -6,8 +10,9 @@ all: lint build test
 # 	cargo test
 
 build:
-	$(MAKE) -C ../token build || break;
-	$(MAKE) -C ../market build || break;
+	@for dir in $(DEPS) ; do \
+		$(MAKE) -C $$dir build || break; \
+	done
 	cargo build --target wasm32-unknown-unknown --release
 
 lint: fmt clippy

@@ -1,22 +1,20 @@
 extern crate std;
 
-use normal::constants::{ ONE_MILLION_QUOTE, THIRTEEN_DAY };
+use normal::constants::{ONE_MILLION_QUOTE, THIRTEEN_DAY};
 use pretty_assertions::assert_eq;
 use soroban_sdk::{
     symbol_short,
-    testutils::{ Address as _, AuthorizedFunction, AuthorizedInvocation, Ledger },
-    vec,
-    Address,
-    Env,
-    IntoVal,
-    String,
-    Symbol,
-    Vec,
+    testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation, Ledger},
+    vec, Address, Env, IntoVal, String, Symbol, Vec,
 };
 
-use super::setup::{ deploy_insurance_contract, deploy_token_contract, install_token_wasm };
+use super::setup::{deploy_insurance_contract, deploy_token_contract, install_token_wasm};
 
-use crate::{ math::insurance::vault_amount_to_if_shares, storage::{ InsuranceFund, Stake }, tests::setup::ONE_DAY };
+use crate::{
+    math::insurance::vault_amount_to_if_shares,
+    storage::{InsuranceFund, Stake},
+    tests::setup::ONE_DAY,
+};
 
 #[test]
 fn initialize_insurance_contract() {
@@ -27,29 +25,28 @@ fn initialize_insurance_contract() {
     let governor_contract = Address::generate(&env);
     let deposit_token = deploy_token_contract(&env, &admin);
 
-    let insurance = deploy_insurance_contract(
-        &env,
-        &admin,
-        &governor_contract,
-        &deposit_token.address
-    );
+    let insurance =
+        deploy_insurance_contract(&env, &admin, &governor_contract, &deposit_token.address);
 
     let insurance_fund = insurance.query_insurance_fund();
 
-    assert_eq!(insurance_fund, InsuranceFund {
-        deposit_token: deposit_token.address,
-        stake_token: insurance_fund.stake_token.clone(), // unsure how to test this since it's created in the contract
-        unstaking_period: THIRTEEN_DAY,
-        revenue_settle_period: THIRTEEN_DAY,
-        max_insurance: ONE_MILLION_QUOTE,
-        paused_operations: Vec::new(&env),
-        total_shares: 0,
-        user_shares: 0,
-        shares_base: 0,
-        last_revenue_settle_ts: 0,
-        total_factor: 0,
-        user_factor: 0,
-    });
+    assert_eq!(
+        insurance_fund,
+        InsuranceFund {
+            deposit_token: deposit_token.address,
+            stake_token: insurance_fund.stake_token.clone(), // unsure how to test this since it's created in the contract
+            unstaking_period: THIRTEEN_DAY,
+            revenue_settle_period: THIRTEEN_DAY,
+            max_insurance: ONE_MILLION_QUOTE,
+            paused_operations: Vec::new(&env),
+            total_shares: 0,
+            user_shares: 0,
+            shares_base: 0,
+            last_revenue_settle_ts: 0,
+            total_factor: 0,
+            user_factor: 0,
+        }
+    );
 
     let response = insurance.query_admin();
     assert_eq!(response, admin);
@@ -77,7 +74,7 @@ fn test_deploying_insurance_twice_should_fail() {
         &10u32,
         &String::from_str(&env, "Normal Insurance Fund Stake"),
         &String::from_str(&env, "NIFS"),
-        &1_000_000i128
+        &1_000_000i128,
     );
 }
 
@@ -92,12 +89,8 @@ fn add_stake() {
 
     let deposit_token = deploy_token_contract(&env, &admin);
 
-    let insurance = deploy_insurance_contract(
-        &env,
-        &admin,
-        &governor_contract,
-        &deposit_token.address
-    );
+    let insurance =
+        deploy_insurance_contract(&env, &admin, &governor_contract, &deposit_token.address);
 
     // env.ledger().with_mut(|li| {
     //     li.timestamp = ONE_WEEK;
@@ -109,8 +102,9 @@ fn add_stake() {
 
     insurance.add_if_stake(&user, &10_000);
 
-    assert_eq!(env.auths(), [
-        (
+    assert_eq!(
+        env.auths(),
+        [(
             user.clone(),
             AuthorizedInvocation {
                 function: AuthorizedFunction::Contract((
@@ -127,20 +121,23 @@ fn add_stake() {
                     sub_invocations: std::vec![],
                 }],
             },
-        ),
-    ]);
+        ),]
+    );
 
     // TODO: this will fail
     let stake = insurance.query_if_stake(&user);
-    assert_eq!(stake, Stake {
-        if_shares: 0,
-        last_withdraw_request_shares: 0,
-        if_base: 0,
-        last_valid_ts: 0,
-        last_withdraw_request_value: 0,
-        last_withdraw_request_ts: 0,
-        cost_basis: 0,
-    });
+    assert_eq!(
+        stake,
+        Stake {
+            if_shares: 0,
+            last_withdraw_request_shares: 0,
+            if_base: 0,
+            last_valid_ts: 0,
+            last_withdraw_request_value: 0,
+            last_withdraw_request_ts: 0,
+            cost_basis: 0,
+        }
+    );
 
     let insurance_fund = insurance.query_insurance_fund();
 
@@ -148,11 +145,17 @@ fn add_stake() {
         &env,
         10_000,
         insurance_fund.total_shares,
-        deposit_token.balance(&insurance.address)
+        deposit_token.balance(&insurance.address),
     );
 
-    assert_eq!(insurance_fund.total_shares, insurance_fund_before.total_shares + n_shares);
-    assert_eq!(insurance_fund.user_shares, insurance_fund_before.user_shares + n_shares);
+    assert_eq!(
+        insurance_fund.total_shares,
+        insurance_fund_before.total_shares + n_shares
+    );
+    assert_eq!(
+        insurance_fund.user_shares,
+        insurance_fund_before.user_shares + n_shares
+    );
 
     assert_eq!(deposit_token.balance(&user), 0);
     assert_eq!(deposit_token.balance(&insurance.address), 10_000);
@@ -163,7 +166,6 @@ fn add_stake() {
 fn add_stake_over_max_insurance_should_fail() {
     let env = Env::default();
     env.mock_all_auths();
-
 }
 
 #[test]
@@ -178,12 +180,8 @@ fn request_remove_stake() {
 
     let deposit_token = deploy_token_contract(&env, &admin);
 
-    let insurance = deploy_insurance_contract(
-        &env,
-        &admin,
-        &governor_contract,
-        &deposit_token.address
-    );
+    let insurance =
+        deploy_insurance_contract(&env, &admin, &governor_contract, &deposit_token.address);
 
     // env.ledger().with_mut(|li| {
     //     li.timestamp = ONE_WEEK;
@@ -202,8 +200,9 @@ fn request_remove_stake() {
 
     insurance.request_remove_if_stake(&user, &10_000);
 
-    assert_eq!(env.auths(), [
-        (
+    assert_eq!(
+        env.auths(),
+        [(
             user.clone(),
             AuthorizedInvocation {
                 function: AuthorizedFunction::Contract((
@@ -213,8 +212,8 @@ fn request_remove_stake() {
                 )),
                 sub_invocations: std::vec![],
             },
-        ),
-    ]);
+        ),]
+    );
 
     let stake = insurance.query_if_stake(&user);
     assert_eq!(
@@ -241,12 +240,8 @@ fn cancel_request_remove_stake() {
     let user = Address::generate(&env);
     let gov_token = deploy_token_contract(&env, &admin);
 
-    let insurance = deploy_insurance_contract(
-        &env,
-        admin.clone(),
-        governor.clone(),
-        &gov_token.address
-    );
+    let insurance =
+        deploy_insurance_contract(&env, admin.clone(), governor.clone(), &gov_token.address);
 
     env.ledger().with_mut(|li| {
         li.timestamp = ONE_WEEK;
@@ -256,8 +251,9 @@ fn cancel_request_remove_stake() {
 
     insurance.cancel_request_remove_if_stake(&user);
 
-    assert_eq!(env.auths(), [
-        (
+    assert_eq!(
+        env.auths(),
+        [(
             user.clone(),
             AuthorizedInvocation {
                 function: AuthorizedFunction::Contract((
@@ -267,8 +263,8 @@ fn cancel_request_remove_stake() {
                 )),
                 sub_invocations: std::vec![],
             },
-        ),
-    ]);
+        ),]
+    );
 
     let stake = insurance.query_if_stake(&user);
     // assert_eq!(
@@ -296,12 +292,8 @@ fn remove_stake() {
     let owner = Address::generate(&env);
     let lp_token = deploy_token_contract(&env, &admin);
 
-    let insurance = deploy_insurance_contract(
-        &env,
-        admin.clone(),
-        governor.clone(),
-        &gov_token.address
-    );
+    let insurance =
+        deploy_insurance_contract(&env, admin.clone(), governor.clone(), &gov_token.address);
 
     lp_token.mint(&user, &35_000);
     lp_token.mint(&user2, &10_000);
@@ -326,8 +318,9 @@ fn remove_stake() {
 
     insurance.remove_if_stake(&user);
 
-    assert_eq!(env.auths(), [
-        (
+    assert_eq!(
+        env.auths(),
+        [(
             user.clone(),
             AuthorizedInvocation {
                 function: AuthorizedFunction::Contract((
@@ -337,16 +330,19 @@ fn remove_stake() {
                 )),
                 sub_invocations: std::vec![],
             },
-        ),
-    ]);
+        ),]
+    );
 
     let stake = insurance.query_if_stake(&user);
     assert_eq!(
         stake,
-        vec![&env, Stake {
-            stake: 10_000,
-            stake_timestamp: ONE_DAY,
-        }]
+        vec![
+            &env,
+            Stake {
+                stake: 10_000,
+                stake_timestamp: ONE_DAY,
+            }
+        ]
     );
     // assert_eq!(staking.query_total_staked(), 35_000);
 
@@ -396,7 +392,7 @@ fn remove_stake_wrong_user_stake_not_found() {
         &lp_token.address,
         &manager,
         &owner,
-        &DEFAULT_COMPLEXITY
+        &DEFAULT_COMPLEXITY,
     );
 
     lp_token.mint(&user, &35_000);
@@ -467,9 +463,12 @@ fn pay_rewards_during_remove_stake() {
     // insurance.request_remove_if_stake(&user, &staked, &0);
     assert_eq!(stake_asset.balance(&insurance.address), 0);
     assert_eq!(stake_asset.balance(&user), 9000 + staked);
-    assert_eq!(insurance.query_if_stake(&user), Stake {
-        stakes: Vec::new(&env),
-        total_stake: 0i128,
-        last_reward_time: 6_912_000,
-    });
+    assert_eq!(
+        insurance.query_if_stake(&user),
+        Stake {
+            stakes: Vec::new(&env),
+            total_stake: 0i128,
+            last_reward_time: 6_912_000,
+        }
+    );
 }

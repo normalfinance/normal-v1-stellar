@@ -1,13 +1,12 @@
-use super::setup::{ install_index_token_contract, install_token_wasm };
-use crate::{
-    tests::setup::{
-        deploy_index_token_factory_contract,
-        generate_index_token_init_info,
-        index_token_contract,
-    },
+use super::setup::{install_index_token_contract, install_token_wasm};
+use crate::tests::setup::{
+    deploy_index_token_factory_contract, generate_index_token_init_info, index_token_contract,
 };
 
-use soroban_sdk::{ testutils::{ arbitrary::std, Address as _ }, vec, Address, Env, String };
+use soroban_sdk::{
+    testutils::{arbitrary::std, Address as _},
+    vec, Address, Env, String,
+};
 
 #[test]
 fn factory_successfully_inits_itself() {
@@ -15,11 +14,8 @@ fn factory_successfully_inits_itself() {
     let admin = Address::generate(&env);
     let governor = Address::generate(&env);
 
-    let factory = deploy_index_token_factory_contract(
-        &env,
-        Some(admin.clone()),
-        Some(governor.clone())
-    );
+    let factory =
+        deploy_index_token_factory_contract(&env, Some(admin.clone()), Some(governor.clone()));
 
     assert_eq!(factory.get_admin(), admin);
 }
@@ -63,11 +59,8 @@ fn factory_successfully_inits_market() {
         std::mem::swap(&mut token1_admin, &mut token2_admin);
     }
 
-    let factory = deploy_index_token_factory_contract(
-        &env,
-        Some(admin.clone()),
-        Some(governor.clone())
-    );
+    let factory =
+        deploy_index_token_factory_contract(&env, Some(admin.clone()), Some(governor.clone()));
     assert_eq!(factory.get_admin(), admin);
 
     let index_params = generate_index_token_init_info(
@@ -75,22 +68,23 @@ fn factory_successfully_inits_market() {
         token2.clone(),
         Address::generate(&env),
         admin.clone(),
-        user.clone()
+        user.clone(),
     );
 
     factory.create_index_token(&admin, &100, &index_params);
     let index_token_contract_addr = factory.query_markets().get(0).unwrap();
 
-    let first_index_token_contract = index_token_contract::Client::new(
-        &env,
-        &index_token_contract_addr
-    );
+    let first_index_token_contract =
+        index_token_contract::Client::new(&env, &index_token_contract_addr);
 
-    assert_eq!(first_index_token_contract.query_index(), index_token_contract::Index {
-        fee_recipient: user,
-        max_allowed_slippage_bps: 5_000,
-        // ...
-    });
+    assert_eq!(
+        first_index_token_contract.query_index(),
+        index_token_contract::Index {
+            fee_recipient: user,
+            max_allowed_slippage_bps: 5_000,
+            // ...
+        }
+    );
 }
 
 #[test]

@@ -6,8 +6,8 @@ use soroban_sdk::{vec, Address, Env, Vec};
 
 use crate::state::{
     pool::Pool,
-    tick::{Tick, TickUpdate, ZeroedTickArray, TICK_ARRAY_SIZE},
-    tick_array::TickArray,
+    tick::{Tick, TickUpdate, TICK_ARRAY_SIZE},
+    tick_array::{TickArray, ZeroedTickArray},
 };
 
 use super::swap_tick_sequence::SwapTickSequence;
@@ -39,8 +39,7 @@ impl ProxiedTickArray {
         tick_spacing: u32,
         a_to_b: bool,
     ) -> NormalResult<Option<i32>> {
-        self.as_ref()
-            .get_next_init_tick_index(tick_index, tick_spacing, a_to_b)
+        self.get_next_init_tick_index(tick_index, tick_spacing, a_to_b)
     }
 
     pub fn get_tick(&self, tick_index: i32, tick_spacing: u32) -> NormalResult<&Tick> {
@@ -71,8 +70,8 @@ impl ProxiedTickArray {
 }
 
 // TODO: I don't think we need as_ref and as_mut when we can just use Env
-// impl<'a> AsRef<dyn TickArrayType + 'a> for ProxiedTickArray<'a> {
-//     fn as_ref(&self) -> &(dyn TickArrayType + 'a) {
+// impl AsRef<dyn TickArrayType> for ProxiedTickArray {
+//     fn as_ref(&self) -> &(dyn TickArrayType) {
 //         match self {
 //             ProxiedTickArray::Initialized(ref array) => &**array,
 //             ProxiedTickArray::Uninitialized(ref array) => array,
@@ -219,7 +218,7 @@ impl SparseSwapTickSequenceBuilder {
         }
 
         if tick_array_accounts.is_empty() {
-            return Err(crate::errors::ErrorCode::InvalidTickArraySequence);
+            return Err(crate::errors::PoolErrors::InvalidTickArraySequence);
         }
 
         Ok(Self {

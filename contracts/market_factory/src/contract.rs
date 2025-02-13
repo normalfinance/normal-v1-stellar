@@ -1,23 +1,23 @@
 use crate::{
-    errors::ContractError,
+    errors::Errors,
     factory::MarketFactoryTrait,
     storage::{
         get_config, get_market_vec, is_initialized, save_config, save_market_vec,
-        save_market_vec_with_tuple_as_key, set_initialized, Config, MarketInfo, MarketTupleKey,
+        save_market_vec_with_tuple_as_key, set_initialized, MarketTupleKey,
     },
-    utils::deploy_market_contract,
+    utils::{deploy_lp_token_contract, deploy_market_contract, deploy_synthetic_token_contract},
 };
 use normal::{
     constants::{
         INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT,
         PERSISTENT_LIFETIME_THRESHOLD,
     },
-    error::ErrorCode,
     oracle::OracleGuardRails,
+    types::market::{MarketFactoryConfig, MarketInfo, MarketParams},
 };
 use soroban_sdk::{
-    contract, contractimpl, contractmeta, log, panic_with_error, Address, BytesN, Env, String,
-    Symbol, Val, Vec,
+    contract, contractimpl, contractmeta, log, panic_with_error, Address, BytesN, Env, FromVal,
+    IntoVal, String, Symbol, Val, Vec,
 };
 
 contractmeta!(
@@ -35,6 +35,7 @@ impl MarketFactoryTrait for MarketFactory {
         env: Env,
         admin: Address,
         governor: Address,
+        insurance: Address,
         market_wasm_hash: BytesN<32>,
         token_wasm_hash: BytesN<32>,
     ) {
@@ -43,19 +44,20 @@ impl MarketFactoryTrait for MarketFactory {
                 &env,
                 "Factory: Initialize: initializing contract twice is not allowed"
             );
-            panic_with_error!(&env, ContractError::AlreadyInitialized);
+            panic_with_error!(&env, Errors::AlreadyInitialized);
         }
 
         set_initialized(&env);
 
         save_config(
             &env,
-            Config {
+            MarketFactoryConfig {
                 admin: admin.clone(),
                 governor: governor.clone(),
+                insurance: insurance.clone(),
                 market_wasm_hash,
                 token_wasm_hash,
-                emergency_oracles: Vec::new(&env),
+                super_keepers: Vec::new(&env),
                 oracle_guard_rails: OracleGuardRails::default(),
             },
         );
@@ -67,40 +69,65 @@ impl MarketFactoryTrait for MarketFactory {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn create_market(
-        env: Env,
-        sender: Address,
-        asset: Symbol,
-        params: MarketParams,
-        token_wasm_hash: BytesN<32>,
-        synth_token_name: String,
-        synth_token_symbol: String,
-    ) -> Address {
-        sender.require_auth();
+    fn create_market(env: Env, params: MarketParams) -> Address {
+        let config = get_config(&env);
+
+        config.admin.require_auth();
         env.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-        let config = get_config(&env);
-        let index_token_hash = config.market_wasm_hash;
+        let market_wasm_hash = config.market_wasm_hash;
         let token_wasm_hash = config.token_wasm_hash;
+
+        let token_decimals = params.token_decimals;
+        let synth_token_name = params.synth_token_name;
+        let synth_token_symbol = params.synth_token_symbol;
+        let lp_token_symbol = params.lp_token_symbol;
+        let quote_token = &params.quote_token;
+        let oracle = &params.oracle;
+
+        // deploy and initialize the synth token contract
+        let synth_token_address = deploy_synthetic_token_contract(
+            &env,
+            token_wasm_hash.clone(),
+            quote_token,
+            env.current_contract_address(),
+            token_decimals,
+            synth_token_name.clone(),
+            synth_token_symbol.clone(),
+        );
+
+        // deploy and initialize the liquidity pool token contract
+        let lp_token_address = deploy_lp_token_contract(
+            &env,
+            token_wasm_hash.clone(),
+            &synth_token_address,
+            quote_token,
+            env.current_contract_address(),
+            token_decimals,
+            lp_token_symbol.clone(),
+            lp_token_symbol,
+        );
 
         let market_contract_address = deploy_market_contract(
             &env,
-            token_wasm_hash,
-            &params,
-            index_token_hash,
+            market_wasm_hash,
+            oracle,
             &synth_token_name,
             &synth_token_symbol,
         );
 
+        // let args = params;
         let factory_addr = env.current_contract_address();
+
         let init_fn: Symbol = Symbol::new(&env, "initialize");
         let init_fn_args: Vec<Val> = (
-            sender.clone(),
-            params.clone(),
-            initial_deposit,
+            synth_token_address.clone(),
+            lp_token_address,
+            // params,
             factory_addr,
+            config.insurance,
         )
             .into_val(&env);
 
@@ -111,9 +138,12 @@ impl MarketFactoryTrait for MarketFactory {
         market_vec.push_back(market_contract_address.clone());
 
         save_market_vec(&env, market_vec);
-        let token_a = &asset;
-        let token_b = &params.collateral_token;
-        save_market_vec_with_tuple_as_key(&env, (token_a, token_b), &market_contract_address);
+        // let token_b = quote_token;
+        save_market_vec_with_tuple_as_key(
+            &env,
+            (&synth_token_address, quote_token),
+            &market_contract_address,
+        );
 
         env.events()
             .publish(("create", "market"), &market_contract_address);
@@ -121,45 +151,32 @@ impl MarketFactoryTrait for MarketFactory {
         market_contract_address
     }
 
-    fn update_emergency_oracles(
-        env: Env,
-        sender: Address,
-        to_add: Vec<Address>,
-        to_remove: Vec<Address>,
-    ) {
-        sender.require_auth();
+    fn update_super_keepers(env: Env, to_add: Vec<Address>, to_remove: Vec<Address>) {
+        let config = get_config(&env);
+
+        config.admin.require_auth();
         env.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-        let config = get_config(&env);
-
-        if config.admin != sender {
-            log!(
-                &env,
-                "Factory: Update whitelisted accounts: You are not authorized!"
-            );
-            panic_with_error!(&env, ContractError::NotAuthorized);
-        }
-
-        let mut emergency_oracles = config.emergency_oracles;
+        let mut super_keepers = config.super_keepers;
 
         to_add.into_iter().for_each(|addr| {
-            if !emergency_oracles.contains(addr.clone()) {
-                emergency_oracles.push_back(addr);
+            if !super_keepers.contains(addr.clone()) {
+                super_keepers.push_back(addr);
             }
         });
 
         to_remove.into_iter().for_each(|addr| {
-            if let Some(id) = emergency_oracles.iter().position(|x| x == addr) {
-                emergency_oracles.remove(id as u32);
+            if let Some(id) = super_keepers.iter().position(|x| x == addr) {
+                super_keepers.remove(id as u32);
             }
         });
 
         save_config(
             &env,
-            Config {
-                emergency_oracles,
+            MarketFactoryConfig {
+                super_keepers,
                 ..config
             },
         )
@@ -179,7 +196,7 @@ impl MarketFactoryTrait for MarketFactory {
 
         save_config(
             &env,
-            Config {
+            MarketFactoryConfig {
                 market_wasm_hash: market_wasm_hash.unwrap_or(config.market_wasm_hash),
                 token_wasm_hash: token_wasm_hash.unwrap_or(config.token_wasm_hash),
                 ..config
@@ -199,7 +216,7 @@ impl MarketFactoryTrait for MarketFactory {
 
         save_config(
             &env,
-            Config {
+            MarketFactoryConfig {
                 oracle_guard_rails,
                 ..config
             },
@@ -248,7 +265,7 @@ impl MarketFactoryTrait for MarketFactory {
         result
     }
 
-    fn query_for_market_by_token_pair(env: Env, token_a: Symbol, token_b: Symbol) -> Address {
+    fn query_for_market_by_token_pair(env: Env, token_a: Address, token_b: Address) -> Address {
         env.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
@@ -316,7 +333,7 @@ impl MarketFactoryTrait for MarketFactory {
             &env,
             "Factory: query_for_market_by_token_pair failed: No market found"
         );
-        panic_with_error!(&env, ContractError::MarketNotFound);
+        panic_with_error!(&env, Errors::MarketNotFound);
     }
 
     fn get_admin(env: Env) -> Address {
@@ -326,26 +343,19 @@ impl MarketFactoryTrait for MarketFactory {
         get_config(&env).admin
     }
 
-    fn get_config(env: Env) -> Config {
+    fn get_config(env: Env) -> MarketFactoryConfig {
         env.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
         get_config(&env)
     }
 
-    fn query_emergency_oracle(env: Env, oracle: Address) -> bool {
-        env.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-        get_config(&env).emergency_oracles.contains(oracle)
-    }
+    // fn migrate_admin_key(env: Env) -> Result<(), ErrorCode> {
+    //     let admin = get_config(&env).admin;
+    //     env.storage().instance().set(&ADMIN, &admin);
 
-    fn migrate_admin_key(env: Env) -> Result<(), ErrorCode> {
-        let admin = get_config(&env).admin;
-        env.storage().instance().set(&ADMIN, &admin);
-
-        Ok(())
-    }
+    //     Ok(())
+    // }
 }
 
 #[contractimpl]

@@ -93,7 +93,7 @@ fn _calculate_modify_liquidity(
 ) -> NormalResult<ModifyLiquidityUpdate> {
     // Disallow only updating position fee and reward growth when position has zero liquidity
     if liquidity_delta == 0 && position.liquidity == 0 {
-        return Err(Errors::LiquidityZero.into());
+        return Err(Errors::LiquidityZero);
     }
 
     let next_reward_infos = controller::pool::next_amm_reward_infos(pool, timestamp)?;

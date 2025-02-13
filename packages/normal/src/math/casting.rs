@@ -1,11 +1,6 @@
 use soroban_sdk::{contracterror, log, panic_with_error, Env};
 
-#[contracterror]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
-#[repr(u32)]
-pub enum ErrorCode {
-    CastingFailure = 1,
-}
+use crate::error::ErrorCode;
 
 pub trait Cast: Sized {
     /// Perform a casting operation with error handling.

@@ -1,25 +1,15 @@
 use normal::{
-    error::{ErrorCode, NormalResult},
-    oracle::OracleSource,
-    types::SynthTier,
+    constants::BID_ASK_SPREAD_PRECISION,
+    error::ErrorCode,
+    math::{casting::Cast, safe_math::SafeMath},
+    oracle::{HistoricalOracleData, OracleSource},
 };
 use soroban_decimal::Decimal;
-use soroban_sdk::{contracttype, log, Address, Env, Map, Vec};
+use soroban_sdk::{contracttype, panic_with_error, Address, Env, Map, Vec};
 
 use crate::math::token_math::{MAX_FEE_RATE, MAX_PROTOCOL_FEE_RATE};
 
 use super::{reward::RewardInfo, tick_array::TickArray};
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PoolParams {
-    pub tick_spacing: u32,
-    pub initial_sqrt_price: u128,
-    pub fee_rate: u32,
-    pub protocol_fee_rate: u32,
-    pub max_allowed_slippage_bps: i64,
-    pub max_allowed_variance_bps: i64,
-}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -38,19 +28,31 @@ pub struct Pool {
     ///
     pub tick_arrays: Map<i32, TickArray>, // start_tick_index > TickArray
 
-    /// `x` reserves for constant product mm formula (x * y = k)
-    // /// precision: AMM_RESERVE_PRECISION
-    // pub base_asset_reserve: u128,
-    // /// `y` reserves for constant product mm formula (x * y = k)
-    // /// precision: AMM_RESERVE_PRECISION
-    // pub quote_asset_reserve: u128,
-    // /// minimum base_asset_reserve allowed before AMM is unavailable
-    // /// precision: AMM_RESERVE_PRECISION
-    // pub min_base_asset_reserve: u128,
-    // /// maximum base_asset_reserve allowed before AMM is unavailable
-    // /// precision: AMM_RESERVE_PRECISION
-    // pub max_base_asset_reserve: u128,
+    /// oracle price data public key
+    pub oracle: Address,
+    /// the oracle provider information. used to decode/scale the oracle public key
+    pub oracle_source: OracleSource,
+    /// stores historically witnessed oracle data
+    pub historical_oracle_data: HistoricalOracleData,
+    /// the last seen oracle price partially shrunk toward the amm reserve price
+    /// precision: PRICE_PRECISION
+    pub last_oracle_normalised_price: i64,
+    /// the gap between the oracle price and the reserve price = y * peg_multiplier / x
+    pub last_oracle_price_spread_pct: i64,
+    /// average estimate of price
+    pub last_price_twap: u64,
+    /// the pct size of the oracle confidence interval
+    /// precision: PERCENTAGE_PRECISION
+    pub last_oracle_conf_pct: u64,
+    /// estimate of standard deviation of the oracle price at each update
+    /// precision: PRICE_PRECISION
+    pub oracle_std: u64,
+    /// the last unix_timestamp the twap was updated
+    pub last_price_twap_ts: i64,
+    /// tracks whether the oracle was considered valid at the last AMM update
+    pub last_oracle_valid: bool,
 
+    // TODO: do we need to manually track reserve values?
     /// Current amount of liquidity in the pool
     pub liquidity: u128,
     /// Current conversion price of the pool
@@ -75,6 +77,9 @@ pub struct Pool {
     pub reward_last_updated_timestamp: u64,
     ///
     pub reward_infos: Vec<RewardInfo>,
+
+    /// the last blockchain slot the amm was updated
+    pub last_update_slot: u64,
 }
 
 impl Pool {
@@ -101,7 +106,7 @@ impl Pool {
     pub fn get_reward_by_token(&self, token: Address) -> Option<(RewardInfo, usize)> {
         for (i, reward) in self.reward_infos.iter().enumerate() {
             if reward.token == token {
-                return (reward, i);
+                return Some((reward, i));
             }
         }
         return (None, 0);
@@ -132,15 +137,9 @@ impl Pool {
     }
 
     /// Update the reward authority at the specified Whirlpool reward index.
-    pub fn update_reward_authority(
-        &mut self,
-        reward_token: Address,
-        authority: Address,
-    ) -> NormalResult<()> {
-        let (mut reward, _i) = self.get_reward_by_token(reward_token)?;
+    pub fn update_reward_authority(&mut self, reward_token: Address, authority: Address) {
+        let (mut reward, _i) = self.get_reward_by_token(reward_token);
         reward.authority = authority;
-
-        Ok(())
     }
 
     pub fn update_emissions(
@@ -182,22 +181,18 @@ impl Pool {
         }
     }
 
-    pub fn update_fee_rate(&mut self, fee_rate: i64) -> NormalResult<()> {
+    pub fn update_fee_rate(&mut self, env: &Env, fee_rate: i64) {
         if fee_rate > MAX_FEE_RATE {
-            return Err(ErrorCode::FeeRateMaxExceeded);
+            panic_with_error!(env, ErrorCode::FeeRateMaxExceeded);
         }
         self.fee_rate = fee_rate;
-
-        Ok(())
     }
 
-    pub fn update_protocol_fee_rate(&mut self, protocol_fee_rate: i64) -> NormalResult<()> {
+    pub fn update_protocol_fee_rate(&mut self, env: &Env, protocol_fee_rate: i64) {
         if protocol_fee_rate > MAX_PROTOCOL_FEE_RATE {
-            return Err(ErrorCode::ProtocolFeeRateMaxExceeded);
+            panic_with_error!(env, ErrorCode::ProtocolFeeRateMaxExceeded);
         }
         self.protocol_fee_rate = protocol_fee_rate;
-
-        Ok(())
     }
 
     pub fn reset_protocol_fees_owed(&mut self) {
@@ -205,28 +200,23 @@ impl Pool {
         self.protocol_fee_owed_b = 0;
     }
 
-    pub fn get_oracle_price_deviance(self, env: &Env) -> i128 {
-        let oracle_price = self.get_oracle_twap(price_oracle, now)?;
+    pub fn get_oracle_price_deviance(self, env: &Env, now: u64) -> i128 {
+        let oracle_price = self.get_oracle_twap(env, &self.oracle, now)?;
 
-        let price_diff = self.sqrt_price.safe_sub(oracle_price, env)?;
+        let price_diff = self.sqrt_price.safe_sub(oracle_price, env);
 
         price_diff
     }
 
-    pub fn get_liquidity_delta_for_price_impact(&self, price_impact: i64) -> NormalResult<i128> {}
+    pub fn get_liquidity_delta_for_price_impact(&self, price_impact: i64) -> i128 {}
 
-    pub fn get_oracle_twap(&self, price_oracle: &Address, now: u64) -> NormalResult<Option<i64>> {
+    pub fn get_oracle_twap(&self, env: &Env, price_oracle: &Address, now: u64) -> Option<i64> {
         match self.oracle_source {
-            OracleSource::Band => Ok(Some(self.get_band_twap(price_oracle, 1)?)),
-            OracleSource::Reflector => Ok(Some(self.get_band_twap(price_oracle, 1)?)),
-            OracleSource::QuoteAsset => {
-                // log!(&env, "Can't get oracle twap for quote asset");
-                Err(ErrorCode::DefaultError)
-            }
+            OracleSource::Band => Some(self.get_band_twap(env, price_oracle, 1)),
         }
     }
 
-    pub fn get_band_twap(&self, price_oracle: &Address, multiple: u128) -> NormalResult<i64> {
+    pub fn get_band_twap(&self, env: &Env, price_oracle: &Address, multiple: u128) -> i64 {
         let mut pyth_price_data: &[u8] = &price_oracle
             .try_borrow_data()
             .or(Err(ErrorCode::UnableToLoadOracle))?;
@@ -259,122 +249,43 @@ impl Pool {
         // }
 
         oracle_twap
-            .cast::<i128>()?
-            .safe_mul(oracle_scale_mult.cast()?)?
-            .safe_div(oracle_scale_div.cast()?)?
-            .cast::<i64>()
+            .cast::<i128>(env)
+            .safe_mul(oracle_scale_mult.cast(env), env)
+            .safe_div(oracle_scale_div.cast(env), env)
+            .cast::<i64>(env)
     }
 
     pub fn get_new_oracle_conf_pct(
         &self,
+        env: &Env,
         confidence: u64,    // price precision
         reserve_price: u64, // price precision
         now: i64,
-    ) -> NormalResult<u64> {
+    ) -> u64 {
         // use previous value decayed as lower bound to avoid shrinking too quickly
         let upper_bound_divisor = 21_u64;
         let lower_bound_divisor = 5_u64;
         let since_last = now
-            .safe_sub(self.historical_oracle_data.last_oracle_price_twap_ts)?
+            .safe_sub(self.historical_oracle_data.last_oracle_price_twap_ts, env)
             .max(0);
 
         let confidence_lower_bound = if since_last > 0 {
             let confidence_divisor = upper_bound_divisor
-                .saturating_sub(since_last.cast::<u64>()?)
+                .saturating_sub(since_last.cast::<u64>(env))
                 .max(lower_bound_divisor);
             self.last_oracle_conf_pct
-                .safe_sub(self.last_oracle_conf_pct / confidence_divisor)?
+                .safe_sub(self.last_oracle_conf_pct / confidence_divisor, env)
         } else {
             self.last_oracle_conf_pct
         };
 
-        Ok(confidence
-            .safe_mul(BID_ASK_SPREAD_PRECISION)?
-            .safe_div(reserve_price)?
-            .max(confidence_lower_bound))
+        confidence
+            .safe_mul(BID_ASK_SPREAD_PRECISION, env)
+            .safe_div(reserve_price, env)
+            .max(confidence_lower_bound)
     }
 
-    pub fn is_recent_oracle_valid(&self, current_slot: u64) -> NormalResult<bool> {
-        Ok(self.last_oracle_valid && current_slot == self.last_update_slot)
-    }
-
-    pub fn is_price_divergence_ok(&self, env: &Env, oracle_price: i64) -> NormalResult<bool> {
-        let oracle_divergence = oracle_price
-            .safe_sub(self.historical_oracle_data.last_oracle_price_twap_5min)?
-            .safe_mul(PERCENTAGE_PRECISION_I64)?
-            .safe_div(
-                self.historical_oracle_data
-                    .last_oracle_price_twap_5min
-                    .min(oracle_price),
-            )?
-            .unsigned_abs();
-
-        let oracle_divergence_limit = match self.synthetic_tier {
-            SynthTier::A => PERCENTAGE_PRECISION_U64 / 200, // 50 bps
-            SynthTier::B => PERCENTAGE_PRECISION_U64 / 200, // 50 bps
-            SynthTier::C => PERCENTAGE_PRECISION_U64 / 100, // 100 bps
-            SynthTier::Speculative => PERCENTAGE_PRECISION_U64 / 40, // 250 bps
-            SynthTier::HighlySpeculative => PERCENTAGE_PRECISION_U64 / 40, // 250 bps
-            SynthTier::Isolated => PERCENTAGE_PRECISION_U64 / 40, // 250 bps
-        };
-
-        if oracle_divergence >= oracle_divergence_limit {
-            log!(
-                env,
-                "market_index={} price divergence too large to safely settle pnl: {} >= {}",
-                self.market_index,
-                oracle_divergence,
-                oracle_divergence_limit
-            );
-            return Ok(false);
-        }
-
-        let min_price = oracle_price.min(self.historical_oracle_data.last_oracle_price_twap_5min);
-
-        let std_limit = (match self.synthetic_tier {
-            SynthTier::A => min_price / 50,                 // 200 bps
-            SynthTier::B => min_price / 50,                 // 200 bps
-            SynthTier::C => min_price / 20,                 // 500 bps
-            SynthTier::Speculative => min_price / 10,       // 1000 bps
-            SynthTier::HighlySpeculative => min_price / 10, // 1000 bps
-            SynthTier::Isolated => min_price / 10,          // 1000 bps
-        })
-        .unsigned_abs();
-
-        if self.oracle_std.max(self.mark_std) >= std_limit {
-            log!(
-                env,
-                "market_index={} std too large to safely settle pnl: {} >= {}",
-                self.market_index,
-                self.oracle_std.max(self.mark_std),
-                std_limit
-            );
-            return Ok(false);
-        }
-
-        Ok(true)
-    }
-
-    pub fn get_max_confidence_interval_multiplier(self) -> NormalResult<u64> {
-        // assuming validity_guard_rails max confidence pct is 2%
-        Ok(match self.synthetic_tier {
-            SynthTier::A => 1,                  // 2%
-            SynthTier::B => 1,                  // 2%
-            SynthTier::C => 2,                  // 4%
-            SynthTier::Speculative => 10,       // 20%
-            SynthTier::HighlySpeculative => 50, // 100%
-            SynthTier::Isolated => 50,          // 100%
-        })
-    }
-
-    pub fn get_sanitize_clamp_denominator(self) -> NormalResult<Option<i64>> {
-        Ok(match self.synthetic_tier {
-            SynthTier::A => Some(10_i64),         // 10%
-            SynthTier::B => Some(5_i64),          // 20%
-            SynthTier::C => Some(2_i64),          // 50%
-            SynthTier::Speculative => None,       // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
-            SynthTier::HighlySpeculative => None, // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
-            SynthTier::Isolated => None,          // DEFAULT_MAX_TWAP_UPDATE_PRICE_BAND_DENOMINATOR
-        })
+    pub fn is_recent_oracle_valid(&self, current_slot: u64) -> bool {
+        self.last_oracle_valid && current_slot == self.last_update_slot
     }
 }

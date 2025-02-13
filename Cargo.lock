@@ -786,6 +786,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "normal-emissions"
+version = "0.1.0"
+dependencies = [
+ "normal",
+ "sep-41-token",
+ "soroban-fixed-point-math",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "normal-governor"
 version = "0.1.0"
 dependencies = [

@@ -1,3 +1,4 @@
+use normal::oracle::OracleSource;
 use soroban_sdk::{contractclient, Address, BytesN, Env, String, Vec};
 
 use crate::state::liquidity_position::LiquidityPositionUpdate;
@@ -37,6 +38,18 @@ pub trait PoolTrait {
         reward_token: Address,
         new_reward_authority: Address,
     );
+
+    fn reset_oracle_twap(env: Env, sender: Address);
+
+    fn update_oracle_twap(env: Env, sender: Address);
+
+    // ################################################################
+    //                          Super Keeper
+    // ################################################################
+
+    fn update_oracle(env: Env, sender: Address, oracle: Address, oracle_source: OracleSource);
+
+    fn update_oracle_freeze(env: Env, sender: Address, frozen: bool);
 
     // ################################################################
     //                             User
@@ -93,12 +106,6 @@ pub trait PoolTrait {
     // ################################################################
     //                             Queries
     // ################################################################
-
-    // Returns the configuration structure containing the addresses
-    // fn query_pool(env: Env) -> Pool;
-
-    // Returns the address for the pool share token
-    // fn query_lp_token_address(env: Env) -> Address;
 
     // Returns  the total amount of LP tokens and assets in a specific pool
     // fn query_pool_info(env: Env) -> PoolResponse;

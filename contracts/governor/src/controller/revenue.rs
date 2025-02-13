@@ -2,8 +2,6 @@ use soroban_sdk::{Address, Env};
 
 use crate::dependencies::TokenClient;
 
-
-
 pub fn claim_revenue(e: &Env, total_supply: i128, user: &Address, balance: i128) -> i128 {
     if let Some(emis_config) = storage::get_emission_config(e) {
         let prev_emis_data = storage::get_emission_data(e).unwrap_optimized(); // exists if config exists

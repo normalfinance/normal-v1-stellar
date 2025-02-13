@@ -1,22 +1,16 @@
 use super::setup::{
-    deploy_factory_contract,
-    deploy_market_factory_contract,
-    generate_lp_init_info,
+    deploy_factory_contract, deploy_market_factory_contract, generate_lp_init_info,
 };
-use crate::storage::{ Asset, LpPortfolio, Stake, StakePortfolio, UserPortfolio };
-use crate::tests::setup::{ lp_contract, stake_contract, ONE_DAY };
+use crate::storage::{Asset, LpPortfolio, Stake, StakePortfolio, UserPortfolio};
+use crate::tests::setup::{lp_contract, stake_contract, ONE_DAY};
 use crate::token_contract;
-use phoenix::utils::{ LiquidityPoolInitInfo, PoolType, StakeInitInfo, TokenInitInfo };
+use phoenix::utils::{LiquidityPoolInitInfo, PoolType, StakeInitInfo, TokenInitInfo};
 use soroban_sdk::testutils::Ledger;
 use soroban_sdk::vec;
 use soroban_sdk::{
     contracttype,
-    testutils::{ arbitrary::std, Address as _ },
-    Address,
-    Env,
-    String,
-    Symbol,
-    Vec,
+    testutils::{arbitrary::std, Address as _},
+    Address, Env, String, Symbol, Vec,
 };
 
 #[test]
@@ -126,7 +120,7 @@ fn test_deploy_multiple_markets() {
         &PoolType::Xyk,
         &None::<u64>,
         &100i64,
-        &1_000
+        &1_000,
     );
     let second_lp_contract_addr = factory.create_liquidity_pool(
         &admin.clone(),
@@ -136,7 +130,7 @@ fn test_deploy_multiple_markets() {
         &PoolType::Xyk,
         &None::<u64>,
         &100i64,
-        &1_000
+        &1_000,
     );
     let third_lp_contract_addr = factory.create_liquidity_pool(
         &admin.clone(),
@@ -146,64 +140,82 @@ fn test_deploy_multiple_markets() {
         &PoolType::Xyk,
         &None::<u64>,
         &100i64,
-        &1_000
+        &1_000,
     );
 
     let first_result = factory.query_pool_details(&lp_contract_addr);
     let share_token_addr: Address = env.invoke_contract(
         &lp_contract_addr,
         &Symbol::new(&env, "query_share_token_address"),
-        Vec::new(&env)
+        Vec::new(&env),
     );
     let first_lp_config: LiquidityPoolConfig = env.invoke_contract(
         &lp_contract_addr,
         &Symbol::new(&env, "query_config"),
-        Vec::new(&env)
+        Vec::new(&env),
     );
 
-    assert_eq!(first_lp_init_info.max_allowed_spread_bps, first_lp_config.max_allowed_spread_bps);
+    assert_eq!(
+        first_lp_init_info.max_allowed_spread_bps,
+        first_lp_config.max_allowed_spread_bps
+    );
 
     assert_eq!(token1, first_result.pool_response.asset_a.address);
     assert_eq!(token2, first_result.pool_response.asset_b.address);
-    assert_eq!(share_token_addr, first_result.pool_response.asset_lp_share.address);
+    assert_eq!(
+        share_token_addr,
+        first_result.pool_response.asset_lp_share.address
+    );
     assert_eq!(lp_contract_addr, first_result.pool_address);
 
     let second_result = factory.query_pool_details(&second_lp_contract_addr);
     let second_share_token_addr: Address = env.invoke_contract(
         &second_lp_contract_addr,
         &Symbol::new(&env, "query_share_token_address"),
-        Vec::new(&env)
+        Vec::new(&env),
     );
     let second_lp_config: LiquidityPoolConfig = env.invoke_contract(
         &second_lp_contract_addr,
         &Symbol::new(&env, "query_config"),
-        Vec::new(&env)
+        Vec::new(&env),
     );
 
-    assert_eq!(second_lp_init_info.max_allowed_spread_bps, second_lp_config.max_allowed_spread_bps);
+    assert_eq!(
+        second_lp_init_info.max_allowed_spread_bps,
+        second_lp_config.max_allowed_spread_bps
+    );
 
     assert_eq!(token3, second_result.pool_response.asset_a.address);
     assert_eq!(token4, second_result.pool_response.asset_b.address);
-    assert_eq!(second_share_token_addr, second_result.pool_response.asset_lp_share.address);
+    assert_eq!(
+        second_share_token_addr,
+        second_result.pool_response.asset_lp_share.address
+    );
     assert_eq!(second_lp_contract_addr, second_result.pool_address);
 
     let third_result = factory.query_pool_details(&third_lp_contract_addr);
     let third_share_token_addr: Address = env.invoke_contract(
         &third_lp_contract_addr,
         &Symbol::new(&env, "query_share_token_address"),
-        Vec::new(&env)
+        Vec::new(&env),
     );
     let third_lp_config: LiquidityPoolConfig = env.invoke_contract(
         &third_lp_contract_addr,
         &Symbol::new(&env, "query_config"),
-        Vec::new(&env)
+        Vec::new(&env),
     );
 
-    assert_eq!(third_lp_init_info.max_allowed_spread_bps, third_lp_config.max_allowed_spread_bps);
+    assert_eq!(
+        third_lp_init_info.max_allowed_spread_bps,
+        third_lp_config.max_allowed_spread_bps
+    );
 
     assert_eq!(token5, third_result.pool_response.asset_a.address);
     assert_eq!(token6, third_result.pool_response.asset_b.address);
-    assert_eq!(third_share_token_addr, third_result.pool_response.asset_lp_share.address);
+    assert_eq!(
+        third_share_token_addr,
+        third_result.pool_response.asset_lp_share.address
+    );
     assert_eq!(third_lp_contract_addr, third_result.pool_address);
 
     let all_pools = factory.query_all_pools_details();
@@ -268,7 +280,7 @@ fn test_queries_by_tuple() {
         &first_market_params,
         "",
         &String::from_str(&env, "Normal Bitcoin"),
-        &String::from_str(&env, "nBTC")
+        &String::from_str(&env, "nBTC"),
     );
     let second_market_contract_addr = factory.create_market(
         &admin.clone(),
@@ -276,7 +288,7 @@ fn test_queries_by_tuple() {
         &second_market_params,
         "",
         &String::from_str(&env, "Normal Ethereum"),
-        &String::from_str(&env, "nETH")
+        &String::from_str(&env, "nETH"),
     );
     let third_market_contract_addr = factory.create_market(
         &admin.clone(),
@@ -284,7 +296,7 @@ fn test_queries_by_tuple() {
         &third_market_params,
         "",
         &String::from_str(&env, "Normal Solana"),
-        &String::from_str(&env, "nSOL")
+        &String::from_str(&env, "nSOL"),
     );
 
     let first_result = factory.query_market_details(&market_contract_addr);
@@ -297,25 +309,31 @@ fn test_queries_by_tuple() {
     let second_share_token_addr: Address = env.invoke_contract(
         &second_market_contract_addr,
         &Symbol::new(&env, "query_share_token_address"),
-        Vec::new(&env)
+        Vec::new(&env),
     );
 
     let second_lp_config: LiquidityPoolConfig = env.invoke_contract(
         &second_market_contract_addr,
         &Symbol::new(&env, "query_config"),
-        Vec::new(&env)
+        Vec::new(&env),
     );
 
     // assert_eq!(second_market_params.max_allowed_spread_bps, second_lp_config.max_allowed_spread_bps);
 
     assert_eq!(token3, second_result.market_response.asset_a.address);
     assert_eq!(token4, second_result.market_response.asset_b.address);
-    assert_eq!(second_share_token_addr, second_result.market_response.asset_lp_share.address);
+    assert_eq!(
+        second_share_token_addr,
+        second_result.market_response.asset_lp_share.address
+    );
     assert_eq!(second_market_contract_addr, second_result.market_address);
 
-    let first_market_address_by_tuple = factory.query_for_market_by_token_pair(&token1, &quoteToken);
-    let second_market_address_by_tuple = factory.query_for_market_by_token_pair(&token2, &quoteToken);
-    let third_market_address_by_tuple = factory.query_for_market_by_token_pair(&token3, &quoteToken);
+    let first_market_address_by_tuple =
+        factory.query_for_market_by_token_pair(&token1, &quoteToken);
+    let second_market_address_by_tuple =
+        factory.query_for_market_by_token_pair(&token2, &quoteToken);
+    let third_market_address_by_tuple =
+        factory.query_for_market_by_token_pair(&token3, &quoteToken);
 
     assert_eq!(first_market_address_by_tuple, market_contract_addr);
     assert_eq!(second_market_address_by_tuple, second_market_contract_addr);
@@ -329,11 +347,8 @@ fn test_queries_by_tuple_errors() {
     env.cost_estimate().budget().reset_unlimited();
     let admin = Address::generate(&env);
     let governor = Address::generate(&env);
-    let factory: crate::contract::MarketFactoryClient<'_> = deploy_market_factory_contract(
-        &env,
-        Some(admin.clone()),
-        Some(governor.clone())
-    );
+    let factory: crate::contract::MarketFactoryClient<'_> =
+        deploy_market_factory_contract(&env, Some(admin.clone()), Some(governor.clone()));
 
     factory.query_for_market_by_token_pair(&Symbol::new(&env, ""), &Symbol::new(&env, ""));
 }
