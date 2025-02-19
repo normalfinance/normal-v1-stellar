@@ -10,7 +10,6 @@ repository = "https://github.com/normalfinance/normal-v1-stellar-contracts"
 authors = ["jmoneyblew <joshua@normalfinance.io>"]
 
 [workspace.dependencies]
-curve = { path = "./packages/curve" }
 soroban-decimal = { path = "./packages/decimal" }
 normal = { path = "./packages/normal" }
 num-integer = { version = "0.1.45", default-features = false, features = [

@@ -324,14 +324,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "curve"
-version = "0.1.0"
-dependencies = [
- "soroban-sdk",
- "test-case",
-]
-
-[[package]]
 name = "curve25519-dalek"
 version = "4.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -786,40 +778,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "normal-emissions"
-version = "0.1.0"
-dependencies = [
- "normal",
- "sep-41-token",
- "soroban-fixed-point-math",
- "soroban-sdk",
-]
-
-[[package]]
-name = "normal-governor"
-version = "0.1.0"
-dependencies = [
- "soroban-sdk",
-]
-
-[[package]]
-name = "normal-index-token"
-version = "0.1.0"
-dependencies = [
- "normal",
- "soroban-sdk",
- "soroban-token-sdk",
-]
-
-[[package]]
-name = "normal-index-token-factory"
-version = "0.1.0"
-dependencies = [
- "normal",
- "soroban-sdk",
-]
-
-[[package]]
 name = "normal-insurance"
 version = "0.1.0"
 dependencies = [
@@ -845,36 +803,6 @@ name = "normal-market-factory"
 version = "0.1.0"
 dependencies = [
  "normal",
- "soroban-sdk",
-]
-
-[[package]]
-name = "normal-scheduler"
-version = "0.1.0"
-dependencies = [
- "itoa",
- "normal",
- "pretty_assertions",
- "soroban-decimal",
- "soroban-sdk",
-]
-
-[[package]]
-name = "normal-vesting"
-version = "0.1.0"
-dependencies = [
- "curve",
- "normal",
- "soroban-decimal",
- "soroban-sdk",
-]
-
-[[package]]
-name = "normal-votes"
-version = "0.1.0"
-dependencies = [
- "sep-41-token",
- "soroban-fixed-point-math",
  "soroban-sdk",
 ]
 
@@ -1094,15 +1022,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3cb6eb87a131f756572d7fb904f6e7b68633f09cca868c5df1c4b8d1a694bbba"
 
 [[package]]
-name = "sep-41-token"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e60a68d00aaa835c22fb296d9addad26d08183e241f97f3ecb1284fec4a3b5c7"
-dependencies = [
- "soroban-sdk",
-]
-
-[[package]]
 name = "serde"
 version = "1.0.216"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1304,15 +1223,6 @@ dependencies = [
  "serde_json",
  "stellar-xdr",
  "syn 2.0.90",
-]
-
-[[package]]
-name = "soroban-fixed-point-math"
-version = "1.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96667fe060746279499e44bd9636e195191894324124f1368e0ab115a143cf62"
-dependencies = [
- "soroban-sdk",
 ]
 
 [[package]]

@@ -1,4 +1,4 @@
-SUBDIRS := contracts/token contracts/market_factory packages/decimal packages/curve packages/normal 
+SUBDIRS := contracts/token contracts/market contracts/market_factory contracts/insurance packages/decimal packages/normal 
 BUILD_FLAGS ?=
 
 default: build
