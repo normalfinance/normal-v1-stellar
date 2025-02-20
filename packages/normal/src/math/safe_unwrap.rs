@@ -1,4 +1,4 @@
-use soroban_sdk::{contracterror, log, panic_with_error, Env};
+use soroban_sdk::{log, panic_with_error, Env};
 
 use crate::error::ErrorCode;
 

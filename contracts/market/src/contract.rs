@@ -4,7 +4,7 @@ use normal::{
         LIQUIDATION_FEE_PRECISION, SPOT_IMF_PRECISION,
     },
     get_then_update_id,
-    math::{casting::Cast, safe_math::SafeMath},
+    math::{casting::Cast, oracle::NormalAction, safe_math::SafeMath},
     oracle::{
         get_band_price, get_oracle_price, HistoricalOracleData, OraclePriceData, OracleSource,
     },
@@ -534,10 +534,10 @@ impl MarketTrait for SynthMarket {
         log!(
             &env,
             "market.tier: {} -> {}",
-            market.tier,
+            market.synthetic.tier,
             synth_tier
         );
-        market.tier = synth_tier;
+        market.synthetic.tier = synth_tier;
 
         save_market(&env, market)
     }
@@ -553,7 +553,7 @@ impl MarketTrait for SynthMarket {
         oracle_source: OracleSource,
     ) {
         super_keeper.require_auth();
-        utils::validate_super_keeper(env, &super_keeper);
+        utils::validate_super_keeper(&env, &super_keeper);
 
         let mut market = &mut get_market(&env);
         log!(&env, "market {}", market.name);
@@ -586,7 +586,7 @@ impl MarketTrait for SynthMarket {
 
     fn update_collateral_oracle_freeze(env: Env, keeper: Address, frozen: bool) {
         keeper.require_auth();
-        utils::validate_super_keeper(env, &super_keeper);
+        utils::validate_super_keeper(&env, &super_keeper);
 
         let mut market = &mut get_market(&env);
         log!(&env, "market {}", market.name);
@@ -671,7 +671,7 @@ impl MarketTrait for SynthMarket {
         liquidator.require_auth();
 
         if user == liquidator {
-            return Err(Errors::UserCantLiquidateThemself);
+            panic_with_error!(env, Errors::UserCantLiquidateThemself);
         }
 
         let now = env.ledger().timestamp();
@@ -723,8 +723,8 @@ impl MarketTrait for SynthMarket {
         .clone();
         let debt_oracle_price_data = &get_oracle_price(
             &env,
-            &market.synthetic.oracle_source,
-            &market.synthetic.oracle,
+            &market.amm.oracle_source,
+            &market.amm.oracle,
             (market.synthetic.symbol, symbol_short!("USD")),
             now,
         )
@@ -797,7 +797,7 @@ impl MarketTrait for SynthMarket {
                 "deposit left user with invalid position. scaled balance = {} token amount = {}",
                 position.scaled_balance,
                 token_amount
-            )?;
+            );
         }
 
         if position.is_being_liquidated() {
@@ -813,7 +813,7 @@ impl MarketTrait for SynthMarket {
             }
         }
 
-        position.update_last_active_slot(now);
+        position.update_last_active_ts(now);
 
         // Deposit the collateral token
         token_contract::Client::new(&env, &market.collateral.token).transfer(
@@ -829,7 +829,7 @@ impl MarketTrait for SynthMarket {
             &env,
             market.name,
             sender,
-            market.collateral_token,
+            market.collateral.token,
             amount,
         );
 
@@ -864,8 +864,8 @@ impl MarketTrait for SynthMarket {
         .clone();
         let debt_oracle_price_data = &get_oracle_price(
             &env,
-            &market.synthetic.oracle_source,
-            &market.synthetic.oracle,
+            &market.amm.oracle_source,
+            &market.amm.oracle,
             (market.synthetic.symbol, symbol_short!("USD")),
             now,
         )
@@ -891,7 +891,7 @@ impl MarketTrait for SynthMarket {
                     &env,
                     position.balance_type == BalanceType::Deposit,
                     Errors::ReduceOnlyWithdrawIncreasedRisk
-                )?;
+                );
 
                 let max_withdrawable_amount =
                     calculate_max_withdrawable_amount(&env, market, &position);
@@ -946,7 +946,7 @@ impl MarketTrait for SynthMarket {
             &env,
             market.name,
             sender,
-            market.collateral_token,
+            market.collateral.token,
             amount,
         );
     }
@@ -1000,7 +1000,7 @@ impl MarketTrait for SynthMarket {
         // update posiiton and market
 
         let now = env.ledger().timestamp();
-        position.update_last_active_slot(now);
+        position.update_last_active_ts(now);
 
         token_contract::Client::new(&env, &market.synthetic.token)
             .mint(&env.current_contract_address(), &amount);
@@ -1154,7 +1154,7 @@ impl PoolTrait for SynthMarket {
         let now = env.ledger().timestamp();
 
         if market.amm.get_reward_by_token(reward_token) {
-            return Err(Errors::AdminNotSet);
+            panic_with_error!(env, Errors::AdminNotSet);
         }
 
         let reward = RewardInfo {
@@ -1309,10 +1309,10 @@ impl PoolTrait for SynthMarket {
                 market.amm.historical_oracle_data.last_oracle_price_twap = oracle_twap;
                 market.amm.historical_oracle_data.last_oracle_price_twap_ts = now;
             } else {
-                return Err(Errors::PriceBandsBreached);
+                panic_with_error!(env, Errors::PriceBandsBreached);
             }
         } else {
-            return Err(Errors::InvalidOracle);
+            panic_with_error!(env, Errors::InvalidOracle);
         }
     }
 
@@ -1322,7 +1322,7 @@ impl PoolTrait for SynthMarket {
 
     fn update_oracle(env: Env, sender: Address, oracle: Address, oracle_source: OracleSource) {
         sender.require_auth();
-        utils::validate_super_keeper(env, &sender);
+        utils::validate_super_keeper(&env, &sender);
 
         let mut market = &mut get_market(&env);
         log!(&env, "market {}", market.name);
@@ -1336,21 +1336,21 @@ impl PoolTrait for SynthMarket {
         //     ..
         // } = get_oracle_price(&oracle_source, &ctx.accounts.oracle, now)?;
 
-        log!(&env, "market.oracle: {:?} -> {:?}", market.oracle, oracle);
+        log!(&env, "market.oracle: {:?} -> {:?}", market.amm.oracle, oracle);
         log!(
             &env,
             "market.oracle_source: {:?} -> {:?}",
-            market.oracle_source,
+            market.amm.oracle_source,
             oracle_source
         );
 
-        market.oracle = oracle;
-        market.oracle_source = oracle_source;
+        market.amm.oracle = oracle;
+        market.amm.oracle_source = oracle_source;
     }
 
     fn update_oracle_freeze(env: Env, sender: Address, frozen: bool) {
         sender.require_auth();
-        utils::validate_super_keeper(env, &sender);
+        utils::validate_super_keeper(&env, &sender);
 
         let mut market = &mut get_market(&env);
         log!(&env, "market {}", market.name);
@@ -1387,7 +1387,7 @@ impl PoolTrait for SynthMarket {
     ) {
         sender.require_auth();
 
-        let mut position = get_liquidity_position_by_ts(&env, &sender, position_ts)?;
+        let mut position = get_liquidity_position_by_ts(&env, &sender, position_ts);
 
         position.update(&update);
     }
@@ -1395,7 +1395,7 @@ impl PoolTrait for SynthMarket {
     fn close_position(env: Env, sender: Address, position_ts: u64) {
         sender.require_auth();
 
-        let mut position = get_liquidity_position_by_ts(&env, &sender, position_ts)?;
+        let mut position = get_liquidity_position_by_ts(&env, &sender, position_ts);
 
         if !position.is_position_empty() {
             panic_with_error!(&env, ContractError::ClosePositionNotEmpty);
@@ -1423,7 +1423,7 @@ impl PoolTrait for SynthMarket {
         }
 
         let market = get_market(&env);
-        let position = get_liquidity_position_by_ts(&env, &sender, position_ts)?;
+        let position = get_liquidity_position_by_ts(&env, &sender, position_ts);
 
         let tick_array_lower = match market.amm.tick_arrays.get(tick_array_lower_index) {
             Some(ta) => ta,
@@ -1439,7 +1439,7 @@ impl PoolTrait for SynthMarket {
         };
 
         let liquidity_delta =
-            math::liquidity_math::convert_to_liquidity_delta(liquidity_amount, true);
+            math::liquidity_math::convert_to_liquidity_delta(&env, liquidity_amount, true);
         let timestamp = env.ledger().timestamp();
 
         let update = controller::liquidity::calculate_modify_liquidity(
@@ -1462,6 +1462,7 @@ impl PoolTrait for SynthMarket {
         );
 
         let (delta_a, delta_b) = controller::liquidity::calculate_liquidity_token_deltas(
+            &env,
             market.amm.tick_current_index,
             market.amm.sqrt_price,
             &position,
@@ -1516,7 +1517,7 @@ impl PoolTrait for SynthMarket {
         let timestamp = env.ledger().timestamp();
 
         let market = get_market(&env);
-        let position = get_liquidity_position_by_ts(&env, &sender, position_ts)?;
+        let position = get_liquidity_position_by_ts(&env, &sender, position_ts);
 
         let tick_array_lower = match market.amm.tick_arrays.get(tick_array_lower_index) {
             Some(ta) => ta,
@@ -1551,6 +1552,7 @@ impl PoolTrait for SynthMarket {
         );
 
         let (delta_a, delta_b) = controller::liquidity::calculate_liquidity_token_deltas(
+            &env,
             market.amm.tick_current_index,
             market.amm.sqrt_price,
             &position,
@@ -1558,7 +1560,7 @@ impl PoolTrait for SynthMarket {
         );
 
         if delta_a < token_max_a || delta_b < token_max_b {
-            return Err(Errors::TokenMinSubceeded);
+            panic_with_error!(env, Errors::TokenMinSubceeded);
         }
 
         token_contract::Client::new(&env, &market.amm.token_a).transfer(
@@ -1586,7 +1588,7 @@ impl PoolTrait for SynthMarket {
     fn swap(
         env: Env,
         sender: Address,
-        amount: u64,
+        amount: i128,
         other_amount_threshold: u64,
         sqrt_price_limit: u128,
         amount_specified_is_input: bool,
@@ -1620,7 +1622,7 @@ impl PoolTrait for SynthMarket {
 
         let builder =
             SparseSwapTickSequenceBuilder::try_from(&env, &market.amm, a_to_b, tick_arrays, None);
-        let mut swap_tick_sequence = builder.build(&env)?;
+        let mut swap_tick_sequence = builder.build(&env);
 
         let swap_update = controller::swap::swap(
             &env,
@@ -1689,9 +1691,9 @@ impl PoolTrait for SynthMarket {
         sender.require_auth();
 
         let market = get_market(&env);
-        let position = &mut get_liquidity_position_by_ts(&env, &sender, position_ts)?;
+        let position = &mut get_liquidity_position_by_ts(&env, &sender, position_ts);
 
-        let (reward, reward_index) = market.amm.get_reward_by_token(reward_token)?;
+        let (reward, reward_index) = market.amm.get_reward_by_token(reward_token);
         let (transfer_amount, updated_amount_owed) =
             calculate_collect_reward(position.reward_infos[index], reward.current_balance);
 
@@ -1727,7 +1729,7 @@ impl SynthMarket {
 pub fn update_amm_and_check_validity(
     market: &mut Market,
     oracle_price_data: &OraclePriceData,
-    now: i64,
+    now: u64,
     action: Option<NormalAction>,
 ) {
     // _update_amm(market, oracle_price_data, state, now, clock_slot)?;

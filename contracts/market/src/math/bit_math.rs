@@ -41,7 +41,7 @@ pub fn checked_mul_shift_right_round_up_if(env: &Env, n0: u128, n1: u128, round_
     // customized this function is used in try_get_amount_delta_b (token_math.rs)
 
     if n0 == 0 || n1 == 0 {
-        return Ok(0);
+        return 0;
     }
 
     let p = n0.checked_mul(n1).ok_or(panic_with_error!(

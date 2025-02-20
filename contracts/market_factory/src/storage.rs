@@ -1,6 +1,6 @@
 use normal::constants::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD};
 use normal::types::market::MarketFactoryConfig;
-use soroban_sdk::{contracttype, Address, ConversionError, Env, String, TryFromVal, Val, Vec};
+use soroban_sdk::{contracttype, Address, ConversionError, Env, TryFromVal, Val, Vec};
 
 #[derive(Clone, Copy)]
 #[repr(u32)]

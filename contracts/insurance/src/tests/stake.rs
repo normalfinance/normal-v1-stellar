@@ -22,11 +22,10 @@ fn initialize_insurance_contract() {
     env.mock_all_auths();
 
     let admin = Address::generate(&env);
-    let governor_contract = Address::generate(&env);
     let deposit_token = deploy_token_contract(&env, &admin);
 
     let insurance =
-        deploy_insurance_contract(&env, &admin, &governor_contract, &deposit_token.address);
+        deploy_insurance_contract(&env, &admin, &deposit_token.address);
 
     let insurance_fund = insurance.query_insurance_fund();
 
@@ -59,16 +58,14 @@ fn test_deploying_insurance_twice_should_fail() {
     env.mock_all_auths();
 
     let admin = Address::generate(&env);
-    let governor_contract = Address::generate(&env);
     let deposit_token = deploy_token_contract(&env, &admin);
 
-    let first = deploy_insurance_contract(&env, &admin, &governor_contract, &deposit_token.address);
+    let first = deploy_insurance_contract(&env, &admin, &deposit_token.address);
 
     let token_wasm_hash = install_token_wasm(&env);
 
     first.initialize(
         &admin,
-        &governor_contract,
         &deposit_token.address,
         &token_wasm_hash,
         &10u32,

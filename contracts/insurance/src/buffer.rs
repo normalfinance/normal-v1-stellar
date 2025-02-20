@@ -9,16 +9,6 @@ pub trait BufferTrait {
 
     fn deposit_into_buffer(env: Env, sender: Address, amount: i128);
 
-    fn execute_buffer_buyback(env: Env, sender: Address, amount: i128);
-
-    fn execute_buffer_auction(env: Env, sender: Address, amount: i128);
-
-    // ################################################################
-    //                             USER
-    // ################################################################
-
-    // fn bid_buffer_auction(env: Env, user: Address, auction_ts: u64, bid_amount: i128);
-
     // ################################################################
     //                             QUERIES
     // ################################################################

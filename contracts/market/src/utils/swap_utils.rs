@@ -1,4 +1,3 @@
-use normal::error::NormalResult;
 use soroban_sdk::{Address, Env};
 
 use crate::{controller::swap::PostSwapUpdate, state::pool::Pool};
@@ -6,12 +5,12 @@ use crate::{controller::swap::PostSwapUpdate, state::pool::Pool};
 #[allow(clippy::too_many_arguments)]
 pub fn update_and_swap_amm(
     env: &Env,
-    pool: &Pool,
+    pool: &mut Pool,
     user: Address,
     swap_update: PostSwapUpdate,
     is_token_fee_in_a: bool,
     reward_last_updated_timestamp: u64,
-) -> NormalResult<()> {
+) {
     pool.update_after_swap(
         swap_update.next_liquidity,
         swap_update.next_tick_index,
@@ -41,7 +40,7 @@ fn perform_swap(
     amount_a: u64,
     amount_b: u64,
     a_to_b: bool,
-) -> NormalResult<()> {
+) {
     // Transfer from user to pool
     let deposit_account_user;
     let deposit_account_pool;
@@ -89,6 +88,4 @@ fn perform_swap(
     //     &withdrawal_account_user,
     //     &withdrawal_amount
     // );
-
-    Ok(())
 }

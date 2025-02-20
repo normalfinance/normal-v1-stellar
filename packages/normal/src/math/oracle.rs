@@ -6,7 +6,7 @@ use crate::math::casting::Cast;
 use crate::math::safe_math::SafeMath;
 use crate::{
     constants::BID_ASK_SPREAD_PRECISION,
-    error::{ErrorCode, NormalResult},
+    error::ErrorCode,
     oracle::{OraclePriceData, ValidityGuardRails},
 };
 
@@ -63,7 +63,6 @@ pub enum NormalAction {
     UpdateTwap,
     UpdateAMMCurve,
     OracleOrderPrice,
-    IndexPricing,
 }
 
 pub fn is_oracle_valid_for_action(

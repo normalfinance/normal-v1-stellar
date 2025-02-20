@@ -103,5 +103,3 @@ pub enum PoolErrors {
 
     PartialFillError = 6057,
 }
-
-pub type NormalResult<T = ()> = core::result::Result<T, NormalError>;

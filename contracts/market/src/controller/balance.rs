@@ -20,7 +20,7 @@ pub fn update_market_twap_stats(
     market: &mut Market,
     collateral_oracle_price_data: &OraclePriceData,
     debt_oracle_price_data: &OraclePriceData,
-    now: i64,
+    now: u64,
 ) {
     let since_last = max(0_i64, now.safe_sub(market.last_twap_ts.cast(env), env));
     let from_start = max(

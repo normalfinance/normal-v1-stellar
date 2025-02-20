@@ -43,18 +43,6 @@ pub mod utils {
         }
     }
 
-    pub fn validate_governor(env: &Env, sender: &Address) {
-        let factory_config: MarketFactoryConfig = env.invoke_contract(
-            &get_factory(&env),
-            &Symbol::new(&env, "query_config"),
-            Vec::new(&env),
-        );
-        if factory_config.governor != *sender {
-            log!(&env, "Market: You are not authorized!");
-            panic_with_error!(&env, ErrorCode::NotAuthorized);
-        }
-    }
-
     pub fn validate_super_keeper(env: &Env, address: &Address) {
         let factory_config: MarketFactoryConfig = env.invoke_contract(
             &get_factory(env),

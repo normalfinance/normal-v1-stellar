@@ -11,7 +11,6 @@ pub trait InsuranceFundTrait {
     fn initialize(
         env: Env,
         admin: Address,
-        governor_contract: Address,
         deposit_token: Address,
         token_wasm_hash: BytesN<32>,
         stake_token_decimals: u32,

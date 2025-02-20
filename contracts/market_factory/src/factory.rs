@@ -10,7 +10,6 @@ pub trait MarketFactoryTrait {
     fn initialize(
         env: Env,
         admin: Address,
-        governor: Address,
         insurance: Address,
         token_wasm_hash: BytesN<32>,
         market_wasm_hash: BytesN<32>,

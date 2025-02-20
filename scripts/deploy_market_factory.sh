@@ -80,7 +80,6 @@ stellar contract invoke \
     -- \
     initialize \
     --admin $ADMIN_ADDRESS \
-    --governor $ADMIN_ADDRESS \
     --insurance $ADMIN_ADDRESS \
     --market_wasm_hash $TOKEN_WASM_HASH \
     --token_wasm_hash $TOKEN_WASM_HASH

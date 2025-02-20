@@ -8,7 +8,6 @@ use normal::constants::{
     LIQUIDATION_PCT_PRECISION, PRICE_PRECISION, PRICE_TIMES_AMM_TO_QUOTE_PRECISION_RATIO,
     QUOTE_PRECISION, SPOT_WEIGHT_PRECISION_U128,
 };
-use normal::error::NormalResult;
 use normal::math::casting::Cast;
 use normal::math::safe_math::SafeMath;
 use normal::validate;

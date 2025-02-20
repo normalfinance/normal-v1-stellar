@@ -8,7 +8,6 @@ use super::pool::PoolParams;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MarketFactoryConfig {
     pub admin: Address,
-    pub governor: Address,
     pub insurance: Address,
     pub market_wasm_hash: BytesN<32>,
     pub token_wasm_hash: BytesN<32>,

@@ -1,4 +1,3 @@
-use normal::error::{ErrorCode, NormalResult};
 use soroban_sdk::{contracttype, Vec};
 
 use super::tick_array::TickArrayType;

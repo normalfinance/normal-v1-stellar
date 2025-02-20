@@ -1,23 +1,20 @@
 use normal::{
-    constants::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
-    error::NormalResult,
-    math::{casting::Cast, safe_math::SafeMath},
+    constants::{ PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD },
+    math::{ casting::Cast, safe_math::SafeMath },
     validate,
 };
-use soroban_sdk::{contracttype, Address, Env};
+use soroban_sdk::{ contracttype, Address, Env };
 
 use crate::math::{
-    balance::{get_signed_token_amount, get_token_amount, BalanceType},
+    balance::{ get_signed_token_amount, get_token_amount, BalanceType },
     margin::{
         calculate_margin_requirement_and_total_collateral_and_liability_info,
-        validate_any_isolated_tier_requirements, MarginRequirementType,
+        validate_any_isolated_tier_requirements,
+        MarginRequirementType,
     },
 };
 
-use super::{
-    margin_calculation::{MarginCalculation, MarginContext},
-    market::Market,
-};
+use super::{ margin_calculation::{ MarginCalculation, MarginContext }, market::Market };
 
 #[contracttype]
 #[derive(Default, Clone, Copy, PartialEq, Debug, Eq)]
@@ -91,10 +88,9 @@ impl MarketPosition {
     }
 
     pub fn is_being_liquidated(&self) -> bool {
-        self.status
-            & ((MarketPositionStatus::BeingLiquidated as u8)
-                | (MarketPositionStatus::Bankrupt as u8))
-            > 0
+        self.status &
+            ((MarketPositionStatus::BeingLiquidated as u8) |
+                (MarketPositionStatus::Bankrupt as u8)) > 0
     }
 
     pub fn is_bankrupt(&self) -> bool {
@@ -115,24 +111,14 @@ impl MarketPosition {
     }
 
     pub fn get_token_amount(&self, env: &Env, market: &Market) -> u128 {
-        get_token_amount(
-            env,
-            self.scaled_balance.cast(env),
-            market,
-            &self.balance_type,
-        )
+        get_token_amount(env, self.scaled_balance.cast(env), market, &self.balance_type)
     }
 
     pub fn get_signed_token_amount(&self, env: &Env, market: &Market) -> i128 {
         get_signed_token_amount(
             env,
-            get_token_amount(
-                env,
-                self.scaled_balance.cast(env),
-                market,
-                &self.balance_type,
-            ),
-            &self.balance_type,
+            get_token_amount(env, self.scaled_balance.cast(env), market, &self.balance_type),
+            &self.balance_type
         )
     }
 
@@ -141,7 +127,7 @@ impl MarketPosition {
         env: &Env,
         amount: u64,
         price: i64,
-        precision: u128,
+        precision: u128
     ) {
         let value = amount
             .cast::<u128>(env)
@@ -156,7 +142,7 @@ impl MarketPosition {
         env: &Env,
         amount: u64,
         price: i64,
-        precision: u128,
+        precision: u128
     ) {
         let value = amount
             .cast::<u128>(env)
@@ -212,10 +198,17 @@ impl MarketPosition {
         }
     }
 
-    pub fn calculate_margin(&mut self, context: MarginContext, now: i64) -> MarginCalculation {
+    pub fn calculate_margin(
+        &mut self,
+        env: &Env,
+        context: MarginContext,
+        now: i64
+    ) -> MarginCalculation {
         let margin_calculation =
             calculate_margin_requirement_and_total_collateral_and_liability_info(
-                env, &self, context,
+                env,
+                &self,
+                context
             );
 
         margin_calculation
@@ -226,13 +219,15 @@ impl MarketPosition {
         env: &Env,
         margin_requirement_type: MarginRequirementType,
         withdraw_amount: u128,
-        now: i64,
+        now: u64
     ) -> bool {
         let strict = margin_requirement_type == MarginRequirementType::Initial;
         let context = MarginContext::standard(margin_requirement_type).strict(strict);
 
         let calculation = calculate_margin_requirement_and_total_collateral_and_liability_info(
-            env, &self, context,
+            env,
+            &self,
+            context
         );
 
         if calculation.margin_requirement > 0 || calculation.get_num_of_liabilities()? > 0 {
@@ -262,36 +257,36 @@ impl MarketPosition {
 pub fn get_market_position(env: &Env, key: &Address) -> MarketPosition {
     let position = match env.storage().persistent().get::<_, MarketPosition>(key) {
         Some(pos) => pos,
-        None => MarketPosition {
-            status: MarketPositionStatus::Active,
-            scaled_balance: 0u64,
-            cumulative_deposits: 0u128,
-            cumulative_withdrawals: 0u128,
-            last_active_ts: 0u64,
-            idle: false,
-            total_deposits: 0u64,
-            total_withdraws: 0u64,
-            liquidation_margin_freed: 0u64,
-            max_margin_ratio: 0u32,
-            next_liquidation_id: 0u32,
-        },
+        None =>
+            MarketPosition {
+                status: MarketPositionStatus::Active,
+                scaled_balance: 0u64,
+                cumulative_deposits: 0u128,
+                cumulative_withdrawals: 0u128,
+                last_active_ts: 0u64,
+                idle: false,
+                total_deposits: 0u64,
+                total_withdraws: 0u64,
+                liquidation_margin_freed: 0u64,
+                max_margin_ratio: 0u32,
+                next_liquidation_id: 0u32,
+            },
     };
-    env.storage().persistent().has(&key).then(|| {
-        env.storage().persistent().extend_ttl(
-            &key,
-            PERSISTENT_LIFETIME_THRESHOLD,
-            PERSISTENT_BUMP_AMOUNT,
-        );
-    });
+    env.storage()
+        .persistent()
+        .has(&key)
+        .then(|| {
+            env.storage()
+                .persistent()
+                .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        });
 
     position
 }
 
 pub fn save_market_position(env: &Env, key: &Address, position_info: &MarketPosition) {
     env.storage().persistent().set(key, position_info);
-    env.storage().persistent().extend_ttl(
-        &key,
-        PERSISTENT_LIFETIME_THRESHOLD,
-        PERSISTENT_BUMP_AMOUNT,
-    );
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, PERSISTENT_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
 }

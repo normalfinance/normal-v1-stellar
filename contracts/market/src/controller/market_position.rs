@@ -52,7 +52,7 @@ pub fn update_balances_and_cumulative_deposits_with_limits(
         token_amount,
         update_direction,
         market,
-        &mut position,
+        position,
         true,
         None,
     );

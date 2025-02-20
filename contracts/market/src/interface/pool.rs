@@ -1,5 +1,5 @@
 use normal::oracle::OracleSource;
-use soroban_sdk::{contractclient, Address, BytesN, Env, String, Vec};
+use soroban_sdk::{contractclient, Address, Env, Vec};
 
 use crate::state::liquidity_position::LiquidityPositionUpdate;
 
@@ -91,7 +91,7 @@ pub trait PoolTrait {
     fn swap(
         env: Env,
         sender: Address,
-        amount: u64,
+        amount: i128,
         other_amount_threshold: u64,
         sqrt_price_limit: u128,
         amount_specified_is_input: bool,

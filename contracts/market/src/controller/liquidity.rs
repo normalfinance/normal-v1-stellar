@@ -1,8 +1,8 @@
-use soroban_sdk::{contracttype, Env, Vec};
+use soroban_sdk::{contracttype, panic_with_error, Env, Vec};
 
 use crate::{
     controller,
-    errors::{Errors, NormalResult},
+    errors::Errors,
     math,
     state::{
         liquidity_position::{LiquidityPosition, LiquidityPositionUpdate},
@@ -34,7 +34,7 @@ pub fn calculate_modify_liquidity(
     tick_array_upper: &TickArray,
     liquidity_delta: i128,
     timestamp: u64,
-) -> NormalResult<ModifyLiquidityUpdate> {
+) -> ModifyLiquidityUpdate {
     let tick_lower = tick_array_lower.get_tick(position.tick_lower_index, pool.tick_spacing)?;
     let tick_upper = tick_array_upper.get_tick(position.tick_upper_index, pool.tick_spacing)?;
 
@@ -58,7 +58,7 @@ pub fn calculate_fee_and_reward_growths(
     tick_array_lower: &TickArray,
     tick_array_upper: &TickArray,
     timestamp: u64,
-) -> NormalResult<(LiquidityPositionUpdate, Vec<RewardInfo>)> {
+) -> (LiquidityPositionUpdate, Vec<RewardInfo>) {
     let tick_lower = tick_array_lower.get_tick(position.tick_lower_index, pool.tick_spacing)?;
     let tick_upper = tick_array_upper.get_tick(position.tick_upper_index, pool.tick_spacing)?;
 
@@ -74,8 +74,8 @@ pub fn calculate_fee_and_reward_growths(
         position.tick_upper_index,
         0,
         timestamp,
-    )?;
-    Ok((update.position_update, update.reward_infos))
+    );
+    (update.position_update, update.reward_infos)
 }
 
 // Calculates the state changes after modifying liquidity of a amm position.
@@ -90,20 +90,21 @@ fn _calculate_modify_liquidity(
     tick_upper_index: i32,
     liquidity_delta: i128,
     timestamp: u64,
-) -> NormalResult<ModifyLiquidityUpdate> {
+) -> ModifyLiquidityUpdate {
     // Disallow only updating position fee and reward growth when position has zero liquidity
     if liquidity_delta == 0 && position.liquidity == 0 {
-        return Err(Errors::LiquidityZero);
+        panic_with_error!(env, Errors::LiquidityZero);
     }
 
-    let next_reward_infos = controller::pool::next_amm_reward_infos(pool, timestamp)?;
+    let next_reward_infos = controller::pool::next_amm_reward_infos(env, pool, timestamp)?;
 
     let next_global_liquidity = controller::pool::next_amm_liquidity(
+        env,
         pool,
         position.tick_upper_index,
         position.tick_lower_index,
         liquidity_delta,
-    )?;
+    );
 
     let tick_lower_update = controller::tick::next_tick_modify_liquidity_update(
         env,
@@ -115,7 +116,7 @@ fn _calculate_modify_liquidity(
         &next_reward_infos,
         liquidity_delta,
         false,
-    )?;
+    );
 
     let tick_upper_update = controller::tick::next_tick_modify_liquidity_update(
         env,
@@ -127,7 +128,7 @@ fn _calculate_modify_liquidity(
         &next_reward_infos,
         liquidity_delta,
         true,
-    )?;
+    );
 
     let (fee_growth_inside_a, fee_growth_inside_b) = controller::tick::next_fee_growths_inside(
         pool.tick_current_index,
@@ -150,28 +151,30 @@ fn _calculate_modify_liquidity(
     );
 
     let position_update = controller::liquidity_position::next_position_modify_liquidity_update(
+        env,
         position,
         liquidity_delta,
         fee_growth_inside_a,
         fee_growth_inside_b,
         &reward_growths_inside,
-    )?;
+    );
 
-    Ok(ModifyLiquidityUpdate {
+    ModifyLiquidityUpdate {
         amm_liquidity: next_global_liquidity,
         reward_infos: next_reward_infos,
         position_update,
         tick_lower_update,
         tick_upper_update,
-    })
+    }
 }
 
 pub fn calculate_liquidity_token_deltas(
+    env: &Env,
     current_tick_index: i32,
     sqrt_price: u128,
     position: &LiquidityPosition,
     liquidity_delta: i128,
-) -> NormalResult<(i128, i128)> {
+) -> (i128, i128) {
     // if liquidity_delta == 0 {
     //     return Err(ContractError::LiquidityZero.into());
     // }
@@ -188,20 +191,20 @@ pub fn calculate_liquidity_token_deltas(
     if current_tick_index < position.tick_lower_index {
         // current tick below position
         delta_a =
-            math::token_math::get_amount_delta_a(lower_price, upper_price, liquidity, round_up)?;
+            math::token_math::get_amount_delta_a( env,lower_price, upper_price, liquidity, round_up);
     } else if current_tick_index < position.tick_upper_index {
         // current tick inside position
         delta_a =
-            math::token_math::get_amount_delta_a(sqrt_price, upper_price, liquidity, round_up)?;
+            math::token_math::get_amount_delta_a( env,sqrt_price, upper_price, liquidity, round_up);
         delta_b =
-            math::token_math::get_amount_delta_b(lower_price, sqrt_price, liquidity, round_up)?;
+            math::token_math::get_amount_delta_b( env,lower_price, sqrt_price, liquidity, round_up);
     } else {
         // current tick above position
         delta_b =
-            math::token_math::get_amount_delta_b(lower_price, upper_price, liquidity, round_up)?;
+            math::token_math::get_amount_delta_b( env,lower_price, upper_price, liquidity, round_up);
     }
 
-    Ok((delta_a, delta_b))
+    (delta_a, delta_b)
 }
 
 pub fn sync_modify_liquidity_values(
@@ -211,38 +214,37 @@ pub fn sync_modify_liquidity_values(
     tick_array_upper: &mut TickArray,
     modify_liquidity_update: ModifyLiquidityUpdate,
     reward_last_updated_timestamp: u64,
-) -> NormalResult<()> {
+) {
     position.update(&modify_liquidity_update.position_update);
 
     tick_array_lower.update_tick(
         position.tick_lower_index,
         pool.tick_spacing,
         &modify_liquidity_update.tick_lower_update,
-    )?;
+    );
 
     tick_array_upper.update_tick(
         position.tick_upper_index,
         pool.tick_spacing,
         &modify_liquidity_update.tick_upper_update,
-    )?;
+    );
 
     pool.update_rewards_and_liquidity(
         modify_liquidity_update.reward_infos,
         modify_liquidity_update.amm_liquidity,
         reward_last_updated_timestamp,
     );
-
-    Ok(())
 }
 
 pub fn calculate_collateral_liquidity_token_delta(
+    env: &Env,
     current_tick_index: i32,
     sqrt_price: u128,
     position: &LiquidityPosition,
     liquidity_delta: i128,
-) -> NormalResult<u64> {
+) -> u64 {
     if liquidity_delta == 0 {
-        return Err(Errors::LiquidityZero.into());
+        panic_with_error!(env, Errors::LiquidityZero);
     }
 
     let mut delta_b: u64 = 0;
@@ -259,12 +261,12 @@ pub fn calculate_collateral_liquidity_token_delta(
         // current tick inside position
 
         delta_b =
-            math::token_math::get_amount_delta_b(lower_price, sqrt_price, liquidity, round_up)?;
+            math::token_math::get_amount_delta_b( env,lower_price, sqrt_price, liquidity, round_up)?;
     } else {
         // current tick above position
         delta_b =
-            math::token_math::get_amount_delta_b(lower_price, upper_price, liquidity, round_up)?;
+            math::token_math::get_amount_delta_b( env,lower_price, upper_price, liquidity, round_up)?;
     }
 
-    Ok(delta_b)
+    delta_b
 }

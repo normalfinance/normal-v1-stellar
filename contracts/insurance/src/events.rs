@@ -18,10 +18,9 @@ impl InsuranceFundEvents {
         env: &Env,
         ts: u64,
         admin: Address,
-        governor: Address,
         share_token_address: Address,
     ) {
-        let topics = (Symbol::new(&env, "initialize_if"), admin, governor);
+        let topics = (Symbol::new(&env, "initialize_if"), admin);
         env.events().publish(topics, (ts, share_token_address));
     }
 

@@ -1,8 +1,7 @@
-use normal::error::{ErrorCode, NormalResult};
 use soroban_decimal::{Decimal, Decimal256};
 use soroban_sdk::{panic_with_error, Env};
 
-use crate::errors::{ErrorCode, Errors};
+use crate::errors::Errors;
 
 use super::{
     bit_math::{div_round_up_if, div_round_up_if_u256, Q64_MASK, Q64_RESOLUTION},
@@ -80,8 +79,8 @@ pub fn get_amount_delta_a(
     sqrt_price_1: u128,
     liquidity: u128,
     round_up: bool,
-) -> NormalResult<i128> {
-    match try_get_amount_delta_a(sqrt_price_0, sqrt_price_1, liquidity, round_up) {
+) -> i128 {
+    match try_get_amount_delta_a(env, sqrt_price_0, sqrt_price_1, liquidity, round_up) {
         Ok(AmountDeltaI128::Valid(value)) => Ok(value),
         Ok(AmountDeltaI128::ExceedsMax(error)) => Err(error),
         Err(error) => Err(error),
@@ -94,7 +93,7 @@ pub fn try_get_amount_delta_a(
     sqrt_price_1: u128,
     liquidity: u128,
     round_up: bool,
-) -> NormalResult<AmountDeltaI128> {
+) -> AmountDeltaI128 {
     let (sqrt_price_lower, sqrt_price_upper) = increasing_price_order(sqrt_price_0, sqrt_price_1);
 
     let sqrt_price_diff = Decimal256::new(env, sqrt_price_upper - sqrt_price_lower);
@@ -251,7 +250,7 @@ pub fn get_next_sqrt_price_from_a_round_up(
 //     liquidity: u128,
 //     amount: u64,
 //     amount_specified_is_input: bool
-// ) -> NormalResult<u128> {
+// ) -> u128> {
 //     if amount == 0 {
 //         return Ok(sqrt_price);
 //     }

@@ -1,10 +1,7 @@
-use normal::{
-    constants::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
-    error::{ErrorCode, NormalResult},
-};
-use soroban_sdk::{contracttype, Address, Env, Vec};
+use normal::constants::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD};
+use soroban_sdk::{contracttype, panic_with_error, Address, Env, Vec};
 
-use crate::math::tick_math::FULL_RANGE_ONLY_TICK_SPACING_THRESHOLD;
+use crate::{errors::Errors, math::tick_math::FULL_RANGE_ONLY_TICK_SPACING_THRESHOLD};
 
 use super::{pool::Pool, reward::LiquidityPositionRewardInfo, tick::Tick};
 
@@ -60,15 +57,16 @@ impl LiquidityPosition {
 
     pub fn open_position(
         &mut self,
+        env: &Env,
         pool: &Pool,
         tick_lower_index: i32,
         tick_upper_index: i32,
-    ) -> Result<(), ErrorCode> {
+    ) {
         if !Tick::check_is_usable_tick(tick_lower_index, pool.tick_spacing)
             || !Tick::check_is_usable_tick(tick_upper_index, pool.tick_spacing)
             || tick_lower_index >= tick_upper_index
         {
-            return Err(ErrorCode::InvalidTickIndex);
+            panic_with_error!(env, Errors::InvalidTickIndex);
         }
 
         // On tick spacing >= 2^15, should only be able to open full range positions
@@ -78,14 +76,12 @@ impl LiquidityPosition {
             if tick_lower_index != full_range_lower_index
                 || tick_upper_index != full_range_upper_index
             {
-                return Err(ErrorCode::FullRangeOnlyPool);
+                panic_with_error!(env, Errors::FullRangeOnlyPool);
             }
         }
 
         self.tick_lower_index = tick_lower_index;
         self.tick_upper_index = tick_upper_index;
-
-        Ok(())
     }
 
     pub fn reset_fees_owed(&mut self) {
@@ -144,14 +140,14 @@ pub fn get_liquidity_position_by_ts(
     env: &Env,
     key: &Address,
     ts: u64,
-) -> NormalResult<LiquidityPosition> {
+) -> LiquidityPosition {
     let position = get_liquidity_position_info(env, key);
     let target_position = match position.positions.iter().find(|p| p.position_ts == ts) {
         Some(p) => p,
         None => {
-            return Err(ErrorCode::AdminNotSet);
+            panic_with_error!(env, Errors::AdminNotSet);
         }
     };
 
-    Ok(target_position)
+    target_position
 }

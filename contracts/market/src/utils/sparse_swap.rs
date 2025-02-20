@@ -134,7 +134,7 @@ impl SparseSwapTickSequenceBuilder {
         a_to_b: bool,
         static_tick_array_account_infos: Vec<TickArrayAccount>,
         supplemental_tick_array_account_infos: Option<Vec<TickArrayAccount>>,
-    ) -> NormalResult<Self> {
+    ) -> Self {
         let mut tick_array_account_infos = static_tick_array_account_infos;
         if let Some(supplemental_tick_array_account_infos) = supplemental_tick_array_account_infos {
             tick_array_account_infos.extend(supplemental_tick_array_account_infos);
@@ -221,12 +221,12 @@ impl SparseSwapTickSequenceBuilder {
             return Err(crate::errors::PoolErrors::InvalidTickArraySequence);
         }
 
-        Ok(Self {
+        Self {
             tick_array_accounts,
-        })
+        }
     }
 
-    pub fn build(&self, env: &Env) -> NormalResult<SwapTickSequence> {
+    pub fn build(&self, env: &Env) -> SwapTickSequence {
         // let mut proxied_tick_arrays = VecDeque::with_capacity(3);
         let mut proxied_tick_arrays = VecDeque::new(env);
 
@@ -258,12 +258,12 @@ impl SparseSwapTickSequenceBuilder {
             }
         }
 
-        Ok(SwapTickSequence::new_with_proxy(
+        SwapTickSequence::new_with_proxy(
             env,
             proxied_tick_arrays.pop_front().unwrap(),
             proxied_tick_arrays.pop_front(),
             proxied_tick_arrays.pop_front(),
-        ))
+        )
     }
 }
 

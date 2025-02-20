@@ -233,9 +233,6 @@ pub struct Market {
     pub insurance: Address,
     /// The market's claim on the insurance fund
     pub insurance_claim: InsuranceClaim,
-    /// The total socialized loss from borrows, in the mint's token
-    /// precision: token mint precision
-    pub total_gov_token_inflation: u128,
 
     // Unbacked synthetic tokens (result of collateral auction deficits)
     pub protocol_debt: u64,

@@ -12,8 +12,7 @@ pub enum DataKey {
     InsuranceFund = 1,
     Buffer = 2,
     Admin = 3,
-    Governor = 4,
-    Initialized = 5,
+    Initialized = 4,
 }
 
 // ################################################################
@@ -130,16 +129,8 @@ pub struct Auction {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Buffer {
-    pub governance_token: Address,
-    pub governance_token_pool: Address, // DEX pool - Aquarius pool router: CBQDHNBFBZYE4MKPWBSJOPIYLW4SFSXAXUTSXJN76GNKYVYPCKWC6QUK
     pub quote_token: Address,
-    // Auction
-    pub auctions: Vec<Auction>,
-    pub min_auction_duration: u64,
-    // other
     pub max_balance: i128,
-    pub total_burns: i128,
-    pub total_mints: i128,
 }
 
 impl Buffer {}
@@ -297,16 +288,6 @@ pub mod utils {
         }
     }
 
-    pub fn is_governor(_env: &Env, _sender: Address) {
-        // let factory_client = index_factory_contract::Client::new(&env, &read_factory(&env));
-        // let config = factory_client.query_config();
-
-        // if config.governor != sender {
-        //     log!(&env, "Index Token: You are not authorized!");
-        //     panic_with_error!(&env, ErrorCode::NotAuthorized);
-        // }
-    }
-
     pub fn is_admin(env: &Env, sender: Address) {
         let admin = get_admin(env);
         if admin != sender {
@@ -349,38 +330,17 @@ pub mod utils {
         admin
     }
 
-    pub fn save_governor(e: &Env, address: &Address) {
-        e.storage().persistent().set(&DataKey::Governor, address);
-        e.storage().persistent().extend_ttl(
-            &DataKey::Governor,
-            PERSISTENT_LIFETIME_THRESHOLD,
-            PERSISTENT_BUMP_AMOUNT,
-        );
-    }
-
-    pub fn get_governor(e: &Env) -> Address {
-        let governor = e.storage().persistent().get(&DataKey::Governor).unwrap();
-        e.storage().persistent().extend_ttl(
-            &DataKey::Governor,
-            PERSISTENT_LIFETIME_THRESHOLD,
-            PERSISTENT_BUMP_AMOUNT,
-        );
-
-        governor
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub fn deploy_token_contract(
         env: &Env,
         token_wasm_hash: BytesN<32>,
-        governor: &Address,
         admin: Address,
         decimals: u32,
         name: String,
         symbol: String,
     ) -> Address {
         let mut salt = Bytes::new(env);
-        salt.append(&governor.clone().to_xdr(env));
+        // salt.append(&governor.clone().to_xdr(env));
         let salt = env.crypto().sha256(&salt);
         env.deployer()
             .with_current_contract(salt)

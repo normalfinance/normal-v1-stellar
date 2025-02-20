@@ -36,7 +36,6 @@ pub const SIXTY_DAYS: u64 = 60 * ONE_DAY;
 pub fn deploy_insurance_contract<'a>(
     env: &Env,
     admin: &Address,
-    governor_contract: &Address,
     deposit_token: &Address,
 ) -> InsuranceClient<'a> {
     let insurance = InsuranceClient::new(env, &env.register(Insurance, ()));
@@ -45,7 +44,6 @@ pub fn deploy_insurance_contract<'a>(
 
     insurance.initialize(
         &admin,
-        &governor_contract,
         deposit_token,
         &token_wasm_hash,
         &10u32,

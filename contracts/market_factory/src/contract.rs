@@ -34,7 +34,6 @@ impl MarketFactoryTrait for MarketFactory {
     fn initialize(
         env: Env,
         admin: Address,
-        governor: Address,
         insurance: Address,
         market_wasm_hash: BytesN<32>,
         token_wasm_hash: BytesN<32>,
@@ -53,7 +52,6 @@ impl MarketFactoryTrait for MarketFactory {
             &env,
             MarketFactoryConfig {
                 admin: admin.clone(),
-                governor: governor.clone(),
                 insurance: insurance.clone(),
                 market_wasm_hash,
                 token_wasm_hash,

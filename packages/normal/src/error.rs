@@ -21,5 +21,3 @@ pub enum ErrorCode {
     FailedUnwrap = 19,
     InsufficientFunds = 20,
 }
-
-pub type NormalResult<T = ()> = core::result::Result<T, ErrorCode>;
